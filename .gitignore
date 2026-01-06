@@ -1,0 +1,7 @@
+# LaTeX
+*.aux
+*.log
+*.synctex.gz
+*.pdf
+
+reference
