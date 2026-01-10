@@ -1,0 +1,67 @@
+% !TeX root = main.tex
+
+\section{Targeted Inference with Nuisance Parameters}
+\label{sec:nuisance}
+
+We extend the sequential contrastive estimation framework to handle nuisance parameters—parameters that must be modeled but are not the focus of inference.
+
+\subsection{Notation}
+
+Partition parameters as $\theta = (\theta_T, \theta_N)$ where $\theta_T$ are targets of interest and $\theta_N$ are nuisance parameters. The prior is $p(\theta) = p(\theta_T, \theta_N)$ with conditional $p(\theta_N|\theta_T)$.
+
+The \emph{targeted expected information gain} is:
+\begin{equation}
+\mathcal{I}_K^{\text{tgt}}(\pi) = I(\theta_T; h_K | \pi) = \E_{p(\theta)p(h_K|\theta,\pi)}\left[\log \frac{p(h_K|\theta_T,\pi)}{p(h_K|\pi)}\right]
+\end{equation}
+where the marginal likelihood is $p(h_K|\theta_T,\pi) = \int p(h_K|\theta_T, \theta_N, \pi) p(\theta_N|\theta_T) \, d\theta_N$.
+
+\subsection{Practical Nested Monte Carlo Objective}
+
+Since $p(h_K|\theta_T,\pi)$ is intractable, we use Monte Carlo estimation with:
+\begin{itemize}
+    \item \textbf{Numerator}: $M$ samples $\theta_N^{(1:M)} \sim p(\theta_N|\theta_{T,0})$ to estimate $p(h_K|\theta_{T,0},\pi)$
+    \item \textbf{Denominator}: $L$ contrastive samples $\theta_{1:L} \sim p(\theta)$ (full parameter vectors) to estimate $p(h_K|\pi)$
+\end{itemize}
+
+\begin{theorem}[Targeted sPCE Lower Bound]
+\label{thm:targeted_spce}
+Let $\theta_0 = (\theta_{T,0}, \theta_{N,0}) \sim p(\theta)$ generate $h_K \sim p(h_K|\theta_0, \pi)$. Let $\theta_{1:L} \sim p(\theta)$ be independent contrastive samples, and $\theta_N^{(1:M)} \sim p(\theta_N|\theta_{T,0})$ be nuisance samples. Define
+\begin{equation}
+\hat{\mathcal{L}}_K^{\text{tgt}}(\pi, L, M) = \E\left[\log \frac{\frac{1}{M}\sum_{m=1}^{M} p(h_K|\theta_{T,0}, \theta_N^{(m)}, \pi)}{\frac{1}{L+1}\sum_{\ell=0}^{L} p(h_K|\theta_\ell, \pi)}\right].
+\end{equation}
+Then $\hat{\mathcal{L}}_K^{\text{tgt}}(\pi, L, M) \leq \mathcal{I}_K^{\text{tgt}}(\pi)$, with $\hat{\mathcal{L}}_K^{\text{tgt}} \to \mathcal{I}_K^{\text{tgt}}$ as $L, M \to \infty$.
+\end{theorem}
+
+\begin{proof}
+Define:
+\begin{align}
+A &= \frac{1}{M}\sum_{m=1}^{M} p(h_K|\theta_{T,0}, \theta_N^{(m)}, \pi) & &\text{(estimator of } p(h_K|\theta_{T,0},\pi)\text{)} \\
+B &= \frac{1}{L+1}\sum_{\ell=0}^{L} p(h_K|\theta_\ell, \pi) & &\text{(estimator of } p(h_K|\pi)\text{, includes } \theta_0\text{)}
+\end{align}
+
+The gap between the true objective and the practical bound is:
+\begin{align}
+\mathcal{I}_K^{\text{tgt}} - \hat{\mathcal{L}}_K^{\text{tgt}} &= \E\left[\log \frac{p(h_K|\theta_{T,0},\pi)}{p(h_K|\pi)} - \log \frac{A}{B}\right] \\
+&= \E\left[\log \frac{p(h_K|\theta_{T,0},\pi)}{A}\right] + \E\left[\log \frac{B}{p(h_K|\pi)}\right]
+\end{align}
+
+\textbf{Term 1 (Nuisance marginalization gap):} Since $A$ is an unbiased estimator of $p(h_K|\theta_{T,0},\pi)$ and $\log$ is concave, by Jensen's inequality:
+\begin{equation}
+\E[\log A] \leq \log \E[A] = \log p(h_K|\theta_{T,0},\pi)
+\end{equation}
+Therefore $\E[\log(p(h_K|\theta_{T,0},\pi)/A)] = \log p(h_K|\theta_{T,0},\pi) - \E[\log A] \geq 0$.
+
+\textbf{Term 2 (Standard sPCE gap):} This is exactly the gap analyzed in Foster et al.~\cite{foster2021}. Using the symmetry of $\theta_0$ being included in the denominator sum and a change of measure argument, this equals:
+\begin{equation}
+\E_{p(h_K|\pi)}\left[\text{KL}\left(\tilde{p}(\theta_{0:L}|h_K) \,\|\, p(\theta_{0:L})\right)\right] \geq 0
+\end{equation}
+where $\tilde{p}$ is a mixture distribution (see~\cite{foster2021} for details).
+
+Since both terms are non-negative: $\hat{\mathcal{L}}_K^{\text{tgt}} \leq \mathcal{I}_K^{\text{tgt}}$.
+
+\textbf{Convergence:} As $M \to \infty$, $A \to p(h_K|\theta_{T,0},\pi)$ a.s.\ by SLLN, so Term 1 $\to 0$. As $L \to \infty$, Term 2 $\to 0$ at rate $\mathcal{O}(L^{-1})$ by the standard sPCE analysis.
+\end{proof}
+
+\begin{remark}
+The practical objective requires evaluating $p(h_K|\theta, \pi)$ for $(1+L) + M$ parameter settings per training iteration: $L+1$ full samples for the denominator, plus $M$ nuisance samples for the numerator (all sharing the same $\theta_{T,0}$).
+\end{remark}
