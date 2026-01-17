@@ -104,8 +104,7 @@ const σ_lo, σ_hi = 0.05f0, 0.15f0  # Nuisance: measurement noise std
 function targeted_spce_loss(model, ps, st, data)
     # θ_full: (3, L+1) - full parameter samples [μ_max, K_s, σ]
     # θ_N_numer: (M,) - nuisance samples for numerator
-    θ_full, θ_N_numer, u0, input_buffer, observations, designs, ε,
-        log_likes_denom, log_likes_numer = data
+    θ_full, θ_N_numer, u0, input_buffer, observations, designs, ε, ll_denom = data
 
     # Extract true parameters (first sample) - keep as arrays for Reactant tracing
     # Use permutedims instead of ' to avoid Adjoint wrapper
@@ -152,7 +151,6 @@ function targeted_spce_loss(model, ps, st, data)
     σ²_denom = vec(θ_full[3:3, :]) .^ 2              # (n_denom,)
 
     u_denom = repeat(reshape(u0, 1, 3), n_denom, 1)  # (n_denom, 3)
-    ll_denom = zeros(Float32, n_denom)   # (n_denom,) - accumulate log-likelihoods
 
     for step in 1:N_STEPS
         d = @allowscalar designs[step]
@@ -236,12 +234,11 @@ function train_policy(model, ps, st, rng; n_iters = 50)
         observations = zeros(Float32, N_STEPS) |> xdev
         designs = zeros(Float32, N_STEPS) |> xdev
         ε = randn(rng, Float32, N_STEPS) |> xdev
-        log_likes_denom = zeros(Float32, L_CONTRASTIVE + 1) |> xdev
-        log_likes_numer = zeros(Float32, M_NUISANCE) |> xdev
+        n_denom = L_CONTRASTIVE + 1
+        ll_denom = zeros(Float32, n_denom) |> xdev   # (n_denom,) - accumulate log-likelihoods
 
         data = (
-            θ_full, θ_N_numer, u0, input_buffer, observations, designs, ε,
-            log_likes_denom, log_likes_numer,
+            θ_full, θ_N_numer, u0, input_buffer, observations, designs, ε, ll_denom
         )
 
         _, loss, _, train_state = Lux.Training.single_train_step!(
