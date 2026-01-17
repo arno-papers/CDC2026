@@ -23,16 +23,19 @@ function train_policy_profiled(model, ps, st, rng; n_iters=20, profile_dir="./tr
     
     Reactant.with_profiler(profile_dir) do
         for iteration in 1:n_iters
-            θ_samples = sample_θ(rng, N_SAMPLES) |> xdev
+            θ_full = sample_θ_full(rng, L_CONTRASTIVE + 1) |> xdev
+            θ_N_numer = sample_θ_N(rng, M_NUISANCE) |> xdev
             u0 = Float32[3.0, 0.25, 7.0] |> xdev
             input_buffer = zeros(Float32, 2, N_STEPS, 1) |> xdev
             observations = zeros(Float32, N_STEPS) |> xdev
             designs = zeros(Float32, N_STEPS) |> xdev
-            
-            data = (θ_samples, u0, input_buffer, observations, designs)
-            
+            ε = randn(rng, Float32, N_STEPS) |> xdev
+            ll_denom = zeros(Float32, L_CONTRASTIVE + 1) |> xdev
+
+            data = (θ_full, θ_N_numer, u0, input_buffer, observations, designs, ε, ll_denom)
+
             _, loss, _, train_state = Lux.Training.single_train_step!(
-                AutoEnzyme(), spce_loss, data, train_state; return_gradients=Val(false)
+                AutoEnzyme(), targeted_spce_loss, data, train_state; return_gradients=Val(false)
             )
             
             @printf("Iter: [%4d/%4d]\tLoss: %.8f\n", iteration, n_iters, loss)
