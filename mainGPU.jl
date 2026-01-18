@@ -14,6 +14,7 @@ Does not run on Julia 1.12
 =#
 
 using Lux, Reactant, Random
+using Reactant: @trace
 using Optimisers
 using Printf
 
@@ -43,6 +44,15 @@ function rk4_step(u, θ, Q_in, dt)
     k3 = bioreactor_dynamics(u .+ 0.5f0 * dt .* k2, θ, Q_in)
     k4 = bioreactor_dynamics(u .+ dt .* k3, θ, Q_in)
     return u .+ (dt / 6.0f0) .* (k1 .+ 2.0f0 .* k2 .+ 2.0f0 .* k3 .+ k4)
+end
+
+function integrate(u, θ, Q_in, dt, n_substeps)
+    u = u .+ 0  # Materialize any lazy wrappers (ReshapedArray -> concrete array)
+    dt_sub = dt / n_substeps
+    @trace for _ in 1:n_substeps
+        u = rk4_step(u, θ, Q_in, dt_sub)
+    end
+    return u
 end
 
 # ============================================================================
@@ -92,9 +102,11 @@ end
 #  Denominator: average over L+1 full θ samples
 # ============================================================================
 
-const N_STEPS = 5
-const L_CONTRASTIVE = 10    # Contrastive samples for denominator
-const M_NUISANCE = 5        # Nuisance samples for numerator
+const N_STEPS = 10
+const DT = 1.0f0            # Total time per control interval
+const N_SUBSTEPS = 500      # Integration substeps per control interval
+const L_CONTRASTIVE = 256   # Contrastive samples for denominator
+const M_NUISANCE = 128      # Nuisance samples for numerator
 
 # Prior bounds
 const μ_max_lo, μ_max_hi = 0.3f0, 0.5f0
@@ -123,7 +135,7 @@ function targeted_spce_loss(model, ps, st, data)
             designs
         end
 
-        u = rk4_step(u, θ_T_true, Q_in, 1.0f0)
+        u = integrate(u, θ_T_true, Q_in, DT, N_SUBSTEPS)
 
         # Noisy observation: y = C_s + σ_true * ε
         obs = u[1:1, 1:1]                # (1, 1) array
@@ -154,7 +166,7 @@ function targeted_spce_loss(model, ps, st, data)
 
     for step in 1:N_STEPS
         d = @allowscalar designs[step]
-        u_denom = rk4_step(u_denom, θ_T_denom, d, 1.0f0)
+        u_denom = integrate(u_denom, θ_T_denom, d, DT, N_SUBSTEPS)
         pred_obs = u_denom[:, 1]                              # (n_denom,)
         actual_obs = @allowscalar observations[step]          # scalar
         residual = actual_obs .- pred_obs
@@ -171,7 +183,7 @@ function targeted_spce_loss(model, ps, st, data)
 
     for step in 1:N_STEPS
         d = @allowscalar designs[step]
-        u_numer = rk4_step(u_numer, θ_T_true, d, 1.0f0)
+        u_numer = integrate(u_numer, θ_T_true, d, DT, N_SUBSTEPS)
         pred_obs = u_numer[1:1, 1:1]                 # (1, 1) array
         actual_obs = observations[step:step]         # (1,) array
         residual² = (actual_obs .- pred_obs) .^ 2    # (1, 1) array
@@ -220,6 +232,7 @@ end
 
 function train_policy(model, ps, st, rng; n_iters = 50)
     train_state = Lux.Training.TrainState(model, ps, st, Adam(0.001f0))
+    loss_history = Float32[]
 
     for iteration in 1:n_iters
         # θ_full: L+1 full samples (first generates data, all used in denominator)
@@ -244,13 +257,14 @@ function train_policy(model, ps, st, rng; n_iters = 50)
         _, loss, _, train_state = Lux.Training.single_train_step!(
             AutoEnzyme(), targeted_spce_loss, data, train_state
         )
+        push!(loss_history, loss)
 
         if iteration % 10 == 0 || iteration == 1
             @printf("Iter: [%4d/%4d]\tTargeted sPCE Loss: %.8f\n", iteration, n_iters, loss)
         end
     end
 
-    return train_state
+    return train_state, loss_history
 end
 
 # ============================================================================
@@ -271,6 +285,6 @@ ps_ra = ps |> xdev
 st_ra = st |> xdev
 
 println("Starting training...")
-train_state = train_policy(policy, ps_ra, st_ra, rng)
+train_state, loss_history = train_policy(policy, ps_ra, st_ra, rng; n_iters=1000)
 
 println("\n✓ Targeted DADS training complete!")
