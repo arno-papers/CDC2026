@@ -1,24 +1,14 @@
-#=
-DADS - Deep Adaptive Design with Targeted sPCE (GPU version with Reactant + Enzyme)
-
-Fed-batch bioreactor with uncertain Monod kinetics.
-Supports nuisance parameters (measurement noise σ) with targeted inference on (μ_max, K_s).
-
-Uses Reactant for XLA compilation and Enzyme for automatic differentiation on GPU.
-
-See:
-- https://ae-foster.github.io/posts/2022/05/20/brl.html
-- https://arnostrouwen.com/posts/dynamic-experimental-design/
-
-Does not run on Julia 1.12
-=#
+# ============================================================================
+# Common definitions for DADS experiments.
+#
+# This file is meant to be `include`d by scripts (e.g. `training.jl`,
+# `profiler.jl`). It should not execute training as a side-effect.
+# ============================================================================
 
 using Lux, Reactant, Random
 using Reactant: @trace
 using Optimisers
 using Printf
-
-Reactant.set_default_backend("gpu")
 
 # ============================================================================
 #  Bioreactor Dynamics
@@ -50,6 +40,14 @@ function integrate(u, θ, Q_in, dt, n_substeps)
     u = u .+ 0  # Materialize any lazy wrappers (ReshapedArray -> concrete array)
     dt_sub = dt / n_substeps
     @trace for _ in 1:n_substeps
+        u = rk4_step(u, θ, Q_in, dt_sub)
+    end
+    return u
+end
+
+function integrate_cpu(u, θ, Q_in, dt, n_substeps)
+    dt_sub = dt / n_substeps
+    for _ in 1:n_substeps
         u = rk4_step(u, θ, Q_in, dt_sub)
     end
     return u
@@ -113,10 +111,18 @@ const μ_max_lo, μ_max_hi = 0.3f0, 0.5f0
 const K_s_lo, K_s_hi = 0.3f0, 0.6f0
 const σ_lo, σ_hi = 0.05f0, 0.15f0  # Nuisance: measurement noise std
 
+# ASCII aliases (useful for scripts / CLI usage)
+const mu_max_lo, mu_max_hi = μ_max_lo, μ_max_hi
+const sigma_lo, sigma_hi = σ_lo, σ_hi
+
 function targeted_spce_loss(model, ps, st, data)
     # θ_full: (3, L+1) - full parameter samples [μ_max, K_s, σ]
     # θ_N_numer: (M,) - nuisance samples for numerator
-    θ_full, θ_N_numer, u0, input_buffer, observations, designs, ε, ll_denom = data
+    θ_full, θ_N_numer, u0, input_buffer, observations, designs, ε, ll_denom, ll_numer = data
+
+    # Ensure accumulators start at zero (keeps allocation device-safe)
+    ll_denom = ll_denom .* 0.0f0
+    ll_numer = ll_numer .* 0.0f0
 
     # Extract true parameters (first sample) - keep as arrays for Reactant tracing
     # Use permutedims instead of ' to avoid Adjoint wrapper
@@ -179,7 +185,6 @@ function targeted_spce_loss(model, ps, st, data)
     # ========================================================================
     σ²_numer = θ_N_numer .^ 2                        # (M,)
     u_numer = reshape(u0, 1, 3)                      # (1, 3) - single simulation
-    ll_numer = zeros(Float32, M_NUISANCE)            # (M,)
 
     for step in 1:N_STEPS
         d = @allowscalar designs[step]
@@ -230,7 +235,7 @@ end
 #  Training
 # ============================================================================
 
-function train_policy(model, ps, st, rng; n_iters = 50)
+function train_policy(model, ps, st, rng; xdev = identity, n_iters = 50)
     train_state = Lux.Training.TrainState(model, ps, st, Adam(0.001f0))
     loss_history = Float32[]
 
@@ -249,10 +254,9 @@ function train_policy(model, ps, st, rng; n_iters = 50)
         ε = randn(rng, Float32, N_STEPS) |> xdev
         n_denom = L_CONTRASTIVE + 1
         ll_denom = zeros(Float32, n_denom) |> xdev   # (n_denom,) - accumulate log-likelihoods
+        ll_numer = zeros(Float32, M_NUISANCE) |> xdev
 
-        data = (
-            θ_full, θ_N_numer, u0, input_buffer, observations, designs, ε, ll_denom
-        )
+        data = (θ_full, θ_N_numer, u0, input_buffer, observations, designs, ε, ll_denom, ll_numer)
 
         _, loss, _, train_state = Lux.Training.single_train_step!(
             AutoEnzyme(), targeted_spce_loss, data, train_state
@@ -266,25 +270,3 @@ function train_policy(model, ps, st, rng; n_iters = 50)
 
     return train_state, loss_history
 end
-
-# ============================================================================
-#  Setup and run
-# ============================================================================
-
-println("\n=== Targeted DADS Training (GPU with Reactant + Enzyme) ===")
-println("Target params: (μ_max, K_s), Nuisance: σ_measure")
-println("L = $L_CONTRASTIVE contrastive, M = $M_NUISANCE nuisance samples\n")
-
-const rng = Random.default_rng()
-ps, st = Lux.setup(rng, policy)
-
-const xdev = reactant_device()
-println("Using device: ", xdev)
-
-ps_ra = ps |> xdev
-st_ra = st |> xdev
-
-println("Starting training...")
-train_state, loss_history = train_policy(policy, ps_ra, st_ra, rng; n_iters=1000)
-
-println("\n✓ Targeted DADS training complete!")
