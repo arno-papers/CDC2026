@@ -45,11 +45,15 @@ The gap between the true objective and the practical bound is:
 &= \E\left[\log \frac{p(h_K|\theta_{T,0},\pi)}{A}\right] + \E\left[\log \frac{B}{p(h_K|\pi)}\right]
 \end{align}
 
-\textbf{Term 1 (Nuisance marginalization gap):} Since $A$ is an unbiased estimator of $p(h_K|\theta_{T,0},\pi)$ and $\log$ is concave, by Jensen's inequality:
+\textbf{Term 1 (Nuisance marginalization gap):} Condition on the realized $(\theta_{T,0}, h_K)$. Since $\theta_N^{(1:M)} \overset{\text{i.i.d.}}{\sim} p(\theta_N|\theta_{T,0})$,
 \begin{equation}
-\E[\log A] \leq \log \E[A] = \log p(h_K|\theta_{T,0},\pi)
+\E[A \mid \theta_{T,0}, h_K] = \int p(h_K|\theta_{T,0},\theta_N,\pi)\,p(\theta_N|\theta_{T,0})\,d\theta_N = p(h_K|\theta_{T,0},\pi).
 \end{equation}
-Therefore $\E[\log(p(h_K|\theta_{T,0},\pi)/A)] = \log p(h_K|\theta_{T,0},\pi) - \E[\log A] \geq 0$.
+Since $\log$ is concave, Jensen's inequality gives
+\begin{equation}
+\E[\log A \mid \theta_{T,0}, h_K] \leq \log \E[A \mid \theta_{T,0}, h_K] = \log p(h_K|\theta_{T,0},\pi),
+\end{equation}
+and hence $\E[\log(p(h_K|\theta_{T,0},\pi)/A) \mid \theta_{T,0}, h_K] \geq 0$. Taking expectations over $(\theta_{T,0}, h_K)$ yields $\E[\log(p(h_K|\theta_{T,0},\pi)/A)] \geq 0$.
 
 \textbf{Term 2 (Standard sPCE gap):} This is exactly the gap analyzed in Foster et al.~\cite{foster2021}. Using the symmetry of $\theta_0$ being included in the denominator sum and a change of measure argument, this equals:
 \begin{equation}
@@ -59,7 +63,12 @@ where $\tilde{p}$ is a mixture distribution (see~\cite{foster2021} for details).
 
 Since both terms are non-negative: $\hat{\mathcal{L}}_K^{\text{tgt}} \leq \mathcal{I}_K^{\text{tgt}}$.
 
-\textbf{Convergence:} As $M \to \infty$, $A \to p(h_K|\theta_{T,0},\pi)$ a.s.\ by SLLN, so Term 1 $\to 0$. As $L \to \infty$, Term 2 $\to 0$ at rate $\mathcal{O}(L^{-1})$ by the standard sPCE analysis.
+\textbf{Convergence:} Assume there exist constants $0<\kappa_{1,N} \le \kappa_{2,N}<\infty$ and $0<\kappa_1 \le \kappa_2<\infty$ such that
+\begin{align}
+\kappa_{1,N} \le \frac{p(h_K|\theta_T,\theta_N,\pi)}{p(h_K|\theta_T,\pi)} \le \kappa_{2,N} && \forall\,\theta_T,\theta_N,h_K, \\
+\kappa_1 \le \frac{p(h_K|\theta,\pi)}{p(h_K|\pi)} \le \kappa_2 && \forall\,\theta,h_K,
+\end{align}
+as in the standard sPCE analysis~\cite{foster2021}. Then the log-ratios in Term 1 and Term 2 are bounded. By the Strong Law of Large Numbers, $A \to p(h_K|\theta_{T,0},\pi)$ and $B \to p(h_K|\pi)$ almost surely as $M,L\to\infty$, and the Bounded Convergence Theorem yields Term 1 $\to 0$ and Term 2 $\to 0$; moreover Term 2 decreases at rate $\mathcal{O}(L^{-1})$.
 \end{proof}
 
 \begin{remark}
