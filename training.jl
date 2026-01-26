@@ -28,13 +28,19 @@ if abspath(PROGRAM_FILE) == @__FILE__
     plotting = parse_bool(ARGS, "plotting"; default=false)
     n_iters = parse_int(ARGS, "n_iters"; default=1000)
     seed = parse_int(ARGS, "seed"; default=0)
+    loss_png_every = parse_int(ARGS, "loss_png_every"; default=10)
+
+    loss_png_every = loss_png_every < 1 ? 10 : loss_png_every
+
+    using Plots
 
     Reactant.set_default_backend("gpu")
 
     println("\n=== Targeted DADS Training (Reactant + Enzyme) ===")
     println("Target params: (mu_max, K_s), Nuisance: sigma_measure")
-    println("L = $L_CONTRASTIVE contrastive, M = $M_NUISANCE nuisance samples")
-    println("n_iters = $n_iters, plotting = $plotting\n")
+    println("L = $L_CONTRASTIVE contrastive, M = $M_NUISANCE nuisance samples, B = $GRAD_BATCH grad batch")
+    println("n_iters = $n_iters, plotting = $plotting")
+    println("loss_png_every = $loss_png_every\n")
 
     rng = Random.MersenneTwister(seed)
     ps, st = Lux.setup(rng, policy)
@@ -45,8 +51,26 @@ if abspath(PROGRAM_FILE) == @__FILE__
     ps_ra = ps |> xdev
     st_ra = st |> xdev
 
+    on_iteration = (iter, _loss, loss_history, _) -> begin
+        if iter % loss_png_every == 0 || iter == 1 || iter == n_iters
+            p = Plots.plot(loss_history;
+                xlabel = "Iteration",
+                ylabel = "Targeted sPCE Loss",
+                title = "Training Loss",
+                label = "loss",
+                linewidth = 2,
+            )
+            Plots.savefig(p, "plot_loss_live.png")
+        end
+    end
+
     println("Starting training...")
-    train_state, loss_history = train_policy(policy, ps_ra, st_ra, rng; xdev=xdev, n_iters=n_iters)
+    train_state, loss_history = train_policy(
+        policy, ps_ra, st_ra, rng;
+        xdev = xdev,
+        n_iters = n_iters,
+        on_iteration = on_iteration,
+    )
     println("\nTraining complete.")
 
     if plotting

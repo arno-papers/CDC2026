@@ -15,17 +15,24 @@ using Printf
 # ============================================================================
 
 function bioreactor_dynamics(u, θ, Q_in)
-    C_s = u[:, 1]
-    C_x = u[:, 2]
-    V = u[:, 3]
-    μ_max = θ[:, 1]
-    K_s = θ[:, 2]
+    # Layout: (state_dim, ...batch_dims)
+    # Keep the batch dimensions intact (e.g. (3, B) or (3, n_denom, B)).
+    C_s = selectdim(u, 1, 1)
+    C_x = selectdim(u, 1, 2)
+    V = selectdim(u, 1, 3)
+    μ_max = selectdim(θ, 1, 1)
+    K_s = selectdim(θ, 1, 2)
     μ = @. μ_max * C_s / (K_s + C_s)
     σ = @. μ / 0.777f0
-    du1 = @. -σ * C_x + Q_in / V * (50.0f0 - C_s)
-    du2 = @. μ * C_x - Q_in / V * C_x
-    du3 = fill(Q_in, size(u, 1))
-    return [du1 du2 du3]
+    du1 = @. -σ * C_x + (Q_in ./ V) * (50.0f0 - C_s)
+    du2 = @. μ * C_x - (Q_in ./ V) * C_x
+    du3 = @. 0.0f0 * V + Q_in
+
+    du = similar(u)
+    selectdim(du, 1, 1) .= du1
+    selectdim(du, 1, 2) .= du2
+    selectdim(du, 1, 3) .= du3
+    return du
 end
 
 function rk4_step(u, θ, Q_in, dt)
@@ -37,7 +44,6 @@ function rk4_step(u, θ, Q_in, dt)
 end
 
 function integrate(u, θ, Q_in, dt, n_substeps)
-    u = u .+ 0  # Materialize any lazy wrappers (ReshapedArray -> concrete array)
     dt_sub = dt / n_substeps
     @trace for _ in 1:n_substeps
         u = rk4_step(u, θ, Q_in, dt_sub)
@@ -105,6 +111,7 @@ const DT = 1.0f0            # Total time per control interval
 const N_SUBSTEPS = 500      # Integration substeps per control interval
 const L_CONTRASTIVE = 256   # Contrastive samples for denominator
 const M_NUISANCE = 128      # Nuisance samples for numerator
+const GRAD_BATCH = 16       # Gradient minibatch (episodes) per update
 
 # Prior bounds
 const μ_max_lo, μ_max_hi = 0.3f0, 0.5f0
@@ -116,98 +123,90 @@ const mu_max_lo, mu_max_hi = μ_max_lo, μ_max_hi
 const sigma_lo, sigma_hi = σ_lo, σ_hi
 
 function targeted_spce_loss(model, ps, st, data)
-    # θ_full: (3, L+1) - full parameter samples [μ_max, K_s, σ]
-    # θ_N_numer: (M,) - nuisance samples for numerator
+    # Batch layout (episode minibatch size B = GRAD_BATCH)
+    # θ_full: (3, L+1, B) - full parameter samples [μ_max, K_s, σ]
+    # θ_N_numer: (M, B) - nuisance samples for numerator
     θ_full, θ_N_numer, u0, input_buffer, observations, designs, ε, ll_denom, ll_numer = data
 
     # Ensure accumulators start at zero (keeps allocation device-safe)
-    ll_denom = ll_denom .* 0.0f0
-    ll_numer = ll_numer .* 0.0f0
+    ll_denom .= 0.0f0
+    ll_numer .= 0.0f0
 
-    # Extract true parameters (first sample) - keep as arrays for Reactant tracing
-    # Use permutedims instead of ' to avoid Adjoint wrapper
-    θ_T_true = permutedims(θ_full[1:2, 1:1], (2, 1))  # (1, 2)
-    σ_true = θ_full[3:3, 1:1]                         # (1, 1) array - NO scalar indexing
+    # True parameters per episode (first contrastive sample)
+    θ_T_true = θ_full[1:2, 1:1, :]   # (2, 1, B)
+    σ_true = θ_full[3, 1, :]         # (B,)
 
-    u = reshape(u0, 1, 3)                # (1, 3) - batch of 1
+    B = GRAD_BATCH
+    u = repeat(u0, 1, 1, B)  # (3, 1, B)
 
-    # Rollout with true θ
+    # Rollout with true θ (B episodes in parallel)
     for step in 1:N_STEPS
         action, st = model(input_buffer, ps, st)
-        Q_in = @allowscalar action[1]
-
-        designs = @allowscalar begin
-            designs[step] = Q_in
-            designs
-        end
+        Q_in = action                              # (1, B)
+        designs[step, :] .= Q_in[1, :]
 
         u = integrate(u, θ_T_true, Q_in, DT, N_SUBSTEPS)
 
         # Noisy observation: y = C_s + σ_true * ε
-        obs = u[1:1, 1:1]                # (1, 1) array
-        noise = ε[step:step]             # (1,) array
-        y_noisy = obs .+ σ_true .* noise # broadcast - result is (1, 1)
+        obs = u[1, 1, :]                             # (B,)
+        noise = ε[step, :]                           # (B,)
+        y_noisy = obs .+ σ_true .* noise             # (B,)
 
-        y_scalar = @allowscalar y_noisy[1]
-        observations = @allowscalar begin
-            observations[step] = y_scalar
-            observations
-        end
-
-        input_buffer = @allowscalar begin
-            input_buffer[1, step, 1] = y_scalar
-            input_buffer[2, step, 1] = Q_in
-            input_buffer
-        end
+        observations[step, :] .= y_noisy
+        input_buffer[1, step, :] .= y_noisy
+        input_buffer[2, step, :] .= Q_in[1, :]
     end
 
     # ========================================================================
     # DENOMINATOR: (1/(L+1)) * Σ_ℓ p(h_K | θ_ℓ, π)
     # ========================================================================
     n_denom = L_CONTRASTIVE + 1
-    θ_T_denom = permutedims(θ_full[1:2, :], (2, 1))  # (n_denom, 2)
-    σ²_denom = vec(θ_full[3:3, :]) .^ 2              # (n_denom,)
+    θ_T_denom = θ_full[1:2, :, :]                               # (2, n_denom, B)
+    σ²_denom = (θ_full[3, :, :]) .^ 2                              # (n_denom, B)
 
-    u_denom = repeat(reshape(u0, 1, 3), n_denom, 1)  # (n_denom, 3)
+    u_denom = repeat(u0, 1, n_denom, B)                          # (3, n_denom, B)
 
     for step in 1:N_STEPS
-        d = @allowscalar designs[step]
-        u_denom = integrate(u_denom, θ_T_denom, d, DT, N_SUBSTEPS)
-        pred_obs = u_denom[:, 1]                              # (n_denom,)
-        actual_obs = @allowscalar observations[step]          # scalar
+        Q_step = designs[step:step, :]                          # (1, B)
+        u_denom = integrate(u_denom, θ_T_denom, Q_step, DT, N_SUBSTEPS)
+
+        pred_obs = u_denom[1, :, :]                              # (n_denom, B)
+        actual_obs = observations[step:step, :]                  # (1, B)
         residual = actual_obs .- pred_obs
-        ll_denom = ll_denom .- 0.5f0 .* residual.^2 ./ σ²_denom .- 0.5f0 .* log.(σ²_denom)
+        ll_denom .-= 0.5f0 .* (residual.^2 ./ σ²_denom .+ log.(σ²_denom))
     end
 
     # ========================================================================
     # NUMERATOR: (1/M) * Σ_m p(h_K | θ_{T,0}, θ_N^{(m)}, π)
     # All M samples share θ_T_true, only σ differs - simulate once, broadcast likelihood
     # ========================================================================
-    σ²_numer = θ_N_numer .^ 2                        # (M,)
-    u_numer = reshape(u0, 1, 3)                      # (1, 3) - single simulation
+    σ²_numer = θ_N_numer .^ 2                        # (M, B)
+    u_numer = repeat(u0, 1, 1, B)                    # (3, 1, B)
 
     for step in 1:N_STEPS
-        d = @allowscalar designs[step]
-        u_numer = integrate(u_numer, θ_T_true, d, DT, N_SUBSTEPS)
-        pred_obs = u_numer[1:1, 1:1]                 # (1, 1) array
-        actual_obs = observations[step:step]         # (1,) array
-        residual² = (actual_obs .- pred_obs) .^ 2    # (1, 1) array
-        # Broadcast residual² over all M sigma values
-        ll_numer = ll_numer .- 0.5f0 .* vec(residual²) ./ σ²_numer .- 0.5f0 .* log.(σ²_numer)
+        Q_step = designs[step:step, :]                          # (1, B)
+        u_numer = integrate(u_numer, θ_T_true, Q_step, DT, N_SUBSTEPS)
+
+        pred_obs = u_numer[1:1, 1, :]                       # (1, B)
+        actual_obs = observations[step:step, :]             # (1, B)
+        residual² = (actual_obs .- pred_obs) .^ 2    # (1, B)
+
+        ll_numer .-= 0.5f0 .* (residual² ./ σ²_numer .+ log.(σ²_numer))
     end
 
     # ========================================================================
     # Targeted sPCE loss
     # ========================================================================
-    ll_max_num = maximum(ll_numer)
-    lse_num = ll_max_num + log(sum(exp.(ll_numer .- ll_max_num)))
-    log_numerator = lse_num - log(Float32(M_NUISANCE))
+    ll_max_num = maximum(ll_numer; dims=1)                                         # (1, B)
+    lse_num = ll_max_num .+ log.(sum(exp.(ll_numer .- ll_max_num); dims=1))        # (1, B)
+    log_numerator = lse_num .- log(Float32(M_NUISANCE))
 
-    ll_max_den = maximum(ll_denom)
-    lse_den = ll_max_den + log(sum(exp.(ll_denom .- ll_max_den)))
-    log_denominator = lse_den - log(Float32(n_denom))
+    ll_max_den = maximum(ll_denom; dims=1)                                         # (1, B)
+    lse_den = ll_max_den .+ log.(sum(exp.(ll_denom .- ll_max_den); dims=1))        # (1, B)
+    log_denominator = lse_den .- log(Float32(n_denom))
 
-    loss = -(log_numerator - log_denominator)
+    loss_per_episode = -(log_numerator .- log_denominator)                         # (1, B)
+    loss = sum(loss_per_episode) / Float32(B)
 
     return loss, st, (;)
 end
@@ -225,8 +224,24 @@ function sample_θ_full(rng, n_samples)
     return θ
 end
 
+function sample_θ_full(rng, n_denom::Int, B::Int)
+    θ = rand(rng, Float32, 3, n_denom, B)
+    @views begin
+        θ[1, :, :] .= μ_max_lo .+ (μ_max_hi - μ_max_lo) .* θ[1, :, :]
+        θ[2, :, :] .= K_s_lo .+ (K_s_hi - K_s_lo) .* θ[2, :, :]
+        θ[3, :, :] .= σ_lo .+ (σ_hi - σ_lo) .* θ[3, :, :]
+    end
+    return θ
+end
+
 function sample_θ_N(rng, n_samples)
     θ = rand(rng, Float32, n_samples)
+    θ .= σ_lo .+ (σ_hi - σ_lo) .* θ
+    return θ
+end
+
+function sample_θ_N(rng, M::Int, B::Int)
+    θ = rand(rng, Float32, M, B)
     θ .= σ_lo .+ (σ_hi - σ_lo) .* θ
     return θ
 end
@@ -235,26 +250,34 @@ end
 #  Training
 # ============================================================================
 
-function train_policy(model, ps, st, rng; xdev = identity, n_iters = 50)
+function train_policy(model, ps, st, rng;
+    xdev = identity,
+    n_iters = 50,
+    on_iteration = nothing,
+)
     train_state = Lux.Training.TrainState(model, ps, st, Adam(0.001f0))
     loss_history = Float32[]
 
     for iteration in 1:n_iters
-        # θ_full: L+1 full samples (first generates data, all used in denominator)
-        θ_full = sample_θ_full(rng, L_CONTRASTIVE + 1) |> xdev
+        # θ_full: (3, L+1, B) full samples (first in each episode generates data)
+        n_denom = L_CONTRASTIVE + 1
+        θ_full = sample_θ_full(rng, n_denom, GRAD_BATCH) |> xdev
 
-        # θ_N_numer: M nuisance samples for numerator
-        θ_N_numer = sample_θ_N(rng, M_NUISANCE) |> xdev
+        # θ_N_numer: (M, B) nuisance samples for numerator
+        θ_N_numer = sample_θ_N(rng, M_NUISANCE, GRAD_BATCH) |> xdev
 
         # Buffers
-        u0 = Float32[3.0, 0.25, 7.0] |> xdev
-        input_buffer = zeros(Float32, 2, N_STEPS, 1) |> xdev
-        observations = zeros(Float32, N_STEPS) |> xdev
-        designs = zeros(Float32, N_STEPS) |> xdev
-        ε = randn(rng, Float32, N_STEPS) |> xdev
-        n_denom = L_CONTRASTIVE + 1
-        ll_denom = zeros(Float32, n_denom) |> xdev   # (n_denom,) - accumulate log-likelihoods
-        ll_numer = zeros(Float32, M_NUISANCE) |> xdev
+        u0 = zeros(Float32, 3, 1, 1)
+        u0[1, 1, 1] = 3.0f0
+        u0[2, 1, 1] = 0.25f0
+        u0[3, 1, 1] = 7.0f0
+        u0 = u0 |> xdev
+        input_buffer = zeros(Float32, 2, N_STEPS, GRAD_BATCH) |> xdev
+        observations = zeros(Float32, N_STEPS, GRAD_BATCH) |> xdev
+        designs = zeros(Float32, N_STEPS, GRAD_BATCH) |> xdev
+        ε = randn(rng, Float32, N_STEPS, GRAD_BATCH) |> xdev
+        ll_denom = zeros(Float32, n_denom, GRAD_BATCH) |> xdev   # (n_denom, B)
+        ll_numer = zeros(Float32, M_NUISANCE, GRAD_BATCH) |> xdev
 
         data = (θ_full, θ_N_numer, u0, input_buffer, observations, designs, ε, ll_denom, ll_numer)
 
@@ -262,6 +285,10 @@ function train_policy(model, ps, st, rng; xdev = identity, n_iters = 50)
             AutoEnzyme(), targeted_spce_loss, data, train_state
         )
         push!(loss_history, loss)
+
+        if on_iteration !== nothing
+            on_iteration(iteration, loss, loss_history, train_state)
+        end
 
         if iteration % 10 == 0 || iteration == 1
             @printf("Iter: [%4d/%4d]\tTargeted sPCE Loss: %.8f\n", iteration, n_iters, loss)

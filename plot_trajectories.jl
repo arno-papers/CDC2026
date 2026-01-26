@@ -6,7 +6,7 @@ to_cpu_tree(x::NamedTuple) = map(to_cpu_tree, x)
 to_cpu_tree(x::Tuple) = map(to_cpu_tree, x)
 
 function rollout_policy_cpu(model, ps_cpu, st_cpu; theta, u0)
-    u = reshape(u0, 1, 3)
+    u = reshape(u0, 3, 1)
     input_buffer = zeros(Float32, 2, N_STEPS, 1)
     traj = zeros(Float32, N_STEPS + 1, 3)
     designs = zeros(Float32, N_STEPS)
@@ -18,7 +18,7 @@ function rollout_policy_cpu(model, ps_cpu, st_cpu; theta, u0)
         Q_in = Float32(action[1])
         designs[step] = Q_in
 
-        u = integrate_cpu(u, reshape(theta, 1, 2), Q_in, DT, N_SUBSTEPS)
+        u = integrate_cpu(u, reshape(theta, 2, 1), Q_in, DT, N_SUBSTEPS)
         traj[step + 1, :] .= vec(u)
 
         y_obs = u[1, 1]
