@@ -8,6 +8,7 @@ We extend the sequential contrastive estimation framework to handle nuisance par
 \subsection{Notation}
 
 Partition parameters as $\theta = (\theta_T, \theta_N)$ where $\theta_T$ are targets of interest and $\theta_N$ are nuisance parameters. The prior is $p(\theta) = p(\theta_T, \theta_N)$ with conditional $p(\theta_N|\theta_T)$.
+We use subscripts $T,N$ to denote target and nuisance blocks, and superscripts $(\cdot)$ to index Monte Carlo samples.
 
 The \emph{targeted expected information gain} is:
 \begin{equation}
@@ -19,15 +20,15 @@ where the marginal likelihood is $p(h_K|\theta_T,\pi) = \int p(h_K|\theta_T, \th
 
 Since $p(h_K|\theta_T,\pi)$ is intractable, we use Monte Carlo estimation with:
 \begin{itemize}
-    \item \textbf{Numerator}: $M$ samples $\theta_N^{(1:M)} \sim p(\theta_N|\theta_{T,0})$ to estimate $p(h_K|\theta_{T,0},\pi)$
-    \item \textbf{Denominator}: $L$ contrastive samples $\theta_{1:L} \sim p(\theta)$ (full parameter vectors) to estimate $p(h_K|\pi)$
+    \item \textbf{Numerator}: $M$ samples $\theta_N^{(1:M)} \sim p(\theta_N|\theta_T^{(0)})$ to estimate $p(h_K|\theta_T^{(0)},\pi)$
+    \item \textbf{Denominator}: $L$ contrastive samples $\theta^{(1)},\ldots,\theta^{(L)} \sim p(\theta)$ (full parameter vectors) to estimate $p(h_K|\pi)$
 \end{itemize}
 
 \begin{theorem}[Targeted sPCE Lower Bound]
 \label{thm:targeted_spce}
-Let $\theta_0 = (\theta_{T,0}, \theta_{N,0}) \sim p(\theta)$ generate $h_K \sim p(h_K|\theta_0, \pi)$. Let $\theta_{1:L} \sim p(\theta)$ be independent contrastive samples, and $\theta_N^{(1:M)} \sim p(\theta_N|\theta_{T,0})$ be nuisance samples. Define
+Let $\theta^{(0)} = (\theta_T^{(0)}, \theta_N^{(0)}) \sim p(\theta)$ generate $h_K \sim p(h_K|\theta^{(0)}, \pi)$. Let $\theta^{(1)},\ldots,\theta^{(L)} \sim p(\theta)$ be independent contrastive samples, and let $\theta_N^{(1:M)} \sim p(\theta_N|\theta_T^{(0)})$ be nuisance samples. Define
 \begin{equation}
-\hat{\mathcal{L}}_K^{\text{tgt}}(\pi, L, M) = \E\left[\log \frac{\frac{1}{M}\sum_{m=1}^{M} p(h_K|\theta_{T,0}, \theta_N^{(m)}, \pi)}{\frac{1}{L+1}\sum_{\ell=0}^{L} p(h_K|\theta_\ell, \pi)}\right].
+\hat{\mathcal{L}}_K^{\text{tgt}}(\pi, L, M) = \E\left[\log \frac{\frac{1}{M}\sum_{m=1}^{M} p(h_K|\theta_T^{(0)}, \theta_N^{(m)}, \pi)}{\frac{1}{L+1}\sum_{\ell=0}^{L} p(h_K|\theta^{(\ell)}, \pi)}\right].
 \end{equation}
 Then $\hat{\mathcal{L}}_K^{\text{tgt}}(\pi, L, M) \leq \mathcal{I}_K^{\text{tgt}}(\pi)$, with $\hat{\mathcal{L}}_K^{\text{tgt}} \to \mathcal{I}_K^{\text{tgt}}$ as $L, M \to \infty$.
 \end{theorem}
@@ -35,29 +36,29 @@ Then $\hat{\mathcal{L}}_K^{\text{tgt}}(\pi, L, M) \leq \mathcal{I}_K^{\text{tgt}
 \begin{proof}
 Define:
 \begin{align}
-A &= \frac{1}{M}\sum_{m=1}^{M} p(h_K|\theta_{T,0}, \theta_N^{(m)}, \pi) & &\text{(estimator of } p(h_K|\theta_{T,0},\pi)\text{)} \\
-B &= \frac{1}{L+1}\sum_{\ell=0}^{L} p(h_K|\theta_\ell, \pi) & &\text{(estimator of } p(h_K|\pi)\text{, includes } \theta_0\text{)}
+A &= \frac{1}{M}\sum_{m=1}^{M} p(h_K|\theta_T^{(0)}, \theta_N^{(m)}, \pi) & &\text{(estimator of } p(h_K|\theta_T^{(0)},\pi)\text{)} \\
+B &= \frac{1}{L+1}\sum_{\ell=0}^{L} p(h_K|\theta^{(\ell)}, \pi) & &\text{(estimator of } p(h_K|\pi)\text{, includes } \theta^{(0)}\text{)}
 \end{align}
 
 The gap between the true objective and the practical bound is:
 \begin{align}
-\mathcal{I}_K^{\text{tgt}} - \hat{\mathcal{L}}_K^{\text{tgt}} &= \E\left[\log \frac{p(h_K|\theta_{T,0},\pi)}{p(h_K|\pi)} - \log \frac{A}{B}\right] \\
-&= \E\left[\log \frac{p(h_K|\theta_{T,0},\pi)}{A}\right] + \E\left[\log \frac{B}{p(h_K|\pi)}\right]
+\mathcal{I}_K^{\text{tgt}} - \hat{\mathcal{L}}_K^{\text{tgt}} &= \E\left[\log \frac{p(h_K|\theta_T^{(0)},\pi)}{p(h_K|\pi)} - \log \frac{A}{B}\right] \\
+&= \E\left[\log \frac{p(h_K|\theta_T^{(0)},\pi)}{A}\right] + \E\left[\log \frac{B}{p(h_K|\pi)}\right]
 \end{align}
 
-\textbf{Term 1 (Nuisance marginalization gap):} Condition on the realized $(\theta_{T,0}, h_K)$. Since $\theta_N^{(1:M)} \overset{\text{i.i.d.}}{\sim} p(\theta_N|\theta_{T,0})$,
+\textbf{Term 1 (Nuisance marginalization gap):} Condition on the realized $(\theta_T^{(0)}, h_K)$. Since $\theta_N^{(1:M)} \overset{\text{i.i.d.}}{\sim} p(\theta_N|\theta_T^{(0)})$,
 \begin{equation}
-\E[A \mid \theta_{T,0}, h_K] = \int p(h_K|\theta_{T,0},\theta_N,\pi)\,p(\theta_N|\theta_{T,0})\,d\theta_N = p(h_K|\theta_{T,0},\pi).
+\E[A \mid \theta_T^{(0)}, h_K] = \int p(h_K|\theta_T^{(0)},\theta_N,\pi)\,p(\theta_N|\theta_T^{(0)})\,d\theta_N = p(h_K|\theta_T^{(0)},\pi).
 \end{equation}
 Since $\log$ is concave, Jensen's inequality gives
 \begin{equation}
-\E[\log A \mid \theta_{T,0}, h_K] \leq \log \E[A \mid \theta_{T,0}, h_K] = \log p(h_K|\theta_{T,0},\pi),
+\E[\log A \mid \theta_T^{(0)}, h_K] \leq \log \E[A \mid \theta_T^{(0)}, h_K] = \log p(h_K|\theta_T^{(0)},\pi),
 \end{equation}
-and hence $\E[\log(p(h_K|\theta_{T,0},\pi)/A) \mid \theta_{T,0}, h_K] \geq 0$. Taking expectations over $(\theta_{T,0}, h_K)$ yields $\E[\log(p(h_K|\theta_{T,0},\pi)/A)] \geq 0$.
+and hence $\E[\log(p(h_K|\theta_T^{(0)},\pi)/A) \mid \theta_T^{(0)}, h_K] \geq 0$. Taking expectations over $(\theta_T^{(0)}, h_K)$ yields $\E[\log(p(h_K|\theta_T^{(0)},\pi)/A)] \geq 0$.
 
-\textbf{Term 2 (Standard sPCE gap):} This is exactly the gap analyzed in Foster et al.~\cite{foster2021}. Using the symmetry of $\theta_0$ being included in the denominator sum and a change of measure argument, this equals:
+\textbf{Term 2 (Standard sPCE gap):} This is exactly the gap analyzed in Foster et al.~\cite{foster2021}. Using the symmetry of $\theta^{(0)}$ being included in the denominator sum and a change of measure argument, this equals:
 \begin{equation}
-\E_{p(h_K|\pi)}\left[\text{KL}\left(\tilde{p}(\theta_{0:L}|h_K) \,\|\, p(\theta_{0:L})\right)\right] \geq 0
+\E_{p(h_K|\pi)}\left[\text{KL}\left(\tilde{p}(\theta^{(0:L)}|h_K) \,\|\, p(\theta^{(0:L)})\right)\right] \geq 0
 \end{equation}
 where $\tilde{p}$ is a mixture distribution (see~\cite{foster2021} for details).
 
@@ -68,9 +69,14 @@ Since both terms are non-negative: $\hat{\mathcal{L}}_K^{\text{tgt}} \leq \mathc
 \kappa_{1,N} \le \frac{p(h_K|\theta_T,\theta_N,\pi)}{p(h_K|\theta_T,\pi)} \le \kappa_{2,N} && \forall\,\theta_T,\theta_N,h_K, \\
 \kappa_1 \le \frac{p(h_K|\theta,\pi)}{p(h_K|\pi)} \le \kappa_2 && \forall\,\theta,h_K,
 \end{align}
-as in the standard sPCE analysis~\cite{foster2021}. Then the log-ratios in Term 1 and Term 2 are bounded. By the Strong Law of Large Numbers, $A \to p(h_K|\theta_{T,0},\pi)$ and $B \to p(h_K|\pi)$ almost surely as $M,L\to\infty$, and the Bounded Convergence Theorem yields Term 1 $\to 0$ and Term 2 $\to 0$; moreover Term 2 decreases at rate $\mathcal{O}(L^{-1})$.
+as in the standard sPCE analysis~\cite{foster2021}. Then the log-ratios in Term 1 and Term 2 are bounded. By the Strong Law of Large Numbers, $A \to p(h_K|\theta_T^{(0)},\pi)$ and $B \to p(h_K|\pi)$ almost surely as $M,L\to\infty$, and the Bounded Convergence Theorem yields Term 1 $\to 0$ and Term 2 $\to 0$; moreover Term 2 decreases at rate $\mathcal{O}(L^{-1})$.
 \end{proof}
 
 \begin{remark}
-The practical objective requires evaluating $p(h_K|\theta, \pi)$ for $(1+L) + M$ parameter settings per training iteration: $L+1$ full samples for the denominator, plus $M$ nuisance samples for the numerator (all sharing the same $\theta_{T,0}$).
+The practical objective requires evaluating $p(h_K|\theta, \pi)$ for $(1+L) + M$ parameter settings per training iteration: $L+1$ full samples for the denominator, plus $M$ nuisance samples for the numerator (all sharing the same $\theta_T^{(0)}$).
 \end{remark}
+
+\subsection{Computational Budget Trade-offs}
+\label{sec:budget_stub}
+This appendix section is reserved for a discussion of how to allocate a fixed computational budget across the number of contrastive samples $L$, nuisance samples $M$, and minibatch size $B$.
+In particular, it will summarize how the bound tightness and Monte Carlo gaps scale with $L$ and $M$, and how the variance of stochastic gradient estimates scales with $B$.
