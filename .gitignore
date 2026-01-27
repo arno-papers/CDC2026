@@ -8,3 +8,9 @@
 
 reference
 notes
+
+# Generated plots
+plot_*.png
+
+# Reactant profiler output
+traces
