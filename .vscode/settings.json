@@ -1,0 +1,4 @@
+{
+  "julia.executablePath": "julia +1.11",
+  "julia.languageServerJuliaupChannel": "1.11"
+}
