@@ -74,24 +74,102 @@ function sinusoidal_pe(seq_len::Int)
 end
 
 # ============================================================================
-#  Policy
+#  Policy Network
+# ============================================================================
+#
+# A causal transformer that maps observation-action history to control actions.
+#
+# Architecture overview:
+#   1. Input projection: Lifts (observation, action) pairs to embedding space
+#   2. Positional encoding: Adds temporal structure via sinusoidal embeddings
+#   3. Pre-norm transformer block: Self-attention + feed-forward with residuals
+#   4. Output head: Projects final token embedding to scalar action
+#
+# Input:  x ∈ ℝ^(2 × T × B)  where T = sequence length, B = batch size
+#         - x[1, t, :] = observation at step t (e.g., substrate concentration)
+#         - x[2, t, :] = action taken at step t (e.g., flow rate Q_in)
+#
+# Output: action ∈ ℝ^(1 × B), scaled to [0, 10] via sigmoid
 # ============================================================================
 
 const policy = @compact(
+    # -------------------------------------------------------------------------
+    # Layer 1: Input Projection
+    # Maps each (obs, action) pair to a 32-dim embedding
+    # Input:  (2, T, B)  →  Output: (32, T, B)
+    # Conceptually: Lifts raw features into a richer representation space
+    # -------------------------------------------------------------------------
     input_proj = Dense(2 => 32),
+
+    # -------------------------------------------------------------------------
+    # Layer 2: RMSNorm (Pre-Attention)
+    # Normalizes embeddings before attention (Pre-LN transformer style)
+    # Input:  (32, T, B)  →  Output: (32, T, B)
+    # Conceptually: Stabilizes activations, improves gradient flow
+    # -------------------------------------------------------------------------
     rms1 = RMSNorm((32,)),
+
+    # -------------------------------------------------------------------------
+    # Layer 3: Multi-Head Self-Attention
+    # 4 heads, each with 8-dim queries/keys/values (32/4 = 8)
+    # Input:  (32, T, B)  →  Output: (32, T, B)
+    # Conceptually: Allows each timestep to attend to all previous timesteps,
+    #               learning temporal dependencies in the observation history
+    # -------------------------------------------------------------------------
     mha = MultiHeadAttention(32; nheads = 4),
+
+    # -------------------------------------------------------------------------
+    # Layer 4: RMSNorm (Pre-FFN)
+    # Input:  (32, T, B)  →  Output: (32, T, B)
+    # Conceptually: Normalizes before feed-forward, same as rms1
+    # -------------------------------------------------------------------------
     rms2 = RMSNorm((32,)),
+
+    # -------------------------------------------------------------------------
+    # Layer 5: Feed-Forward Network (MLP)
+    # Two-layer MLP with GELU activation and 2x expansion
+    # Input:  (32, T, B)  →  hidden: (64, T, B)  →  Output: (32, T, B)
+    # Conceptually: Adds non-linear transformations, increases model capacity
+    # -------------------------------------------------------------------------
     ff = Chain(Dense(32 => 64, gelu), Dense(64 => 32)),
+
+    # -------------------------------------------------------------------------
+    # Layer 6: Output Head
+    # Projects the final token's embedding to a scalar action
+    # Input:  (32, B)  →  Output: (1, B)
+    # Conceptually: Decodes the accumulated history into a control decision
+    # -------------------------------------------------------------------------
     output_head = Dense(32 => 1),
 ) do x
-    seq_len = size(x, 2)
+    # x: (2, T, B) - input sequence of (observation, action) pairs
+
+    seq_len = size(x, 2)  # T = number of timesteps in history
+
+    # Step 1: Project inputs to embedding space
+    # (2, T, B) → (32, T, B)
     x = input_proj(x)
+
+    # Step 2: Add sinusoidal positional encoding
+    # PE: (32, T) broadcast to (32, T, B)
+    # Injects temporal order information since attention is permutation-invariant
     x = x .+ reshape(sinusoidal_pe(seq_len), 32, seq_len, 1)
+
+    # Step 3: Pre-norm self-attention with residual connection
+    # h = RMSNorm(x): (32, T, B)
+    # attn = MHA(h): (32, T, B)
+    # x = x + attn: residual connection
     h = rms1(x)
     attn, _ = mha(h)
     x = x + attn
+
+    # Step 4: Pre-norm feed-forward with residual connection
+    # x = x + FFN(RMSNorm(x)): (32, T, B)
     x = x + ff(rms2(x))
+
+    # Step 5: Extract final timestep and project to action
+    # x[:, end, :]: (32, B) - embedding of the last (most recent) timestep
+    # output_head: (32, B) → (1, B)
+    # sigmoid scales to (0, 1), then multiply by 10 → action ∈ (0, 10)
     @return 10.0f0 .* sigmoid.(output_head(x[:, end, :]))
 end
 
