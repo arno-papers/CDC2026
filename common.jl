@@ -184,7 +184,7 @@ end
 #  Denominator: average over L+1 full θ samples
 # ============================================================================
 
-const N_STEPS = 10
+const N_STEPS = 14
 const DT = 1.0f0            # Total time per control interval
 const N_SUBSTEPS = 500      # Integration substeps per control interval
 
@@ -195,7 +195,7 @@ const N_SUBSTEPS = 500      # Integration substeps per control interval
 # Optimal (L, B) minimizes MSE proxy: 1/B + λ/(L+1)² subject to budget constraint.
 # This yields the scaling B* ∝ (L*+1)².
 # -----------------------------------------------------------------------------
-const ODE_BUDGET_TRAJ = 4144
+const ODE_BUDGET_TRAJ = 530432
 
 const (L_CONTRASTIVE, GRAD_BATCH) = let
     C = ODE_BUDGET_TRAJ
