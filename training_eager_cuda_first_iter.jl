@@ -21,15 +21,39 @@ if Base.JLOptions().can_inline == 0
 end
 
 # -----------------------------------------------------------------------------
-# Hardcoded experiment constants (copied from common.jl)
+# Experiment constants
+#
+# This file is a self-contained, eager (CUDA.jl) reproduction of a single forward
+# loss evaluation. Hyperparameters (L, M, B) use the same budget-based scheme
+# as `common.jl`.
 # -----------------------------------------------------------------------------
 
 const N_STEPS = 10
 const DT = 1.0f0            # Total time per control interval
 const N_SUBSTEPS = 500      # Integration substeps per control interval
-const L_CONTRASTIVE = 256   # Contrastive samples for denominator
-const M_NUISANCE = 128      # Nuisance samples for numerator
-const GRAD_BATCH = 16       # Gradient minibatch (episodes) per update
+
+# Training budget allocation (see Appendix, Section "Computational Budget Trade-offs")
+# Budget: C_traj = B * (L + 3) trajectory rollouts per optimizer update.
+# Optimal (L, B) minimizes MSE proxy: 1/B + λ/(L+1)² subject to budget constraint.
+const ODE_BUDGET_TRAJ = 4144
+
+const (L_CONTRASTIVE, GRAD_BATCH) = let
+    C = ODE_BUDGET_TRAJ
+    λ = 1.0  # equal weight on variance (1/B) vs squared bias (1/(L+1)²)
+    best_L, best_B, best_obj = 1, fld(C, 4), Inf
+    for L in 1:(C - 3)
+        B = fld(C, L + 3)
+        B < 1 && break
+        obj = 1.0/B + λ/(L+1)^2
+        if obj < best_obj
+            best_obj, best_L, best_B = obj, L, B
+        end
+    end
+    (best_L, best_B)
+end
+
+# Nuisance samples: ODE-free (only affect observation model), so can be large
+const M_NUISANCE = min(4096, max(512, 32 * (L_CONTRASTIVE + 1)))
 
 const MU_MAX_LO, MU_MAX_HI = 0.3f0, 0.5f0
 const K_S_LO, K_S_HI = 0.3f0, 0.6f0
