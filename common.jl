@@ -361,6 +361,7 @@ function train_policy(model, ps, st, rng;
     loss_history = Float32[]
 
     for iteration in 1:n_iters
+        GC.gc()
         # θ_full: (3, L+1, B) full samples (first in each episode generates data)
         n_denom = L_CONTRASTIVE + 1
         θ_full = sample_θ_full(rng, n_denom, GRAD_BATCH) |> xdev
