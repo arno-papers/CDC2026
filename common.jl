@@ -45,7 +45,7 @@ end
 
 function integrate(u, θ, Q_in, dt, n_substeps)
     dt_sub = dt / n_substeps
-    @trace for _ in 1:n_substeps
+    @trace mincut=true for _ in 1:n_substeps
         u = rk4_step(u, θ, Q_in, dt_sub)
     end
     return u
@@ -212,6 +212,12 @@ const (L_CONTRASTIVE, GRAD_BATCH) = let
     (best_L, best_B)
 end
 
+# Gradient accumulation: split B into micro-batches to fit in GPU memory.
+# Each micro-batch processes B/K episodes; K optimizer steps per iteration
+# with lr scaled by 1/K approximate one step on the full batch.
+const GRAD_ACCUM_STEPS = 5
+const GRAD_BATCH_MICRO = GRAD_BATCH ÷ GRAD_ACCUM_STEPS
+
 # Nuisance samples: ODE-free (only affect observation model), so can be large
 const M_NUISANCE = min(4096, max(512, 32 * (L_CONTRASTIVE + 1)))
 
@@ -225,10 +231,13 @@ const mu_max_lo, mu_max_hi = μ_max_lo, μ_max_hi
 const sigma_lo, sigma_hi = σ_lo, σ_hi
 
 function targeted_spce_loss(model, ps, st, data)
-    # Batch layout (episode minibatch size B = GRAD_BATCH)
+    # Batch layout (episode minibatch size B ≤ GRAD_BATCH)
     # θ_full: (3, L+1, B) - full parameter samples [μ_max, K_s, σ]
     # θ_N_numer: (M, B) - nuisance samples for numerator
     θ_full, θ_N_numer, u0, input_buffer, observations, designs, ε, ll_denom, ll_numer = data
+
+    # Infer batch size from data (supports micro-batching)
+    B = size(ε, 2)
 
     # Ensure accumulators start at zero (keeps allocation device-safe)
     ll_denom .= 0.0f0
@@ -238,7 +247,6 @@ function targeted_spce_loss(model, ps, st, data)
     θ_T_true = θ_full[1:2, 1:1, :]   # (2, 1, B)
     σ_true = θ_full[3, 1, :]         # (B,)
 
-    B = GRAD_BATCH
     u = repeat(u0, 1, 1, B)  # (3, 1, B)
 
     # Rollout with true θ (B episodes in parallel)
@@ -357,44 +365,53 @@ function train_policy(model, ps, st, rng;
     n_iters = 50,
     on_iteration = nothing,
 )
-    train_state = Lux.Training.TrainState(model, ps, st, Adam(0.001f0))
+    # Scale lr by 1/K: K micro-batch optimizer steps approximate one full-batch step
+    lr = 0.001f0 / Float32(GRAD_ACCUM_STEPS)
+    train_state = Lux.Training.TrainState(model, ps, st, Adam(lr))
     loss_history = Float32[]
+
+    B_micro = GRAD_BATCH_MICRO
+    n_denom = L_CONTRASTIVE + 1
+
+    # Pre-allocate u0 once (same across all micro-batches)
+    u0 = zeros(Float32, 3, 1, 1)
+    u0[1, 1, 1] = 3.0f0
+    u0[2, 1, 1] = 0.25f0
+    u0[3, 1, 1] = 7.0f0
+    u0 = u0 |> xdev
 
     for iteration in 1:n_iters
         GC.gc()
-        # θ_full: (3, L+1, B) full samples (first in each episode generates data)
-        n_denom = L_CONTRASTIVE + 1
-        θ_full = sample_θ_full(rng, n_denom, GRAD_BATCH) |> xdev
+        total_loss = 0.0f0
 
-        # θ_N_numer: (M, B) nuisance samples for numerator
-        θ_N_numer = sample_θ_N(rng, M_NUISANCE, GRAD_BATCH) |> xdev
+        for _k in 1:GRAD_ACCUM_STEPS
+            θ_full = sample_θ_full(rng, n_denom, B_micro) |> xdev
+            θ_N_numer = sample_θ_N(rng, M_NUISANCE, B_micro) |> xdev
 
-        # Buffers
-        u0 = zeros(Float32, 3, 1, 1)
-        u0[1, 1, 1] = 3.0f0
-        u0[2, 1, 1] = 0.25f0
-        u0[3, 1, 1] = 7.0f0
-        u0 = u0 |> xdev
-        input_buffer = zeros(Float32, 2, N_STEPS, GRAD_BATCH) |> xdev
-        observations = zeros(Float32, N_STEPS, GRAD_BATCH) |> xdev
-        designs = zeros(Float32, N_STEPS, GRAD_BATCH) |> xdev
-        ε = randn(rng, Float32, N_STEPS, GRAD_BATCH) |> xdev
-        ll_denom = zeros(Float32, n_denom, GRAD_BATCH) |> xdev   # (n_denom, B)
-        ll_numer = zeros(Float32, M_NUISANCE, GRAD_BATCH) |> xdev
+            input_buffer = zeros(Float32, 2, N_STEPS, B_micro) |> xdev
+            observations = zeros(Float32, N_STEPS, B_micro) |> xdev
+            designs = zeros(Float32, N_STEPS, B_micro) |> xdev
+            ε = randn(rng, Float32, N_STEPS, B_micro) |> xdev
+            ll_denom = zeros(Float32, n_denom, B_micro) |> xdev
+            ll_numer = zeros(Float32, M_NUISANCE, B_micro) |> xdev
 
-        data = (θ_full, θ_N_numer, u0, input_buffer, observations, designs, ε, ll_denom, ll_numer)
+            data = (θ_full, θ_N_numer, u0, input_buffer, observations, designs, ε, ll_denom, ll_numer)
 
-        _, loss, _, train_state = Lux.Training.single_train_step!(
-            AutoEnzyme(), targeted_spce_loss, data, train_state
-        )
-        push!(loss_history, loss)
+            _, loss_k, _, train_state = Lux.Training.single_train_step!(
+                AutoEnzyme(), targeted_spce_loss, data, train_state
+            )
+            total_loss += loss_k
+        end
+
+        avg_loss = total_loss / Float32(GRAD_ACCUM_STEPS)
+        push!(loss_history, avg_loss)
 
         if on_iteration !== nothing
-            on_iteration(iteration, loss, loss_history, train_state)
+            on_iteration(iteration, avg_loss, loss_history, train_state)
         end
 
         if iteration % 10 == 0 || iteration == 1
-            @printf("Iter: [%4d/%4d]\tTargeted sPCE Loss: %.8f\n", iteration, n_iters, loss)
+            @printf("Iter: [%4d/%4d]\tTargeted sPCE Loss: %.8f\n", iteration, n_iters, avg_loss)
         end
     end
 

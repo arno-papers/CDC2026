@@ -38,7 +38,7 @@ if abspath(PROGRAM_FILE) == @__FILE__
 
     println("\n=== Targeted DADS Training (Reactant + Enzyme) ===")
     println("Target params: (mu_max, K_s), Nuisance: sigma_measure")
-    println("L = $L_CONTRASTIVE contrastive, M = $M_NUISANCE nuisance samples, B = $GRAD_BATCH grad batch")
+    println("L = $L_CONTRASTIVE contrastive, M = $M_NUISANCE nuisance samples, B = $GRAD_BATCH total ($GRAD_ACCUM_STEPS×$(GRAD_BATCH_MICRO) micro)")
     println("n_iters = $n_iters, plotting = $plotting")
     println("loss_png_every = $loss_png_every\n")
 
