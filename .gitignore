@@ -14,3 +14,17 @@ plot_*.png
 
 # Reactant profiler output
 traces
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.pyd
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# JAX/Flax artifacts
+checkpoints/
+artifacts/
+*.msgpack
