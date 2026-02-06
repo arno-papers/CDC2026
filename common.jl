@@ -9,6 +9,7 @@ using Lux, Reactant, Random
 using Reactant: @trace
 using Optimisers
 using Printf
+using Serialization
 
 # ============================================================================
 #  Bioreactor Dynamics
@@ -357,6 +358,63 @@ function sample_θ_N(rng, M::Int, B::Int)
 end
 
 # ============================================================================
+#  Training Diagnostics
+# ============================================================================
+
+function _push_diag!(diag::Dict, key::String, val::Float32)
+    v = get!(diag, key, Float32[])
+    push!(v, val)
+end
+
+function _collect_array_stats!(diag::Dict, path::String, x_cpu::AbstractArray{<:Real})
+    nrm = Float32(sqrt(sum(abs2, x_cpu)))
+    mx  = Float32(maximum(abs, x_cpu))
+    has_nan = Float32(any(isnan, x_cpu) || any(isinf, x_cpu))
+    _push_diag!(diag, path * ".norm", nrm)
+    _push_diag!(diag, path * ".max_abs", mx)
+    _push_diag!(diag, path * ".has_nan", has_nan)
+end
+
+function _collect_norm_only!(diag::Dict, path::String, x_cpu::AbstractArray{<:Real})
+    nrm = Float32(sqrt(sum(abs2, x_cpu)))
+    _push_diag!(diag, path * ".norm", nrm)
+end
+
+"""
+    _walk_trees!(diag, prefix, ps, grads, opt_state)
+
+Recursively walk Lux parameter / gradient / optimizer-state trees in parallel,
+collecting diagnostics for each leaf array.
+"""
+function _walk_trees!(diag::Dict, prefix::String, ps, grads, opt_state)
+    if ps isa AbstractArray
+        ps_cpu = Array(ps)
+        _collect_array_stats!(diag, prefix * ".param", ps_cpu)
+        if grads isa AbstractArray
+            _collect_array_stats!(diag, prefix * ".grad", Array(grads))
+        end
+        if opt_state isa Optimisers.Leaf
+            mt, vt, _ = opt_state.state
+            _collect_norm_only!(diag, prefix * ".mt", Array(mt))
+            _collect_norm_only!(diag, prefix * ".vt", Array(vt))
+        end
+        return
+    end
+    # Recurse into NamedTuples / nested structures
+    for k in keys(ps)
+        child_ps = ps[k]
+        child_g  = grads isa NamedTuple ? get(grads, k, nothing) : nothing
+        child_o  = opt_state isa NamedTuple ? get(opt_state, k, nothing) : nothing
+        _walk_trees!(diag, prefix == "" ? string(k) : prefix * "." * string(k),
+                     child_ps, child_g, child_o)
+    end
+end
+
+function collect_diagnostics!(diag::Dict, train_state, grads)
+    _walk_trees!(diag, "", train_state.parameters, grads, train_state.optimizer_state)
+end
+
+# ============================================================================
 #  Training
 # ============================================================================
 
@@ -369,6 +427,7 @@ function train_policy(model, ps, st, rng;
     lr = 0.001f0 / Float32(GRAD_ACCUM_STEPS)
     train_state = Lux.Training.TrainState(model, ps, st, Adam(lr))
     loss_history = Float32[]
+    diagnostics = Dict{String, Vector{Float32}}()
 
     B_micro = GRAD_BATCH_MICRO
     n_denom = L_CONTRASTIVE + 1
@@ -380,6 +439,7 @@ function train_policy(model, ps, st, rng;
     u0[3, 1, 1] = 7.0f0
     u0 = u0 |> xdev
 
+    grads_k = nothing
     for iteration in 1:n_iters
         GC.gc()
         total_loss = 0.0f0
@@ -397,11 +457,14 @@ function train_policy(model, ps, st, rng;
 
             data = (θ_full, θ_N_numer, u0, input_buffer, observations, designs, ε, ll_denom, ll_numer)
 
-            _, loss_k, _, train_state = Lux.Training.single_train_step!(
+            grads_k, loss_k, _, train_state = Lux.Training.single_train_step!(
                 AutoEnzyme(), targeted_spce_loss, data, train_state
             )
             total_loss += loss_k
         end
+
+        # Collect diagnostics from last micro-batch of this iteration
+        collect_diagnostics!(diagnostics, train_state, grads_k)
 
         avg_loss = total_loss / Float32(GRAD_ACCUM_STEPS)
         push!(loss_history, avg_loss)
@@ -415,5 +478,8 @@ function train_policy(model, ps, st, rng;
         end
     end
 
-    return train_state, loss_history
+    # Save diagnostics + loss to disk
+    serialize("diagnostics.jls", Dict("diagnostics" => diagnostics, "loss_history" => loss_history))
+
+    return train_state, loss_history, diagnostics
 end

@@ -65,7 +65,7 @@ if abspath(PROGRAM_FILE) == @__FILE__
     end
 
     println("Starting training...")
-    train_state, loss_history = train_policy(
+    train_state, loss_history, diagnostics = train_policy(
         policy, ps_ra, st_ra, rng;
         xdev = xdev,
         n_iters = n_iters,
