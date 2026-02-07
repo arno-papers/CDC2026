@@ -24,13 +24,24 @@ function parse_int(args, key; default::Int)
     return v === nothing ? default : parse(Int, v)
 end
 
+function parse_float(args, key; default::Float32)
+    v = parse_kwarg(args, key; default=nothing)
+    return v === nothing ? default : parse(Float32, v)
+end
+
 if abspath(PROGRAM_FILE) == @__FILE__
     plotting = parse_bool(ARGS, "plotting"; default=false)
     n_iters = parse_int(ARGS, "n_iters"; default=1000)
     seed = parse_int(ARGS, "seed"; default=0)
     loss_png_every = parse_int(ARGS, "loss_png_every"; default=10)
+    grad_accum = parse_int(ARGS, "grad_accum"; default=GRAD_ACCUM_STEPS)
+    lr_max = parse_float(ARGS, "lr_max"; default=0.003f0)
+    lr_min = parse_float(ARGS, "lr_min"; default=1f-5)
+    warmup = parse_int(ARGS, "warmup"; default=50)
+    clip_norm = parse_float(ARGS, "clip_norm"; default=1.0f0)
 
     loss_png_every = loss_png_every < 1 ? 10 : loss_png_every
+    B_micro = GRAD_BATCH ÷ grad_accum
 
     using Plots
 
@@ -38,8 +49,9 @@ if abspath(PROGRAM_FILE) == @__FILE__
 
     println("\n=== Targeted DADS Training (Reactant + Enzyme) ===")
     println("Target params: (mu_max, K_s), Nuisance: sigma_measure")
-    println("L = $L_CONTRASTIVE contrastive, M = $M_NUISANCE nuisance samples, B = $GRAD_BATCH total ($GRAD_ACCUM_STEPS×$(GRAD_BATCH_MICRO) micro)")
-    println("n_iters = $n_iters, plotting = $plotting")
+    println("L = $L_CONTRASTIVE contrastive, M = $M_NUISANCE nuisance samples, B = $GRAD_BATCH total ($(grad_accum)×$(B_micro) micro)")
+    println("n_iters = $n_iters, lr_max = $lr_max, lr_min = $lr_min, warmup = $warmup")
+    println("grad_accum = $grad_accum, clip_norm = $clip_norm, plotting = $plotting")
     println("loss_png_every = $loss_png_every\n")
 
     rng = Random.MersenneTwister(seed)
@@ -70,6 +82,11 @@ if abspath(PROGRAM_FILE) == @__FILE__
         xdev = xdev,
         n_iters = n_iters,
         on_iteration = on_iteration,
+        lr_max = lr_max,
+        lr_min = lr_min,
+        warmup = warmup,
+        grad_accum = grad_accum,
+        clip_norm = clip_norm,
     )
     println("\nTraining complete.")
 

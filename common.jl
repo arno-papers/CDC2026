@@ -380,6 +380,23 @@ function _collect_norm_only!(diag::Dict, path::String, x_cpu::AbstractArray{<:Re
     _push_diag!(diag, path * ".norm", nrm)
 end
 
+# Extract Adam (mt, vt) from optimizer state, handling both bare Adam and OptimiserChain
+function _collect_adam_moments!(diag::Dict, prefix::String, state::Tuple)
+    # Bare Adam state: (mt::AbstractArray, vt::AbstractArray, βt)
+    if length(state) >= 2 && state[1] isa AbstractArray && state[2] isa AbstractArray
+        _collect_norm_only!(diag, prefix * ".mt", Array(state[1]))
+        _collect_norm_only!(diag, prefix * ".vt", Array(state[2]))
+        return
+    end
+    # OptimiserChain state: (rule1_state, rule2_state, ...) — recurse into sub-tuples
+    for s in state
+        if s isa Tuple
+            _collect_adam_moments!(diag, prefix, s)
+            return
+        end
+    end
+end
+
 """
     _walk_trees!(diag, prefix, ps, grads, opt_state)
 
@@ -394,9 +411,7 @@ function _walk_trees!(diag::Dict, prefix::String, ps, grads, opt_state)
             _collect_array_stats!(diag, prefix * ".grad", Array(grads))
         end
         if opt_state isa Optimisers.Leaf
-            mt, vt, _ = opt_state.state
-            _collect_norm_only!(diag, prefix * ".mt", Array(mt))
-            _collect_norm_only!(diag, prefix * ".vt", Array(vt))
+            _collect_adam_moments!(diag, prefix, opt_state.state)
         end
         return
     end
@@ -415,6 +430,19 @@ function collect_diagnostics!(diag::Dict, train_state, grads)
 end
 
 # ============================================================================
+#  Training Utilities
+# ============================================================================
+
+function cosine_lr(iter, n_iters, lr_max, lr_min, warmup)
+    if iter <= warmup
+        return lr_min + (lr_max - lr_min) * (iter / warmup)
+    end
+    progress = (iter - warmup) / (n_iters - warmup)
+    return lr_min + 0.5f0 * (lr_max - lr_min) * (1 + cospi(progress))
+end
+
+
+# ============================================================================
 #  Training
 # ============================================================================
 
@@ -422,15 +450,20 @@ function train_policy(model, ps, st, rng;
     xdev = identity,
     n_iters = 50,
     on_iteration = nothing,
+    lr_max = 0.003f0,
+    lr_min = 1f-5,
+    warmup = 50,
+    grad_accum = GRAD_ACCUM_STEPS,
+    clip_norm = 1.0f0,
 )
-    # Scale lr by 1/K: K micro-batch optimizer steps approximate one full-batch step
-    lr = 0.001f0 / Float32(GRAD_ACCUM_STEPS)
-    train_state = Lux.Training.TrainState(model, ps, st, Adam(lr))
+    B_micro = GRAD_BATCH ÷ grad_accum
+    n_denom = L_CONTRASTIVE + 1
+
+    # Start at lr_min (warmup will ramp up); adjust! updates lr each iteration
+    opt = Adam(lr_min)
+    train_state = Lux.Training.TrainState(model, ps, st, opt)
     loss_history = Float32[]
     diagnostics = Dict{String, Vector{Float32}}()
-
-    B_micro = GRAD_BATCH_MICRO
-    n_denom = L_CONTRASTIVE + 1
 
     # Pre-allocate u0 once (same across all micro-batches)
     u0 = zeros(Float32, 3, 1, 1)
@@ -439,12 +472,18 @@ function train_policy(model, ps, st, rng;
     u0[3, 1, 1] = 7.0f0
     u0 = u0 |> xdev
 
-    grads_k = nothing
+    grads_last = nothing
     for iteration in 1:n_iters
         GC.gc()
+
+        # Cosine LR schedule with warmup (scale by 1/K for micro-batch steps)
+        lr_t = cosine_lr(iteration, n_iters, lr_max, lr_min, warmup)
+        Optimisers.adjust!(train_state.optimizer_state; eta = Float32(lr_t / grad_accum))
+
+        # K fused micro-batch steps (forward + backward + optimizer in one XLA program)
         total_loss = 0.0f0
 
-        for _k in 1:GRAD_ACCUM_STEPS
+        for _k in 1:grad_accum
             θ_full = sample_θ_full(rng, n_denom, B_micro) |> xdev
             θ_N_numer = sample_θ_N(rng, M_NUISANCE, B_micro) |> xdev
 
@@ -457,16 +496,16 @@ function train_policy(model, ps, st, rng;
 
             data = (θ_full, θ_N_numer, u0, input_buffer, observations, designs, ε, ll_denom, ll_numer)
 
-            grads_k, loss_k, _, train_state = Lux.Training.single_train_step!(
+            grads_last, loss_k, _, train_state = Lux.Training.single_train_step!(
                 AutoEnzyme(), targeted_spce_loss, data, train_state
             )
             total_loss += loss_k
         end
 
         # Collect diagnostics from last micro-batch of this iteration
-        collect_diagnostics!(diagnostics, train_state, grads_k)
+        collect_diagnostics!(diagnostics, train_state, grads_last)
 
-        avg_loss = total_loss / Float32(GRAD_ACCUM_STEPS)
+        avg_loss = total_loss / Float32(grad_accum)
         push!(loss_history, avg_loss)
 
         if on_iteration !== nothing
@@ -474,12 +513,24 @@ function train_policy(model, ps, st, rng;
         end
 
         if iteration % 10 == 0 || iteration == 1
-            @printf("Iter: [%4d/%4d]\tTargeted sPCE Loss: %.8f\n", iteration, n_iters, avg_loss)
+            @printf("Iter: [%4d/%4d]\tLoss: %.8f\tlr: %.6f\n", iteration, n_iters, avg_loss, lr_t)
         end
     end
 
     # Save diagnostics + loss to disk
     serialize("diagnostics.jls", Dict("diagnostics" => diagnostics, "loss_history" => loss_history))
+
+    # Save trained parameters (CPU arrays, no Reactant dependency to load)
+    _to_cpu(x) = x
+    _to_cpu(x::AbstractArray) = collect(x)
+    _to_cpu(x::NamedTuple) = map(_to_cpu, x)
+    _to_cpu(x::Tuple) = map(_to_cpu, x)
+    serialize("checkpoint.jls", Dict(
+        "parameters" => _to_cpu(train_state.parameters),
+        "states"     => _to_cpu(train_state.states),
+        "loss_history" => loss_history,
+    ))
+    println("Saved checkpoint.jls")
 
     return train_state, loss_history, diagnostics
 end
