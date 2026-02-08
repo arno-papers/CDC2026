@@ -196,7 +196,7 @@ const N_SUBSTEPS = 500      # Integration substeps per control interval
 # Optimal (L, B) minimizes MSE proxy: 1/B + λ/(L+1)² subject to budget constraint.
 # This yields the scaling B* ∝ (L*+1)².
 # -----------------------------------------------------------------------------
-const ODE_BUDGET_TRAJ = 530432
+const ODE_BUDGET_TRAJ = 1060864
 
 const (L_CONTRASTIVE, GRAD_BATCH) = let
     C = ODE_BUDGET_TRAJ
@@ -216,7 +216,7 @@ end
 # Gradient accumulation: split B into micro-batches to fit in GPU memory.
 # Each micro-batch processes B/K episodes; K optimizer steps per iteration
 # with lr scaled by 1/K approximate one step on the full batch.
-const GRAD_ACCUM_STEPS = 5
+const GRAD_ACCUM_STEPS = 10
 const GRAD_BATCH_MICRO = GRAD_BATCH ÷ GRAD_ACCUM_STEPS
 
 # Nuisance samples: ODE-free (only affect observation model), so can be large
@@ -474,8 +474,6 @@ function train_policy(model, ps, st, rng;
 
     grads_last = nothing
     for iteration in 1:n_iters
-        GC.gc()
-
         # Cosine LR schedule with warmup (scale by 1/K for micro-batch steps)
         lr_t = cosine_lr(iteration, n_iters, lr_max, lr_min, warmup)
         Optimisers.adjust!(train_state.optimizer_state; eta = Float32(lr_t / grad_accum))
@@ -502,8 +500,10 @@ function train_policy(model, ps, st, rng;
             total_loss += loss_k
         end
 
-        # Collect diagnostics from last micro-batch of this iteration
-        collect_diagnostics!(diagnostics, train_state, grads_last)
+        # Collect diagnostics every 10 iterations (GPU→CPU sync is expensive)
+        if iteration % 10 == 0 || iteration == 1
+            collect_diagnostics!(diagnostics, train_state, grads_last)
+        end
 
         avg_loss = total_loss / Float32(grad_accum)
         push!(loss_history, avg_loss)
