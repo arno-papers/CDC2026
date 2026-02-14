@@ -443,6 +443,69 @@ end
 
 
 # ============================================================================
+#  Results I/O
+# ============================================================================
+
+_to_cpu(x) = x
+_to_cpu(x::AbstractArray) = collect(x)
+_to_cpu(x::NamedTuple) = map(_to_cpu, x)
+_to_cpu(x::Tuple) = map(_to_cpu, x)
+
+"""
+    save_results(dir, train_state, loss_history, diagnostics)
+
+Save training results to `dir/`:
+- `checkpoint.jls` — trained parameters (CPU), model states, and loss history
+- `diagnostics.jls` — per-layer gradient/optimizer diagnostics + loss history
+"""
+function save_results(dir::AbstractString, train_state, loss_history, diagnostics)
+    mkpath(dir)
+    serialize(joinpath(dir, "diagnostics.jls"),
+        Dict("diagnostics" => diagnostics, "loss_history" => loss_history))
+    serialize(joinpath(dir, "checkpoint.jls"), Dict(
+        "parameters"   => _to_cpu(train_state.parameters),
+        "states"       => _to_cpu(train_state.states),
+        "loss_history" => loss_history,
+    ))
+    println("Saved results to $dir/")
+end
+
+"""
+    load_results(dir) -> (; parameters, states, loss_history, diagnostics)
+
+Load training results from `dir/`. Returns a named tuple with:
+- `parameters` — trained model weights (CPU `Float32` arrays)
+- `states` — Lux model states
+- `loss_history` — `Vector{Float32}` of per-iteration losses
+- `diagnostics` — `Dict{String, Vector{Float32}}` of per-layer metrics
+
+To resume training on GPU:
+
+    r = load_results("results/2x_budget_cosine_lr")
+    xdev = reactant_device()
+    ps_ra = r.parameters |> xdev
+    st_ra = r.states |> xdev
+"""
+function load_results(dir::AbstractString)
+    ckpt_path = joinpath(dir, "checkpoint.jls")
+    diag_path = joinpath(dir, "diagnostics.jls")
+
+    ckpt = open(deserialize, ckpt_path)
+    ps = ckpt["parameters"]
+    st = ckpt["states"]
+    loss_history = ckpt["loss_history"]
+
+    diagnostics = if isfile(diag_path)
+        d = open(deserialize, diag_path)
+        d["diagnostics"]
+    else
+        Dict{String, Vector{Float32}}()
+    end
+
+    return (; parameters=ps, states=st, loss_history, diagnostics)
+end
+
+# ============================================================================
 #  Training
 # ============================================================================
 
@@ -517,20 +580,7 @@ function train_policy(model, ps, st, rng;
         end
     end
 
-    # Save diagnostics + loss to disk
-    serialize("diagnostics.jls", Dict("diagnostics" => diagnostics, "loss_history" => loss_history))
-
-    # Save trained parameters (CPU arrays, no Reactant dependency to load)
-    _to_cpu(x) = x
-    _to_cpu(x::AbstractArray) = collect(x)
-    _to_cpu(x::NamedTuple) = map(_to_cpu, x)
-    _to_cpu(x::Tuple) = map(_to_cpu, x)
-    serialize("checkpoint.jls", Dict(
-        "parameters" => _to_cpu(train_state.parameters),
-        "states"     => _to_cpu(train_state.states),
-        "loss_history" => loss_history,
-    ))
-    println("Saved checkpoint.jls")
+    save_results(".", train_state, loss_history, diagnostics)
 
     return train_state, loss_history, diagnostics
 end
