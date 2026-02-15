@@ -8,7 +8,7 @@
 using Lux, Reactant, Random
 using Reactant: @trace
 using Optimisers
-using Printf
+using Printf, Dates
 using Serialization
 
 # ============================================================================
@@ -196,7 +196,7 @@ const N_SUBSTEPS = 500      # Integration substeps per control interval
 # Optimal (L, B) minimizes MSE proxy: 1/B + λ/(L+1)² subject to budget constraint.
 # This yields the scaling B* ∝ (L*+1)².
 # -----------------------------------------------------------------------------
-const ODE_BUDGET_TRAJ = 1060864
+const ODE_BUDGET_TRAJ = 2121728
 
 const (L_CONTRASTIVE, GRAD_BATCH) = let
     C = ODE_BUDGET_TRAJ
@@ -216,7 +216,7 @@ end
 # Gradient accumulation: split B into micro-batches to fit in GPU memory.
 # Each micro-batch processes B/K episodes; K optimizer steps per iteration
 # with lr scaled by 1/K approximate one step on the full batch.
-const GRAD_ACCUM_STEPS = 9
+const GRAD_ACCUM_STEPS = 16
 const GRAD_BATCH_MICRO = GRAD_BATCH ÷ GRAD_ACCUM_STEPS
 
 # Nuisance samples: ODE-free (only affect observation model), so can be large
@@ -518,6 +518,7 @@ function train_policy(model, ps, st, rng;
     warmup = 50,
     grad_accum = GRAD_ACCUM_STEPS,
     clip_norm = 1.0f0,
+    save_dir = ".",
 )
     B_micro = GRAD_BATCH ÷ grad_accum
     n_denom = L_CONTRASTIVE + 1
@@ -580,7 +581,7 @@ function train_policy(model, ps, st, rng;
         end
     end
 
-    save_results(".", train_state, loss_history, diagnostics)
+    save_results(save_dir, train_state, loss_history, diagnostics)
 
     return train_state, loss_history, diagnostics
 end
