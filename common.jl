@@ -216,7 +216,7 @@ end
 # Gradient accumulation: split B into micro-batches to fit in GPU memory.
 # Each micro-batch processes B/K episodes; K optimizer steps per iteration
 # with lr scaled by 1/K approximate one step on the full batch.
-const GRAD_ACCUM_STEPS = 10
+const GRAD_ACCUM_STEPS = 9
 const GRAD_BATCH_MICRO = GRAD_BATCH ÷ GRAD_ACCUM_STEPS
 
 # Nuisance samples: ODE-free (only affect observation model), so can be large
