@@ -1,5 +1,13 @@
 include("common.jl")
 
+function git_info_or_unknown(args...)
+    try
+        return strip(read(`git $(args...)`, String))
+    catch
+        return "unknown"
+    end
+end
+
 function parse_kwarg(args, key; default=nothing)
     prefix = key * "="
     for a in args
@@ -50,8 +58,8 @@ if abspath(PROGRAM_FILE) == @__FILE__
 
     # Create results directory and write config
     mkpath(results_dir)
-    branch = strip(read(`git rev-parse --abbrev-ref HEAD`, String))
-    commit = strip(read(`git rev-parse --short HEAD`, String))
+    branch = git_info_or_unknown("rev-parse", "--abbrev-ref", "HEAD")
+    commit = git_info_or_unknown("rev-parse", "--short", "HEAD")
     open(joinpath(results_dir, "config.txt"), "w") do io
         println(io, "branch: $branch")
         println(io, "commit: $commit")
