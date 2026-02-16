@@ -12,5 +12,8 @@ notes
 # Generated plots
 plot_*.png
 
+# Serialized files in project root (MWE artifacts, etc.)
+/*.jls
+
 # Reactant profiler output
 traces

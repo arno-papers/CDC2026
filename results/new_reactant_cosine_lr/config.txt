@@ -1,0 +1,24 @@
+branch: smc/new_reactant
+commit: a6c7e74
+date: 2026-02-07
+experiment: Cosine LR only (no gradient clipping)
+
+# Hyperparameters
+n_iters = 1000
+lr_max = 0.003
+lr_min = 1e-5
+warmup = 50
+optimizer = Adam
+grad_accum = 5
+B_micro = 1020
+B_total = 5100
+L_contrastive = 101
+M_nuisance = 3264
+N_STEPS = 14
+N_SUBSTEPS = 500
+DT = 1.0
+seed = 0
+
+# Results
+best_loss = -3.90
+best_iter = 620

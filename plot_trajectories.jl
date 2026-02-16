@@ -1,9 +1,4 @@
-using Plots
-
-to_cpu_tree(x) = x
-to_cpu_tree(x::AbstractArray) = collect(x)
-to_cpu_tree(x::NamedTuple) = map(to_cpu_tree, x)
-to_cpu_tree(x::Tuple) = map(to_cpu_tree, x)
+using Plots, Serialization
 
 function rollout_policy_cpu(model, ps_cpu, st_cpu; theta, u0)
     u = reshape(u0, 3, 1)
@@ -30,8 +25,14 @@ function rollout_policy_cpu(model, ps_cpu, st_cpu; theta, u0)
 end
 
 function plot_trajectories(model, train_state; rng, n_samples=20, outfile="plot_trajectories.png")
-    ps_cpu = to_cpu_tree(train_state.parameters)
-    st_cpu = to_cpu_tree(train_state.states)
+    _to_cpu(x) = x
+    _to_cpu(x::AbstractArray) = collect(x)
+    _to_cpu(x::NamedTuple) = map(_to_cpu, x)
+    _to_cpu(x::Tuple) = map(_to_cpu, x)
+    plot_trajectories(model, _to_cpu(train_state.parameters), _to_cpu(train_state.states); rng, n_samples, outfile)
+end
+
+function plot_trajectories(model, ps_cpu::NamedTuple, st_cpu::NamedTuple; rng, n_samples=20, outfile="plot_trajectories.png")
 
     u0 = Float32[3.0, 0.25, 7.0]
     t_states = 0:N_STEPS
@@ -61,4 +62,16 @@ function plot_trajectories(model, train_state; rng, n_samples=20, outfile="plot_
     println("Saved trajectories plot: $outfile")
 
     return plt
+end
+
+# Standalone usage: julia plot_trajectories.jl [checkpoint.jls]
+if abspath(PROGRAM_FILE) == @__FILE__
+    include("common.jl")
+
+    file = length(ARGS) >= 1 ? ARGS[1] : "checkpoint.jls"
+    @assert isfile(file) "Checkpoint not found: $file. Run training first."
+
+    ckpt = deserialize(file)
+    rng = Random.MersenneTwister(42)
+    plot_trajectories(policy, ckpt["parameters"], ckpt["states"]; rng)
 end

@@ -1,0 +1,24 @@
+branch: smc/reactant_0.2.190
+commit: 13515d4
+date: 2026-02-07
+experiment: Full-batch with mincut=true (Reactant v0.2.190)
+
+# Hyperparameters
+n_iters = 1000
+lr = 0.001 (constant)
+optimizer = Adam
+grad_accum = 1 (full-batch)
+B = 5100
+L_contrastive = 101
+M_nuisance = 3264
+N_STEPS = 14
+N_SUBSTEPS = 500
+DT = 1.0
+seed = 0
+mincut = true
+
+# Results
+loss_range = [-3.70, -3.64] (no convergence - identical to no-mincut run)
+gradients = ALL ZERO (confirmed via diagnostics)
+parameters = CONSTANT (never updated)
+conclusion = mincut does not fix the zero-gradient bug on Reactant v0.2.190

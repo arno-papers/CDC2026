@@ -8,7 +8,8 @@
 using Lux, Reactant, Random
 using Reactant: @trace
 using Optimisers
-using Printf
+using Printf, Dates
+using Serialization
 
 # ============================================================================
 #  Bioreactor Dynamics
@@ -45,7 +46,7 @@ end
 
 function integrate(u, θ, Q_in, dt, n_substeps)
     dt_sub = dt / n_substeps
-    @trace for _ in 1:n_substeps
+    @trace mincut=true for _ in 1:n_substeps
         u = rk4_step(u, θ, Q_in, dt_sub)
     end
     return u
@@ -195,7 +196,7 @@ const N_SUBSTEPS = 500      # Integration substeps per control interval
 # Optimal (L, B) minimizes MSE proxy: 1/B + λ/(L+1)² subject to budget constraint.
 # This yields the scaling B* ∝ (L*+1)².
 # -----------------------------------------------------------------------------
-const ODE_BUDGET_TRAJ = 530432
+const ODE_BUDGET_TRAJ = 2121728
 
 const (L_CONTRASTIVE, GRAD_BATCH) = let
     C = ODE_BUDGET_TRAJ
@@ -212,6 +213,12 @@ const (L_CONTRASTIVE, GRAD_BATCH) = let
     (best_L, best_B)
 end
 
+# Gradient accumulation: split B into micro-batches to fit in GPU memory.
+# Each micro-batch processes B/K episodes; K optimizer steps per iteration
+# with lr scaled by 1/K approximate one step on the full batch.
+const GRAD_ACCUM_STEPS = 16
+const GRAD_BATCH_MICRO = GRAD_BATCH ÷ GRAD_ACCUM_STEPS
+
 # Nuisance samples: ODE-free (only affect observation model), so can be large
 const M_NUISANCE = min(4096, max(512, 32 * (L_CONTRASTIVE + 1)))
 
@@ -225,10 +232,13 @@ const mu_max_lo, mu_max_hi = μ_max_lo, μ_max_hi
 const sigma_lo, sigma_hi = σ_lo, σ_hi
 
 function targeted_spce_loss(model, ps, st, data)
-    # Batch layout (episode minibatch size B = GRAD_BATCH)
+    # Batch layout (episode minibatch size B ≤ GRAD_BATCH)
     # θ_full: (3, L+1, B) - full parameter samples [μ_max, K_s, σ]
     # θ_N_numer: (M, B) - nuisance samples for numerator
     θ_full, θ_N_numer, u0, input_buffer, observations, designs, ε, ll_denom, ll_numer = data
+
+    # Infer batch size from data (supports micro-batching)
+    B = size(ε, 2)
 
     # Ensure accumulators start at zero (keeps allocation device-safe)
     ll_denom .= 0.0f0
@@ -238,7 +248,6 @@ function targeted_spce_loss(model, ps, st, data)
     θ_T_true = θ_full[1:2, 1:1, :]   # (2, 1, B)
     σ_true = θ_full[3, 1, :]         # (B,)
 
-    B = GRAD_BATCH
     u = repeat(u0, 1, 1, B)  # (3, 1, B)
 
     # Rollout with true θ (B episodes in parallel)
@@ -349,6 +358,154 @@ function sample_θ_N(rng, M::Int, B::Int)
 end
 
 # ============================================================================
+#  Training Diagnostics
+# ============================================================================
+
+function _push_diag!(diag::Dict, key::String, val::Float32)
+    v = get!(diag, key, Float32[])
+    push!(v, val)
+end
+
+function _collect_array_stats!(diag::Dict, path::String, x_cpu::AbstractArray{<:Real})
+    nrm = Float32(sqrt(sum(abs2, x_cpu)))
+    mx  = Float32(maximum(abs, x_cpu))
+    has_nan = Float32(any(isnan, x_cpu) || any(isinf, x_cpu))
+    _push_diag!(diag, path * ".norm", nrm)
+    _push_diag!(diag, path * ".max_abs", mx)
+    _push_diag!(diag, path * ".has_nan", has_nan)
+end
+
+function _collect_norm_only!(diag::Dict, path::String, x_cpu::AbstractArray{<:Real})
+    nrm = Float32(sqrt(sum(abs2, x_cpu)))
+    _push_diag!(diag, path * ".norm", nrm)
+end
+
+# Extract Adam (mt, vt) from optimizer state, handling both bare Adam and OptimiserChain
+function _collect_adam_moments!(diag::Dict, prefix::String, state::Tuple)
+    # Bare Adam state: (mt::AbstractArray, vt::AbstractArray, βt)
+    if length(state) >= 2 && state[1] isa AbstractArray && state[2] isa AbstractArray
+        _collect_norm_only!(diag, prefix * ".mt", Array(state[1]))
+        _collect_norm_only!(diag, prefix * ".vt", Array(state[2]))
+        return
+    end
+    # OptimiserChain state: (rule1_state, rule2_state, ...) — recurse into sub-tuples
+    for s in state
+        if s isa Tuple
+            _collect_adam_moments!(diag, prefix, s)
+            return
+        end
+    end
+end
+
+"""
+    _walk_trees!(diag, prefix, ps, grads, opt_state)
+
+Recursively walk Lux parameter / gradient / optimizer-state trees in parallel,
+collecting diagnostics for each leaf array.
+"""
+function _walk_trees!(diag::Dict, prefix::String, ps, grads, opt_state)
+    if ps isa AbstractArray
+        ps_cpu = Array(ps)
+        _collect_array_stats!(diag, prefix * ".param", ps_cpu)
+        if grads isa AbstractArray
+            _collect_array_stats!(diag, prefix * ".grad", Array(grads))
+        end
+        if opt_state isa Optimisers.Leaf
+            _collect_adam_moments!(diag, prefix, opt_state.state)
+        end
+        return
+    end
+    # Recurse into NamedTuples / nested structures
+    for k in keys(ps)
+        child_ps = ps[k]
+        child_g  = grads isa NamedTuple ? get(grads, k, nothing) : nothing
+        child_o  = opt_state isa NamedTuple ? get(opt_state, k, nothing) : nothing
+        _walk_trees!(diag, prefix == "" ? string(k) : prefix * "." * string(k),
+                     child_ps, child_g, child_o)
+    end
+end
+
+function collect_diagnostics!(diag::Dict, train_state, grads)
+    _walk_trees!(diag, "", train_state.parameters, grads, train_state.optimizer_state)
+end
+
+# ============================================================================
+#  Training Utilities
+# ============================================================================
+
+function cosine_lr(iter, n_iters, lr_max, lr_min, warmup)
+    if iter <= warmup
+        return lr_min + (lr_max - lr_min) * (iter / warmup)
+    end
+    progress = (iter - warmup) / (n_iters - warmup)
+    return lr_min + 0.5f0 * (lr_max - lr_min) * (1 + cospi(progress))
+end
+
+
+# ============================================================================
+#  Results I/O
+# ============================================================================
+
+_to_cpu(x) = x
+_to_cpu(x::AbstractArray) = collect(x)
+_to_cpu(x::NamedTuple) = map(_to_cpu, x)
+_to_cpu(x::Tuple) = map(_to_cpu, x)
+
+"""
+    save_results(dir, train_state, loss_history, diagnostics)
+
+Save training results to `dir/`:
+- `checkpoint.jls` — trained parameters (CPU), model states, and loss history
+- `diagnostics.jls` — per-layer gradient/optimizer diagnostics + loss history
+"""
+function save_results(dir::AbstractString, train_state, loss_history, diagnostics)
+    mkpath(dir)
+    serialize(joinpath(dir, "diagnostics.jls"),
+        Dict("diagnostics" => diagnostics, "loss_history" => loss_history))
+    serialize(joinpath(dir, "checkpoint.jls"), Dict(
+        "parameters"   => _to_cpu(train_state.parameters),
+        "states"       => _to_cpu(train_state.states),
+        "loss_history" => loss_history,
+    ))
+    println("Saved results to $dir/")
+end
+
+"""
+    load_results(dir) -> (; parameters, states, loss_history, diagnostics)
+
+Load training results from `dir/`. Returns a named tuple with:
+- `parameters` — trained model weights (CPU `Float32` arrays)
+- `states` — Lux model states
+- `loss_history` — `Vector{Float32}` of per-iteration losses
+- `diagnostics` — `Dict{String, Vector{Float32}}` of per-layer metrics
+
+To resume training on GPU:
+
+    r = load_results("results/2x_budget_cosine_lr")
+    xdev = reactant_device()
+    ps_ra = r.parameters |> xdev
+    st_ra = r.states |> xdev
+"""
+function load_results(dir::AbstractString)
+    ckpt_path = joinpath(dir, "checkpoint.jls")
+    diag_path = joinpath(dir, "diagnostics.jls")
+
+    ckpt = open(deserialize, ckpt_path)
+    ps = ckpt["parameters"]
+    st = ckpt["states"]
+    loss_history = ckpt["loss_history"]
+
+    diagnostics = if isfile(diag_path)
+        d = open(deserialize, diag_path)
+        d["diagnostics"]
+    else
+        Dict{String, Vector{Float32}}()
+    end
+
+    return (; parameters=ps, states=st, loss_history, diagnostics)
+end
+
+# ============================================================================
 #  Training
 # ============================================================================
 
@@ -356,47 +513,75 @@ function train_policy(model, ps, st, rng;
     xdev = identity,
     n_iters = 50,
     on_iteration = nothing,
+    lr_max = 0.003f0,
+    lr_min = 1f-5,
+    warmup = 50,
+    grad_accum = GRAD_ACCUM_STEPS,
+    clip_norm = 1.0f0,
+    save_dir = ".",
 )
-    train_state = Lux.Training.TrainState(model, ps, st, Adam(0.001f0))
+    B_micro = GRAD_BATCH ÷ grad_accum
+    n_denom = L_CONTRASTIVE + 1
+
+    # Start at lr_min (warmup will ramp up); adjust! updates lr each iteration
+    opt = Adam(lr_min)
+    train_state = Lux.Training.TrainState(model, ps, st, opt)
     loss_history = Float32[]
+    diagnostics = Dict{String, Vector{Float32}}()
 
+    # Pre-allocate u0 once (same across all micro-batches)
+    u0 = zeros(Float32, 3, 1, 1)
+    u0[1, 1, 1] = 3.0f0
+    u0[2, 1, 1] = 0.25f0
+    u0[3, 1, 1] = 7.0f0
+    u0 = u0 |> xdev
+
+    grads_last = nothing
     for iteration in 1:n_iters
-        GC.gc()
-        # θ_full: (3, L+1, B) full samples (first in each episode generates data)
-        n_denom = L_CONTRASTIVE + 1
-        θ_full = sample_θ_full(rng, n_denom, GRAD_BATCH) |> xdev
+        # Cosine LR schedule with warmup (scale by 1/K for micro-batch steps)
+        lr_t = cosine_lr(iteration, n_iters, lr_max, lr_min, warmup)
+        Optimisers.adjust!(train_state.optimizer_state; eta = Float32(lr_t / grad_accum))
 
-        # θ_N_numer: (M, B) nuisance samples for numerator
-        θ_N_numer = sample_θ_N(rng, M_NUISANCE, GRAD_BATCH) |> xdev
+        # K fused micro-batch steps (forward + backward + optimizer in one XLA program)
+        total_loss = 0.0f0
 
-        # Buffers
-        u0 = zeros(Float32, 3, 1, 1)
-        u0[1, 1, 1] = 3.0f0
-        u0[2, 1, 1] = 0.25f0
-        u0[3, 1, 1] = 7.0f0
-        u0 = u0 |> xdev
-        input_buffer = zeros(Float32, 2, N_STEPS, GRAD_BATCH) |> xdev
-        observations = zeros(Float32, N_STEPS, GRAD_BATCH) |> xdev
-        designs = zeros(Float32, N_STEPS, GRAD_BATCH) |> xdev
-        ε = randn(rng, Float32, N_STEPS, GRAD_BATCH) |> xdev
-        ll_denom = zeros(Float32, n_denom, GRAD_BATCH) |> xdev   # (n_denom, B)
-        ll_numer = zeros(Float32, M_NUISANCE, GRAD_BATCH) |> xdev
+        for _k in 1:grad_accum
+            θ_full = sample_θ_full(rng, n_denom, B_micro) |> xdev
+            θ_N_numer = sample_θ_N(rng, M_NUISANCE, B_micro) |> xdev
 
-        data = (θ_full, θ_N_numer, u0, input_buffer, observations, designs, ε, ll_denom, ll_numer)
+            input_buffer = zeros(Float32, 2, N_STEPS, B_micro) |> xdev
+            observations = zeros(Float32, N_STEPS, B_micro) |> xdev
+            designs = zeros(Float32, N_STEPS, B_micro) |> xdev
+            ε = randn(rng, Float32, N_STEPS, B_micro) |> xdev
+            ll_denom = zeros(Float32, n_denom, B_micro) |> xdev
+            ll_numer = zeros(Float32, M_NUISANCE, B_micro) |> xdev
 
-        _, loss, _, train_state = Lux.Training.single_train_step!(
-            AutoEnzyme(), targeted_spce_loss, data, train_state
-        )
-        push!(loss_history, loss)
+            data = (θ_full, θ_N_numer, u0, input_buffer, observations, designs, ε, ll_denom, ll_numer)
+
+            grads_last, loss_k, _, train_state = Lux.Training.single_train_step!(
+                AutoEnzyme(), targeted_spce_loss, data, train_state
+            )
+            total_loss += loss_k
+        end
+
+        # Collect diagnostics every 10 iterations (GPU→CPU sync is expensive)
+        if iteration % 10 == 0 || iteration == 1
+            collect_diagnostics!(diagnostics, train_state, grads_last)
+        end
+
+        avg_loss = total_loss / Float32(grad_accum)
+        push!(loss_history, avg_loss)
 
         if on_iteration !== nothing
-            on_iteration(iteration, loss, loss_history, train_state)
+            on_iteration(iteration, avg_loss, loss_history, train_state)
         end
 
         if iteration % 10 == 0 || iteration == 1
-            @printf("Iter: [%4d/%4d]\tTargeted sPCE Loss: %.8f\n", iteration, n_iters, loss)
+            @printf("Iter: [%4d/%4d]\tLoss: %.8f\tlr: %.6f\n", iteration, n_iters, avg_loss, lr_t)
         end
     end
 
-    return train_state, loss_history
+    save_results(save_dir, train_state, loss_history, diagnostics)
+
+    return train_state, loss_history, diagnostics
 end
