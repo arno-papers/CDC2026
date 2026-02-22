@@ -35,8 +35,8 @@ fi
 
 ssh "${SSH_OPTS[@]}" -O check "${REMOTE_HOST}" >/dev/null
 
-remote_vsc_data="$(ssh "${SSH_OPTS[@]}" "${REMOTE_HOST}" "bash -lc 'printf %s \"\$VSC_DATA\"'")"
-remote_vsc_scratch="$(ssh "${SSH_OPTS[@]}" "${REMOTE_HOST}" "bash -lc 'printf %s \"\$VSC_SCRATCH\"'")"
+remote_vsc_data="$(ssh "${SSH_OPTS[@]}" "${REMOTE_HOST}" "source /etc/profile 2>/dev/null; printf %s \"\$VSC_DATA\"")"
+remote_vsc_scratch="$(ssh "${SSH_OPTS[@]}" "${REMOTE_HOST}" "source /etc/profile 2>/dev/null; printf %s \"\$VSC_SCRATCH\"")"
 if [[ -z "${remote_vsc_data}" ]]; then
   echo "[submit-full] ERROR: remote VSC_DATA is empty" >&2
   exit 1

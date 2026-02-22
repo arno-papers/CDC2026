@@ -34,7 +34,6 @@ end
 
 function plot_trajectories(model, ps_cpu::NamedTuple, st_cpu::NamedTuple; rng, n_samples=20, outfile="plot_trajectories.png")
 
-    u0 = Float32[3.0, 0.25, 7.0]
     t_states = 0:N_STEPS
     t_designs = 1:N_STEPS
 
@@ -48,6 +47,8 @@ function plot_trajectories(model, ps_cpu::NamedTuple, st_cpu::NamedTuple; rng, n
             mu_max_lo + (mu_max_hi - mu_max_lo) * rand(rng),
             K_s_lo + (K_s_hi - K_s_lo) * rand(rng),
         ]
+        Cx0 = Cx0_lo + (Cx0_hi - Cx0_lo) * rand(rng)
+        u0 = Float32[3.0, Cx0, 7.0]
         traj, designs = rollout_policy_cpu(model, ps_cpu, st_cpu; theta=theta, u0=u0)
 
         label = i == 1 ? "samples" : ""
@@ -66,7 +67,7 @@ end
 
 # Standalone usage: julia plot_trajectories.jl [checkpoint.jls]
 if abspath(PROGRAM_FILE) == @__FILE__
-    include("common.jl")
+    include("common_core.jl")
 
     file = length(ARGS) >= 1 ? ARGS[1] : "checkpoint.jls"
     @assert isfile(file) "Checkpoint not found: $file. Run training first."

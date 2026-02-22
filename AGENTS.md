@@ -27,11 +27,10 @@ julia --project training.jl [--n_iters 1000] [--grad_accum 16] [--results_dir re
 ```
 ## Running supercomputer
 
-See vsc_scripts for info about Flemish supercomputer.
+See vsc_scripts and VSC_README.md for info about Flemish supercomputer and how agents can access.
 
-## Post-training analysis
+## Post-training analysis and comparison to benchmarks.
 ```bash
-julia --project plot_diagnostics.jl   # Convergence metrics (reads diagnostics.jls)
 julia --project plot_trajectories.jl  # Policy rollout visualization (reads checkpoint.jls)
 julia --project compare_static_bim.jl # Bayesian information matrix evaluation
 ```

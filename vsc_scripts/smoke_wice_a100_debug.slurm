@@ -42,10 +42,44 @@ nvidia-smi
 
 "${JULIA_BIN}" --project=. -e 'using Pkg; Pkg.instantiate(); Pkg.precompile(strict=false)'
 
-echo "[smoke] Running eager CUDA first-iter check"
-"${JULIA_BIN}" --project=. training_eager_cuda_first_iter.jl seed=0
+echo "[smoke] Running tiny end-to-end training (5 iters, grad_accum=10)"
 
-echo "[smoke] Running tiny end-to-end training"
-"${JULIA_BIN}" --project=. training.jl n_iters=2 grad_accum=1 plotting=false loss_png_every=1 seed=0
+# Background GPU monitor: sample utilization + memory every 5s
+GPU_LOG="${REPO_DIR}/logs/gpu_util_${SLURM_JOB_ID}.csv"
+echo "timestamp,gpu_util_pct,mem_used_MiB,mem_total_MiB,power_W,temp_C" > "${GPU_LOG}"
+(
+  while true; do
+    nvidia-smi --query-gpu=timestamp,utilization.gpu,memory.used,memory.total,power.draw,temperature.gpu \
+      --format=csv,noheader,nounits >> "${GPU_LOG}" 2>/dev/null
+    sleep 5
+  done
+) &
+GPU_MONITOR_PID=$!
+
+"${JULIA_BIN}" --project=. training.jl n_iters=5 grad_accum=10 plotting=false loss_png_every=1 seed=0
+
+kill "${GPU_MONITOR_PID}" 2>/dev/null || true
+wait "${GPU_MONITOR_PID}" 2>/dev/null || true
+
+echo ""
+echo "[smoke] === GPU Utilization Summary ==="
+if [[ -f "${GPU_LOG}" ]]; then
+  # Skip header, extract gpu_util and mem_used columns
+  awk -F', *' 'NR>1 && $2+0 > 0 {
+    n++; sum_util+=$2; sum_mem+=$3;
+    if($2>max_util) max_util=$2;
+    if($3>max_mem) max_mem=$3;
+    mem_total=$4
+  } END {
+    if(n>0) {
+      printf "[smoke] Samples with GPU active: %d\n", n
+      printf "[smoke] GPU Util: mean=%.0f%%, max=%.0f%%\n", sum_util/n, max_util
+      printf "[smoke] Memory:   mean=%.0f MiB, max=%.0f MiB / %s MiB\n", sum_mem/n, max_mem, mem_total
+    } else {
+      print "[smoke] No GPU-active samples found (compilation only?)"
+    }
+  }' "${GPU_LOG}"
+  echo "[smoke] Raw log: ${GPU_LOG}"
+fi
 
 echo "[smoke] Completed successfully"

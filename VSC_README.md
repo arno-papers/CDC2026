@@ -44,7 +44,7 @@ Why: without this first verification, non-interactive SSH can fail with:
 Run from local repo root (`/path/to/CDC2026`).
 
 ```bash
-ssh -MNf -o ControlMaster=yes -o ControlPersist=8h -o ControlPath=~/.ssh/cm-tier2-%r@%h:%p tier2
+ssh -MNf -o ControlMaster=yes -o ControlPersist=24h -o ControlPath=~/.ssh/cm-tier2-%r@%h:%p tier2
 ssh -S ~/.ssh/cm-tier2-%r@%h:%p -O check tier2
 ```
 

@@ -76,7 +76,7 @@ if abspath(PROGRAM_FILE) == @__FILE__
         println(io, "B_micro = $B_micro")
         println(io, "B_total = $GRAD_BATCH")
         println(io, "L_contrastive = $L_CONTRASTIVE")
-        println(io, "M_nuisance = $M_NUISANCE")
+        println(io, "M_NUISANCE = $M_NUISANCE  # joint (σ, Cx0) samples")
         println(io, "N_STEPS = $N_STEPS")
         println(io, "N_SUBSTEPS = $N_SUBSTEPS")
         println(io, "DT = $DT")
@@ -85,8 +85,8 @@ if abspath(PROGRAM_FILE) == @__FILE__
     end
 
     println("\n=== Targeted DADS Training (Reactant + Enzyme) ===")
-    println("Target params: (mu_max, K_s), Nuisance: sigma_measure")
-    println("L = $L_CONTRASTIVE contrastive, M = $M_NUISANCE nuisance samples, B = $GRAD_BATCH total ($(grad_accum)×$(B_micro) micro)")
+    println("Target params: (mu_max, K_s), Nuisance: (σ, Cx0) jointly sampled")
+    println("L = $L_CONTRASTIVE contrastive, M_NUISANCE = $M_NUISANCE (joint σ,Cx0), B = $GRAD_BATCH total ($(grad_accum)×$(B_micro) micro)")
     println("n_iters = $n_iters, lr_max = $lr_max, lr_min = $lr_min, warmup = $warmup")
     println("grad_accum = $grad_accum, clip_norm = $clip_norm, plotting = $plotting")
     println("results_dir = $results_dir")

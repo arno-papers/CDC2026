@@ -14,7 +14,7 @@ JULIA_VERSION="${JULIA_VERSION:-1.12.4}"
 
 ssh "${SSH_OPTS[@]}" -O check "${REMOTE_HOST}" >/dev/null
 
-remote_vsc_data="$(ssh "${SSH_OPTS[@]}" "${REMOTE_HOST}" "bash -lc 'printf %s \"\$VSC_DATA\"'")"
+remote_vsc_data="$(ssh "${SSH_OPTS[@]}" "${REMOTE_HOST}" "source /etc/profile 2>/dev/null; printf %s \"\$VSC_DATA\"")"
 if [[ -z "${remote_vsc_data}" ]]; then
   echo "[submit] ERROR: remote VSC_DATA is empty" >&2
   exit 1
