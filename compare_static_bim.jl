@@ -52,6 +52,10 @@ function draw_prior_samples(rng, n::Int)
     return samples
 end
 
+function sample_cx0(rng, n::Int)
+    return Float32[Cx0_lo + (Cx0_hi - Cx0_lo) * rand(rng, Float32) for _ in 1:n]
+end
+
 # ============================================================================
 #  ForwardDiff-compatible trajectory
 #
@@ -109,26 +113,42 @@ function schur_complement_2x2(B::AbstractMatrix)
 end
 
 # ============================================================================
-#  Bayesian Information Matrix objective (differentiable w.r.t. design)
+#  Bayesian D-optimal objective (criterion A, differentiable w.r.t. design)
 #
-#  BIM = (1/N) Σ_i F(θ_i, ξ) + Σ^{-1}_prior
-#  Marginalise Cx0 via Schur complement → 2×2 for θ_T = (μ_max, K_s)
-#  Objective: logdet(BIM_marginal)
+#  Φ(ξ) = E_θ[ logdet( Schur( Σ⁻¹_prior + F(θ, ξ) ) ) ]
+#  Expectation OUTSIDE the logdet (derived from EIG under normal approx).
 # ============================================================================
 
 function bim_logdet(design::AbstractVector, prior_samples;
                      n_substeps::Int=N_SUBSTEPS)
     T = promote_type(Float64, eltype(design))
-    B_full = zeros(T, 3, 3)
+    score = zero(T)
     for (theta_T, sigma, Cx0) in prior_samples
-        B_full .+= fim_matrix(theta_T, sigma, Cx0, design; n_substeps=n_substeps)
+        F = fim_matrix(theta_T, sigma, Cx0, design; n_substeps=n_substeps)
+        for k in 1:3
+            F[k, k] += T(PRIOR_PREC[k])
+        end
+        B_marg = schur_complement_2x2(F)
+        score += logdet(Symmetric(B_marg))
     end
-    B_full ./= length(prior_samples)
-    B_full[1, 1] += T(PRIOR_PREC[1])
-    B_full[2, 2] += T(PRIOR_PREC[2])
-    B_full[3, 3] += T(PRIOR_PREC[3])
-    B_marg = schur_complement_2x2(B_full)
-    return logdet(Symmetric(B_marg))
+    return score / length(prior_samples)
+end
+
+# Cheating BIM: FIM evaluated at true (θ_T*, σ*), averaged over Cx0 only.
+# Same full prior precision and criterion A structure.
+function bim_logdet_cheating(design::AbstractVector, theta_T, sigma, cx0_samples;
+                              n_substeps::Int=N_SUBSTEPS)
+    T = promote_type(Float64, eltype(design))
+    score = zero(T)
+    for Cx0 in cx0_samples
+        F = fim_matrix(theta_T, sigma, Cx0, design; n_substeps=n_substeps)
+        for k in 1:3
+            F[k, k] += T(PRIOR_PREC[k])
+        end
+        B_marg = schur_complement_2x2(F)
+        score += logdet(Symmetric(B_marg))
+    end
+    return score / length(cx0_samples)
 end
 
 # ============================================================================
@@ -145,9 +165,9 @@ function init_design(restart::Int)
     return restart <= length(designs) ? copy(designs[restart]) : 10.0 .* rand(N_STEPS)
 end
 
-function optimize_static_design_grad(prior_samples;
+function optimize_design_grad(objective;
         n_iters::Int=300, lr_max::Float64=1.0, lr_min::Float64=0.01,
-        n_restarts::Int=4, n_substeps::Int=N_SUBSTEPS)
+        n_restarts::Int=4)
 
     best_design = zeros(Float64, N_STEPS)
     best_score = -Inf
@@ -160,17 +180,13 @@ function optimize_static_design_grad(prior_samples;
         local_best_score = -Inf
 
         for iter in 1:n_iters
-            g = ForwardDiff.gradient(
-                ξ -> bim_logdet(ξ, prior_samples; n_substeps=n_substeps),
-                design
-            )
+            g = ForwardDiff.gradient(objective, design)
             lr = cosine_lr(iter, n_iters, lr_max, lr_min, 10)
             velocity .= 0.5 .* velocity .+ g
             design .+= lr .* velocity
             clamp!(design, 0.0, 10.0)
 
-            # Evaluate every iteration (cheap relative to gradient)
-            score = bim_logdet(design, prior_samples; n_substeps=n_substeps)
+            score = objective(design)
             if score > local_best_score
                 local_best_score = score
                 local_best .= design
@@ -195,6 +211,14 @@ function optimize_static_design_grad(prior_samples;
     @printf("[GRAD] selected restart %d with score = %.5f\n", best_restart, best_score)
     flush(stdout)
     return Float32.(best_design), best_score
+end
+
+# Convenience wrapper preserving original call signature
+function optimize_static_design_grad(prior_samples;
+        n_iters::Int=300, lr_max::Float64=1.0, lr_min::Float64=0.01,
+        n_restarts::Int=4, n_substeps::Int=N_SUBSTEPS)
+    objective = ξ -> bim_logdet(ξ, prior_samples; n_substeps=n_substeps)
+    return optimize_design_grad(objective; n_iters, lr_max, lr_min, n_restarts)
 end
 
 # ============================================================================
@@ -227,7 +251,12 @@ end
 
 function evaluate_adaptive_vs_static(model, ps_cpu, st_cpu, rng, static_design;
         n_trials::Int=200, n_substeps::Int=N_SUBSTEPS, ridge::Float64=1e-6,
-        resample_true_each_trial::Bool=true)
+        resample_true_each_trial::Bool=true,
+        fixed_theta_T::Union{Nothing, Vector{Float32}}=nothing,
+        fixed_sigma::Union{Nothing, Float32}=nothing)
+
+    # When fixed_theta_T and fixed_sigma are provided, only Cx0 varies per trial
+    cheating = fixed_theta_T !== nothing && fixed_sigma !== nothing
 
     adaptive_scores  = Vector{Float64}(undef, n_trials)
     static_scores    = Vector{Float64}(undef, n_trials)
@@ -241,7 +270,11 @@ function evaluate_adaptive_vs_static(model, ps_cpu, st_cpu, rng, static_design;
     I2 = Matrix{Float64}(I, 2, 2)
 
     for i in 1:n_trials
-        θT, σ, Cx0 = if resample_true_each_trial
+        θT, σ, Cx0 = if cheating
+            # Fixed θ_T and σ, resample only Cx0
+            cx0_i = Cx0_lo + (Cx0_hi - Cx0_lo) * rand(rng, Float32)
+            (copy(fixed_theta_T), fixed_sigma, cx0_i)
+        elseif resample_true_each_trial
             tf = sample_θ_full(rng, 1)
             (Float32[tf[1, 1], tf[2, 1]], Float32(tf[3, 1]), Float32(tf[4, 1]))
         else
@@ -252,9 +285,13 @@ function evaluate_adaptive_vs_static(model, ps_cpu, st_cpu, rng, static_design;
                                                Cx0=Cx0, n_substeps=n_substeps)
         adaptive_designs[:, i] .= d_adapt
 
-        # 3×3 FIM → Schur complement → logdet(2×2 + ridge·I)
+        # BIM per trial: Σ⁻¹_prior + F → Schur complement → logdet(2×2 + ridge·I)
         F_a = fim_matrix(θT, σ, Cx0, d_adapt; n_substeps=n_substeps)
         F_s = fim_matrix(θT, σ, Cx0, static_design; n_substeps=n_substeps)
+        for k in 1:3
+            F_a[k, k] += PRIOR_PREC[k]
+            F_s[k, k] += PRIOR_PREC[k]
+        end
         adaptive_scores[i] = logdet(Symmetric(schur_complement_2x2(F_a) + ridge * I2))
         static_scores[i]   = logdet(Symmetric(schur_complement_2x2(F_s) + ridge * I2))
 
@@ -275,7 +312,7 @@ end
 
 function plot_combined_comparison(adaptive_designs, static_design,
         adaptive_scores, static_scores, wins, out_png;
-        n_show::Int=50)
+        n_show::Int=50, kwargs...)
     steps = collect(1:N_STEPS)
     n_trials = length(wins)
     n_show = clamp(n_show, 1, n_trials)
@@ -299,7 +336,8 @@ function plot_combined_comparison(adaptive_designs, static_design,
             n_orange += 1
         end
     end
-    plot!(p1, steps, static_design; color=:crimson, lw=3, label="static BIM-optimal")
+    static_label = get(kwargs, :static_label, "static BIM-optimal")
+    plot!(p1, steps, static_design; color=:crimson, lw=3, label=static_label)
 
     # --- Bottom: score scatter ---
     lo = min(minimum(adaptive_scores), minimum(static_scores)) - 0.5
@@ -394,17 +432,31 @@ if abspath(PROGRAM_FILE) == @__FILE__
     resample      = parse_bool(ARGS, "resample_true_each_trial"; default=true)
     save_plot     = parse_bool(ARGS, "save_plot"; default=true)
     n_plot_show   = parse_int(ARGS, "n_plot_runouts"; default=50)
+    cheating      = parse_bool(ARGS, "cheating"; default=false)
+    true_mu_max   = parse_float64(ARGS, "true_mu_max"; default=Float64(μ_max_lo + μ_max_hi) / 2)
+    true_K_s      = parse_float64(ARGS, "true_K_s"; default=Float64(K_s_lo + K_s_hi) / 2)
+    true_sigma    = parse_float64(ARGS, "true_sigma"; default=Float64(σ_lo + σ_hi) / 2)
+    n_cx0_opt     = parse_int(ARGS, "n_cx0_opt"; default=512)
 
     ps_cpu, st_cpu, ckpt_base = load_checkpoint_cpu(checkpoint)
-    output_dir = output_dir_arg === nothing ? joinpath(ckpt_base, "bim_comparison") : output_dir_arg
+    default_subdir = cheating ? "bim_comparison_cheating" : "bim_comparison"
+    output_dir = output_dir_arg === nothing ? joinpath(ckpt_base, default_subdir) : output_dir_arg
     mkpath(output_dir)
 
-    println("\n=== Bayesian D-optimal Static Design (ForwardDiff + gradient) ===")
+    mode_str = cheating ? "CHEATING (known kinetics)" : "standard"
+    println("\n=== Bayesian D-optimal Static Design (ForwardDiff + gradient) [$mode_str] ===")
     println("checkpoint        = $checkpoint")
     println("output_dir        = $output_dir")
     println("seed              = $seed")
-    println("n_prior_opt       = $n_prior_opt")
-    println("n_prior_report    = $n_prior_report")
+    if cheating
+        @printf("true_mu_max       = %.4f\n", true_mu_max)
+        @printf("true_K_s          = %.4f\n", true_K_s)
+        @printf("true_sigma        = %.4f\n", true_sigma)
+        println("n_cx0_opt         = $n_cx0_opt")
+    else
+        println("n_prior_opt       = $n_prior_opt")
+        println("n_prior_report    = $n_prior_report")
+    end
     println("n_trials          = $n_trials")
     println("grad              = $grad_iters iters × $grad_restarts restarts")
     println("lr                = [$lr_min, $lr_max] cosine")
@@ -418,15 +470,34 @@ if abspath(PROGRAM_FILE) == @__FILE__
     println("\n--- Phase 1: optimize static design ---")
     flush(stdout)
     rng_opt = MersenneTwister(seed)
-    prior_opt = draw_prior_samples(rng_opt, n_prior_opt)
 
-    static_design, static_obj = optimize_static_design_grad(
-        prior_opt; n_iters=grad_iters, lr_max=lr_max, lr_min=lr_min,
-        n_restarts=grad_restarts, n_substeps=n_substeps)
+    local static_design, static_obj, static_obj_report
 
-    rng_report = MersenneTwister(seed + 1)
-    prior_report = draw_prior_samples(rng_report, n_prior_report)
-    static_obj_report = bim_logdet(Float64.(static_design), prior_report; n_substeps=n_substeps)
+    if cheating
+        theta_T_true = Float32[Float32(true_mu_max), Float32(true_K_s)]
+        sigma_true   = Float32(true_sigma)
+        cx0_opt = sample_cx0(rng_opt, n_cx0_opt)
+        objective = ξ -> bim_logdet_cheating(ξ, theta_T_true, sigma_true, cx0_opt;
+                                              n_substeps=n_substeps)
+        static_design, static_obj = optimize_design_grad(objective;
+            n_iters=grad_iters, lr_max=lr_max, lr_min=lr_min,
+            n_restarts=grad_restarts)
+
+        # Report score on fresh Cx0 samples
+        rng_report = MersenneTwister(seed + 1)
+        cx0_report = sample_cx0(rng_report, n_prior_report)
+        static_obj_report = bim_logdet_cheating(Float64.(static_design),
+            theta_T_true, sigma_true, cx0_report; n_substeps=n_substeps)
+    else
+        prior_opt = draw_prior_samples(rng_opt, n_prior_opt)
+        static_design, static_obj = optimize_static_design_grad(
+            prior_opt; n_iters=grad_iters, lr_max=lr_max, lr_min=lr_min,
+            n_restarts=grad_restarts, n_substeps=n_substeps)
+
+        rng_report = MersenneTwister(seed + 1)
+        prior_report = draw_prior_samples(rng_report, n_prior_report)
+        static_obj_report = bim_logdet(Float64.(static_design), prior_report; n_substeps=n_substeps)
+    end
 
     println("\nStatic design optimized.")
     @printf("  Train BIM logdet:  %.5f\n", static_obj)
@@ -439,10 +510,17 @@ if abspath(PROGRAM_FILE) == @__FILE__
     flush(stdout)
     rng_eval = MersenneTwister(seed + 2)
 
+    eval_kwargs = if cheating
+        (fixed_theta_T=Float32[Float32(true_mu_max), Float32(true_K_s)],
+         fixed_sigma=Float32(true_sigma))
+    else
+        (resample_true_each_trial=resample,)
+    end
+
     eval_res = evaluate_adaptive_vs_static(
         policy, ps_cpu, st_cpu, rng_eval, static_design;
         n_trials=n_trials, n_substeps=n_substeps, ridge=ridge,
-        resample_true_each_trial=resample)
+        eval_kwargs...)
 
     @printf("\n  Adaptive: %.5f ± %.5f\n", mean(eval_res.adaptive_scores), std(eval_res.adaptive_scores))
     @printf("  Static:   %.5f ± %.5f\n", mean(eval_res.static_scores), std(eval_res.static_scores))
@@ -469,21 +547,31 @@ if abspath(PROGRAM_FILE) == @__FILE__
 
     cfg = Dict{String, Any}(
         "checkpoint" => checkpoint, "seed" => seed,
-        "n_prior_opt" => n_prior_opt, "n_prior_report" => n_prior_report,
         "n_trials" => n_trials, "n_substeps" => n_substeps, "ridge" => ridge,
         "grad_iters" => grad_iters, "grad_restarts" => grad_restarts,
         "lr_max" => lr_max, "lr_min" => lr_min,
-        "resample_true_each_trial" => resample,
+        "cheating" => cheating,
     )
+    if cheating
+        cfg["true_mu_max"] = true_mu_max
+        cfg["true_K_s"]    = true_K_s
+        cfg["true_sigma"]  = true_sigma
+        cfg["n_cx0_opt"]   = n_cx0_opt
+    else
+        cfg["n_prior_opt"]  = n_prior_opt
+        cfg["n_prior_report"] = n_prior_report
+        cfg["resample_true_each_trial"] = resample
+    end
     save_summary_txt(joinpath(output_dir, "bim_summary.txt"), cfg, eval_res,
                      static_obj_report, static_design)
 
     if save_plot
+        plot_kw = cheating ? (static_label="static cheating-BIM",) : (;)
         plot_combined_comparison(
             eval_res.adaptive_designs, static_design,
             eval_res.adaptive_scores, eval_res.static_scores, eval_res.wins,
             joinpath(output_dir, "plot_bim_comparison.png");
-            n_show=n_plot_show)
+            n_show=n_plot_show, plot_kw...)
     end
 
     println("\nDone. Outputs in: $output_dir")
