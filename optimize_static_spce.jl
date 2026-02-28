@@ -161,22 +161,16 @@ end
 # ============================================================================
 
 function init_design_f32(restart::Int)
-    designs = [
-        fill(0.1f0, N_STEPS),                                           # near-zero
-        Float32.(vcat(fill(0.1, N_STEPS - 3), [4.0, 7.0, 10.0])),      # late burst
-        fill(5.0f0, N_STEPS),                                           # midpoint
-        Float32.(collect(range(10.0, 0.0; length=N_STEPS))),            # decreasing ramp
-    ]
-    return restart <= length(designs) ? copy(designs[restart]) : 10.0f0 .* rand(Float32, N_STEPS)
+    return fill(0.0f0, N_STEPS)
 end
 
 function optimize_static_spce(;
     n_iters::Int = 300,
-    n_restarts::Int = 4,
+    n_restarts::Int = 1,
     B::Int = 64,
     L::Int = L_CONTRASTIVE,
     M::Int = M_NUISANCE,
-    n_substeps::Int = 100,
+    n_substeps::Int = N_SUBSTEPS,
     lr_max::Float32 = 0.01f0,
     lr_min::Float32 = 1f-5,
     warmup::Int = 20,
@@ -356,11 +350,11 @@ end
 
 if abspath(PROGRAM_FILE) == @__FILE__
     n_iters     = parse_int(ARGS, "n_iters"; default=300)
-    n_restarts  = parse_int(ARGS, "n_restarts"; default=4)
+    n_restarts  = parse_int(ARGS, "n_restarts"; default=1)
     B           = parse_int(ARGS, "B"; default=64)
     L           = parse_int(ARGS, "L"; default=L_CONTRASTIVE)
     M           = parse_int(ARGS, "M"; default=M_NUISANCE)
-    n_substeps  = parse_int(ARGS, "n_substeps"; default=100)
+    n_substeps  = parse_int(ARGS, "n_substeps"; default=N_SUBSTEPS)
     lr_max      = parse_float(ARGS, "lr_max"; default=0.01f0)
     lr_min      = parse_float(ARGS, "lr_min"; default=1f-5)
     warmup      = parse_int(ARGS, "warmup"; default=20)

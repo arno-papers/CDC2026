@@ -6,7 +6,10 @@
 
 include("common_core.jl")
 include("compare_static_bim.jl")  # for load_checkpoint_cpu, rollout, parse helpers
+include("plot_spce_comparison.jl") # histogram plots + summary stats
 
+using Dates
+using Distributions: TDist, ccdf
 using Printf
 using Random
 using Statistics
@@ -91,8 +94,8 @@ checkpoint   = parse_kwarg(ARGS, "checkpoint"; default="results/joint-nuisance-i
 spce_design_path = parse_kwarg(ARGS, "spce_design"; default=nothing)
 n_trials     = parse_int(ARGS, "n_trials"; default=500)
 n_substeps   = parse_int(ARGS, "n_substeps"; default=N_SUBSTEPS)
-L            = parse_int(ARGS, "L"; default=1000)
-M            = parse_int(ARGS, "M"; default=128)
+L            = parse_int(ARGS, "L"; default=L_CONTRASTIVE)
+M            = parse_int(ARGS, "M"; default=M_NUISANCE)
 seed         = parse_int(ARGS, "seed"; default=0)
 
 output_dir = joinpath(checkpoint, "spce_evaluation")
@@ -138,11 +141,13 @@ println()
 flush(stdout)
 
 rng = MersenneTwister(seed)
+t_start = time()
 
 adaptive_scores     = Vector{Float64}(undef, n_trials)
 static_std_scores   = Vector{Float64}(undef, n_trials)
 static_cheat_scores = Vector{Float64}(undef, n_trials)
 static_spce_scores  = has_spce_opt ? Vector{Float64}(undef, n_trials) : Float64[]
+all_adaptive_designs = Matrix{Float32}(undef, N_STEPS, n_trials)
 
 for i in 1:n_trials
     # Draw true parameters
@@ -167,6 +172,7 @@ for i in 1:n_trials
     rng_rollout = MersenneTwister(seed + i)  # separate rng for rollout noise
     d_adapt = rollout_adaptive_design_cpu(policy, ps_cpu, st_cpu, rng_rollout, θT, σ;
                                            Cx0=Cx0, n_substeps=n_substeps)
+    all_adaptive_designs[:, i] .= d_adapt
     obs_adapt = generate_observations(MersenneTwister(seed + i), θT, σ, Cx0, d_adapt;
                                        n_substeps=n_substeps)
 
@@ -202,73 +208,88 @@ for i in 1:n_trials
     end
 end
 
-delta_vs_std   = adaptive_scores .- static_std_scores
-delta_vs_cheat = adaptive_scores .- static_cheat_scores
-delta_std_cheat = static_cheat_scores .- static_std_scores
-
-println()
-println("=== Results (targeted sPCE, higher = more informative) ===")
-println()
-@printf("  Adaptive:          %.4f ± %.4f\n", mean(adaptive_scores), std(adaptive_scores))
-@printf("  Static (std BIM):  %.4f ± %.4f\n", mean(static_std_scores), std(static_std_scores))
-@printf("  Static (cheat BIM):%.4f ± %.4f\n", mean(static_cheat_scores), std(static_cheat_scores))
-if has_spce_opt
-    @printf("  Static (sPCE-opt): %.4f ± %.4f\n", mean(static_spce_scores), std(static_spce_scores))
-end
-println()
-@printf("  Adaptive - Std:    %.4f ± %.4f  (win %.1f%%)\n",
-        mean(delta_vs_std), std(delta_vs_std), 100*mean(delta_vs_std .> 0))
-@printf("  Adaptive - Cheat:  %.4f ± %.4f  (win %.1f%%)\n",
-        mean(delta_vs_cheat), std(delta_vs_cheat), 100*mean(delta_vs_cheat .> 0))
-@printf("  Cheat - Std:       %.4f ± %.4f  (win %.1f%%)\n",
-        mean(delta_std_cheat), std(delta_std_cheat), 100*mean(delta_std_cheat .> 0))
-if has_spce_opt
-    delta_vs_spce  = adaptive_scores .- static_spce_scores
-    delta_spce_std = static_spce_scores .- static_std_scores
-    @printf("  Adaptive - sPCE:   %.4f ± %.4f  (win %.1f%%)\n",
-            mean(delta_vs_spce), std(delta_vs_spce), 100*mean(delta_vs_spce .> 0))
-    @printf("  sPCE - Std:        %.4f ± %.4f  (win %.1f%%)\n",
-            mean(delta_spce_std), std(delta_spce_std), 100*mean(delta_spce_std .> 0))
-end
+# ---- Mean adaptive as static baseline ----
+avg_adaptive = Float32.(vec(mean(all_adaptive_designs; dims=2)))
+println("\nMean adaptive design: [", join(round.(avg_adaptive; digits=3), ", "), "]")
+println("Evaluating mean adaptive design as static baseline...")
 flush(stdout)
 
-# ============================================================================
-#  Plot
-# ============================================================================
+static_avg_scores = Vector{Float64}(undef, n_trials)
+rng_avg = MersenneTwister(seed + 999)
+for i in 1:n_trials
+    θ_draw = sample_θ_full(rng_avg, 1)
+    θT = Float32[θ_draw[1, 1], θ_draw[2, 1]]
+    σ  = Float32(θ_draw[3, 1])
+    Cx0 = Float32(θ_draw[4, 1])
 
-all_scores = vcat(adaptive_scores, static_std_scores, static_cheat_scores)
-if has_spce_opt
-    append!(all_scores, static_spce_scores)
-end
-lo = minimum(all_scores) - 0.5
-hi = maximum(all_scores) + 0.5
+    denom_samples = Vector{Tuple{Vector{Float32}, Float32, Float32}}(undef, L + 1)
+    denom_samples[1] = (copy(θT), σ, Cx0)
+    for ℓ in 2:(L + 1)
+        θ_c = sample_θ_full(rng_avg, 1)
+        denom_samples[ℓ] = (Float32[θ_c[1, 1], θ_c[2, 1]], Float32(θ_c[3, 1]), Float32(θ_c[4, 1]))
+    end
+    numer_σ = [σ_lo + (σ_hi - σ_lo) * rand(rng_avg, Float32) for _ in 1:M]
+    numer_Cx0 = [Cx0_lo + (Cx0_hi - Cx0_lo) * rand(rng_avg, Float32) for _ in 1:M]
 
-p = plot(; xlabel="static design sPCE", ylabel="adaptive sPCE",
-          title="Targeted sPCE evaluation (L=$L, M=$M, $n_trials trials)",
-          legend=:topleft, xlims=(lo, hi), ylims=(lo, hi), aspect_ratio=:equal,
-          size=(700, 650))
-plot!(p, [lo, hi], [lo, hi]; color=:black, lw=1, ls=:dash, label="")
-
-scatter!(p, static_std_scores, adaptive_scores;
-         color=:dodgerblue, alpha=0.3, ms=3, msw=0,
-         label=@sprintf("vs std BIM (Δ=%.2f, win %.0f%%)",
-                        mean(delta_vs_std), 100*mean(delta_vs_std .> 0)))
-scatter!(p, static_cheat_scores, adaptive_scores;
-         color=:crimson, alpha=0.3, ms=3, msw=0,
-         label=@sprintf("vs cheat BIM (Δ=%.2f, win %.0f%%)",
-                        mean(delta_vs_cheat), 100*mean(delta_vs_cheat .> 0)))
-if has_spce_opt
-    scatter!(p, static_spce_scores, adaptive_scores;
-             color=:forestgreen, alpha=0.3, ms=3, msw=0,
-             label=@sprintf("vs sPCE-opt (Δ=%.2f, win %.0f%%)",
-                            mean(delta_vs_spce), 100*mean(delta_vs_spce .> 0)))
+    obs_avg = generate_observations(MersenneTwister(seed + 4*n_trials + i), θT, σ, Cx0,
+                                     avg_adaptive; n_substeps=n_substeps)
+    static_avg_scores[i] = spce_score(obs_avg, avg_adaptive, θT, σ,
+                                       denom_samples, numer_σ, numer_Cx0;
+                                       n_substeps=n_substeps)
+    if i % 50 == 0
+        @printf("  trial %d/%d\n", i, n_trials)
+        flush(stdout)
+    end
 end
 
-out_png = joinpath(output_dir, "plot_spce_evaluation.png")
-savefig(p, out_png)
-println("\nSaved: $out_png")
+t_total = time() - t_start
+@printf("\nTotal evaluation time: %.1fs\n", t_total)
 
-# Save summary
+# ---- Save serialized scores ----
+scores_dict = Dict{String, Any}(
+    "adaptive_scores"      => adaptive_scores,
+    "static_avg_scores"    => static_avg_scores,
+    "static_std_scores"    => static_std_scores,
+    "static_cheat_scores"  => static_cheat_scores,
+    "adaptive_designs"     => all_adaptive_designs,
+    "n_trials"             => n_trials,
+    "L"                    => L,
+    "M"                    => M,
+    "B"                    => 1,
+    "n_substeps"           => n_substeps,
+    "seed"                 => seed,
+    "wall_time_s"          => t_total,
+)
+if has_spce_opt
+    scores_dict["static_spce_scores"] = static_spce_scores
+end
+serialize(joinpath(output_dir, "spce_scores.jls"), scores_dict)
+
+# ---- Summary stats (standardized) ----
+score_designs = extract_designs(scores_dict)
+summary = compute_summary_stats(score_designs)
+println()
+println(summary)
+flush(stdout)
+
+# ---- Histogram plot ----
+plot_spce_histograms(score_designs;
+    output_path = joinpath(output_dir, "plot_spce_histograms.png"),
+    title_suffix = " (L=$L, M=$M, $n_trials trials)")
+
+# ---- Design trajectory plot ----
+static_designs_vec = Pair{String, Vector{Float32}}[
+    "static_avg"   => avg_adaptive,
+    "static_std"   => Float32.(static_standard),
+    "static_cheat" => Float32.(static_cheating),
+]
+if has_spce_opt
+    push!(static_designs_vec, "static_spce" => Float32.(static_spce_opt))
+end
+plot_design_trajectories(all_adaptive_designs, static_designs_vec;
+    output_path = joinpath(output_dir, "plot_design_trajectories.png"))
+
+# ---- Save summary text ----
 open(joinpath(output_dir, "spce_summary.txt"), "w") do io
     println(io, "# Targeted sPCE Evaluation")
     println(io, "# Date: $(Dates.format(Dates.now(), "yyyy-mm-dd HH:MM:SS"))")
@@ -278,31 +299,17 @@ open(joinpath(output_dir, "spce_summary.txt"), "w") do io
     println(io, "M = $M")
     println(io, "n_substeps = $n_substeps")
     println(io, "seed = $seed")
+    @printf(io, "wall_time_s = %.1f\n", t_total)
     println(io)
-    println(io, "static_std_design  = [", join(round.(static_standard; digits=4), ", "), "]")
+    println(io, "static_avg_design   = [", join(round.(avg_adaptive; digits=4), ", "), "]")
+    println(io, "static_std_design   = [", join(round.(static_standard; digits=4), ", "), "]")
     println(io, "static_cheat_design = [", join(round.(static_cheating; digits=4), ", "), "]")
     if has_spce_opt
         println(io, "static_spce_design  = [", join(round.(static_spce_opt; digits=4), ", "), "]")
     end
     println(io)
-    @printf(io, "adaptive_mean       = %.7f ± %.7f\n", mean(adaptive_scores), std(adaptive_scores))
-    @printf(io, "static_std_mean     = %.7f ± %.7f\n", mean(static_std_scores), std(static_std_scores))
-    @printf(io, "static_cheat_mean   = %.7f ± %.7f\n", mean(static_cheat_scores), std(static_cheat_scores))
-    if has_spce_opt
-        @printf(io, "static_spce_mean    = %.7f ± %.7f\n", mean(static_spce_scores), std(static_spce_scores))
-    end
-    println(io)
-    @printf(io, "delta_adapt_std     = %.7f ± %.7f  (win %.1f%%)\n",
-            mean(delta_vs_std), std(delta_vs_std), 100*mean(delta_vs_std .> 0))
-    @printf(io, "delta_adapt_cheat   = %.7f ± %.7f  (win %.1f%%)\n",
-            mean(delta_vs_cheat), std(delta_vs_cheat), 100*mean(delta_vs_cheat .> 0))
-    @printf(io, "delta_cheat_std     = %.7f ± %.7f  (win %.1f%%)\n",
-            mean(delta_std_cheat), std(delta_std_cheat), 100*mean(delta_std_cheat .> 0))
-    if has_spce_opt
-        @printf(io, "delta_adapt_spce    = %.7f ± %.7f  (win %.1f%%)\n",
-                mean(delta_vs_spce), std(delta_vs_spce), 100*mean(delta_vs_spce .> 0))
-        @printf(io, "delta_spce_std      = %.7f ± %.7f  (win %.1f%%)\n",
-                mean(delta_spce_std), std(delta_spce_std), 100*mean(delta_spce_std .> 0))
-    end
+    println(io, summary)
 end
 println("Saved: $(joinpath(output_dir, "spce_summary.txt"))")
+println("Saved: $(joinpath(output_dir, "spce_scores.jls"))")
+println("\nDone. Outputs in: $output_dir")

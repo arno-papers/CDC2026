@@ -1,20 +1,21 @@
 # Static BIM vs Adaptive Policy (ForwardDiff + gradient)
-date = 2026-02-27 01:14:21
+date = 2026-02-27 01:16:50
 
 # Configuration
-cheating = false
+cheating = true
 checkpoint = results/joint-nuisance-initfix
 grad_iters = 300
 grad_restarts = 4
 lr_max = 0.1
 lr_min = 0.001
-n_prior_opt = 512
-n_prior_report = 1024
+n_cx0_opt = 512
 n_substeps = 100
 n_trials = 200
-resample_true_each_trial = true
 ridge = 1.0e-6
 seed = 0
+true_K_s = 0.45000001788139343
+true_mu_max = 0.4000000059604645
+true_sigma = 0.10000000149011612
 
 # BIM definition
 FIM: 3×3 for [μ_max, K_s, Cx0], inner Jacobian via ForwardDiff
@@ -23,15 +24,15 @@ Marginal: Schur complement → 2×2 for θ_T = (μ_max, K_s)
 prior_prec = [300.000, 133.333, 75.000]  (12/width² for uniform)
 
 # Static design
-static_bim_logdet = 18.9962791
-static_design = [0.6136, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.4797, 0.8456, 1.5067, 3.2747, 5.9033, 9.0963]
+static_bim_logdet = 18.9119059
+static_design = [0.6423, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.4195, 0.6927, 1.2398, 3.1344, 5.7513, 9.009]
 
 # Comparison (per-trial logdet of marginal FIM + ridge)
-adaptive_mean = 18.4651798
-adaptive_std  = 2.0032329
-static_mean   = 18.9248721
-static_std    = 2.3329797
-delta_mean    = -0.4596923
-delta_std     = 0.8642897
-delta_median  = -0.5769665
-win_rate      = 0.3100
+adaptive_mean = 18.3577476
+adaptive_std  = 1.0840057
+static_mean   = 18.8592859
+static_std    = 1.6071650
+delta_mean    = -0.5015383
+delta_std     = 0.6456026
+delta_median  = -0.6433265
+win_rate      = 0.3050

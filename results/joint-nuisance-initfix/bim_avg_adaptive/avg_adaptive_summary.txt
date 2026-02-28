@@ -1,0 +1,24 @@
+# Average Adaptive Design vs Cheating-Optimized Static
+# Date: 2026-02-27 01:17:36
+# Evaluation: logdet(Schur(Σ⁻¹_prior + F) + ridge·I)
+
+static_design = [0.6423, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.4195, 0.6927, 1.2398, 3.1344, 5.7513, 9.009]
+avg_adaptive  = [0.0, 0.0, 0.0, 0.0, 0.0005, 0.0133, 0.037, 0.082, 0.151, 0.1846, 0.2967, 1.5816, 1.624, 1.4171]
+
+cheating_bim_static = 18.9737170
+cheating_bim_avg    = 18.2651700
+cheating_diff       = -0.7085470
+
+# Per-trial evaluation (200 trials, seed=42)
+adaptive_mean     = 18.3364661 ± 1.0205773
+static_mean       = 18.7597017 ± 1.5886147
+avgadapt_mean     = 18.2098398 ± 0.6710412
+
+delta_adapt_static  = -0.4232356 ± 0.6608161  (win 37.0%)
+delta_adapt_avg     = 0.1266263 ± 0.6670689  (win 48.0%)
+delta_avg_static    = -0.5498619 ± 1.1963011  (win 47.0%)
+
+n_trials = 200
+n_cx0 = 1024
+n_substeps = 100
+ridge = 1.0e-6
