@@ -1,19 +1,27 @@
-# LaTeX
-*.aux
-*.log
-*.synctex.gz
-*.pdf
-*.bbl
-*.blg
+# Paper build artifacts
+paper/*.aux
+paper/*.log
+paper/*.bbl
+paper/*.blg
+paper/*.synctex.gz
+paper/*.fls
+paper/*.fdb_latexmk
+paper/main.pdf
+paper/main_cdc.pdf
+paper/main_arxiv.pdf
 
+# Julia
+LocalPreferences.toml
+
+# Reference material (large PDFs)
 reference
+
+# Notes (personal)
 notes
-
-# Generated plots
-plot_*.png
-
-# Serialized files in project root (MWE artifacts, etc.)
-/*.jls
 
 # Reactant profiler output
 traces
+
+# Snakemake pipeline state
+.pipeline-state/
+.snakemake/
