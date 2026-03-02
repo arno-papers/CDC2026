@@ -1,0 +1,263 @@
+\documentclass[conference]{IEEEtran}
+\IEEEoverridecommandlockouts
+% The preceding line is only needed to identify funding in the first footnote. If that is unneeded, please comment it out.
+
+% Extended/compact toggle: pass \def\buildmode{cdc} or \def\buildmode{arxiv}
+% before \input{main}. Default (standalone build) is extended.
+\newif\ifextended
+\extendedtrue
+\ifdefined\buildmode
+  \def\buildmodecdc{cdc}
+  \ifx\buildmode\buildmodecdc \extendedfalse \fi
+\fi
+
+\usepackage{natbib}
+\usepackage{amsmath,amssymb,amsfonts,amsthm}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
+    T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
+
+% Theorem environments
+\newtheorem{theorem}{Theorem}
+\newtheorem{definition}{Definition}
+\newtheorem{remark}{Remark}
+
+% Math operators
+\DeclareMathOperator*{\argmax}{arg\,max}
+\DeclareMathOperator*{\argmin}{arg\,min}
+\DeclareMathOperator{\E}{\mathbb{E}}
+\newcommand{\bm}[1]{\boldsymbol{#1}}
+
+\begin{document}
+
+\title{Deep Adaptive Design for Model-Based Experimental Design\\
+}
+
+\author{\IEEEauthorblockN{Arno Strouwen}
+\IEEEauthorblockA{\textit{Strouwen Statistics}, Hasselt, Belgium \\
+\textit{Biosystems Department, KU Leuven}, Leuven, Belgium \\
+contact@arnostrouwen.com}
+}
+
+\maketitle
+
+\begin{abstract}
+Model-based design of experiments (MBDOE) is essential for efficient parameter estimation in nonlinear dynamical systems. However, conventional adaptive MBDOE requires costly posterior inference and design optimization between each experimental step, precluding real-time applications. We address this limitation by combining Deep Adaptive Design (DAD), which amortizes sequential design decisions using neural networks, with differentiable mechanistic models. Specifically, we consider dynamical systems with known governing equations but uncertain parameters. We derive tractable training objectives based on sequential contrastive bounds and propose a transformer-based policy architecture that respects the temporal structure of dynamical systems. We demonstrate the approach on a fed-batch bioreactor where the goal is to precisely estimate the parameters of the Monod growth kinetics.
+\end{abstract}
+
+\begin{IEEEkeywords}
+Model-based design of experiments, Bayesian experimental design, deep learning, parameter estimation, optimal design, neural networks
+\end{IEEEkeywords}
+
+\section{Introduction}
+Model-based design of experiments (MBDOE) is a cornerstone methodology for efficient parameter estimation in nonlinear dynamical systems~\citep{franceschini,walter1997}. By leveraging mechanistic knowledge of the system, MBDOE selects experimental conditions that maximize information about unknown parameters, enabling precise estimation with fewer experiments than naive approaches.
+
+Bayesian optimal experimental design (BOED) provides a principled framework for this problem~\citep{lindley1956}, selecting designs that maximize the expected information gain (EIG) about unknown parameters. In sequential settings, adaptive strategies that utilize past observations to guide future decisions are particularly powerful, but conventional adaptive BOED requires costly posterior inference and design optimization between each experimental step. The EIG objective is doubly intractable~\citep{rainforth2018nesting}, creating a computational bottleneck that precludes real-time applications. We review the necessary background in Section~\ref{sec:criterion}.
+
+Deep Adaptive Design (DAD)~\citep{foster2021} addresses this bottleneck by amortizing sequential design into a neural network policy trained offline. This was extended to implicit (likelihood-free) models by iDAD~\citep{ivanova2021implicit}.
+However, for the mechanistic models central to MBDOE, explicit likelihoods \emph{are} available via differentiable simulation~\citep{rackauckas}. This enables the original DAD framework with its tighter sequential Prior Contrastive Estimation (sPCE) bounds and efficient gradient-based training.
+
+In this paper, we combine DAD with differentiable mechanistic models to enable real-time adaptive MBDOE for dynamical systems with known governing equations and uncertain parameters.
+
+Our contributions are:
+\begin{itemize}
+\item We formulate adaptive MBDOE for dynamical systems where the model structure is known, training the policy end-to-end by differentiating through the ODE solver and observation model.
+\item We extend the sPCE bound to handle nuisance parameters, enabling targeted inference about parameters of interest while marginalizing over nuisance parameters such as measurement noise.
+\item We introduce a transformer-based policy architecture that respects temporal ordering in dynamical systems, replacing the permutation-invariant deep set architecture of the original DAD framework.
+\item We demonstrate the methodology on a fed-batch bioreactor with uncertain Monod kinetic parameters.
+\end{itemize}
+
+\section{Model}
+\label{sec:model}
+We consider dynamical systems of the form:
+\begin{equation}\label{eq:system}
+\begin{aligned}
+\frac{dx}{dt} &= f(t, x, \theta_T, \theta_N, u(t)), \quad x(0) = x_0(\theta_N),\\
+y_k \mid x(t_k), \theta_N &\sim \mathcal{N}(g(x(t_k)),\, \Sigma(\theta_N)), \quad k = 1, \ldots, K,
+\end{aligned}
+\end{equation}
+where $x(t) \in \mathbb{R}^n$ is the state vector, $u(t) \in \mathbb{R}^m$ is a controllable input vector, and $y_k \in \mathbb{R}^q$ is the observation vector at measurement time $t_k$.
+We partition parameters as $\theta = (\theta_T, \theta_N)$, where $\theta_T$ are the target parameters of interest and $\theta_N$ are nuisance parameters (e.g., measurement noise scale, uncertain initial conditions).
+Some components of the initial state $x_0$ may depend on $\theta_N$, and $\Sigma(\theta_N) \in \mathbb{R}^{q \times q}$ is the observation noise covariance.
+We assume a fixed experimental schedule with known measurement times $0 < t_1 < \cdots < t_K$ and piecewise-constant inputs, $u(t)=u_k$ for $t \in [t_{k-1}, t_k)$.
+The design goal is to choose the input profile $u(t)$ (equivalently, the sequence $u_{1:K}$) to maximize the information gained about $\theta_T$.
+
+\subsection{Bioreactor Example}
+We focus on a well-mixed fed-batch bioreactor~\citep{versyck}, with state $x = (C_s, C_x, V)$, input $u = Q_{in}$, and kinetic parameters $\theta_T = (\mu_{\max}, K_s)$.
+We consider a $14$-hour experiment with measurements collected every hour, so $K=14$ and $t_k = k\,\mathrm{h}$ for $k=1,\ldots,K$ (with $t_0=0 \mathrm{h}$).
+We choose a feed rate $Q_{in,k}$ that is held constant on $[(k-1)\,\mathrm{h}, k\,\mathrm{h})$.
+The dynamics are:
+\begin{equation}\label{eq:bioreactor}
+\begin{aligned}
+\frac{dC_s}{dt} &= -\frac{\mu(C_s; \theta_T)}{0.777} C_x + \frac{Q_{in}}{V}(50 - C_s),\\
+\frac{dC_x}{dt} &= \mu(C_s; \theta_T) C_x - \frac{Q_{in}}{V}C_x,\\
+\frac{dV}{dt} &= Q_{in},
+\end{aligned}
+\end{equation}
+where $C_s$ is substrate concentration, $C_x$ is biomass concentration, $V$ is reactor volume, and $Q_{in}$ is the controllable feed rate (our input $u$).
+
+The specific growth rate $\mu$ follows Monod kinetics:
+\begin{equation}
+\mu(C_s; \theta_T) = \frac{\mu_{\max} C_s}{K_s + C_s},
+\end{equation}
+where $\mu_{\max}$ and $K_s$ are unknown.
+We measure substrate concentration (so $q=1$ and $g(x)=C_s$), with observations $y_k \sim \mathcal{N}(C_s(t_k),\, \sigma^2)$.
+The nuisance parameters are $\theta_N = (\sigma, C_{x,0})$: the initial substrate and volume are fixed at $C_{s,0} = 3.0$ and $V_0 = 7.0$, while $C_{x,0} \sim \text{Uniform}(0.10, 0.50)$ varies between batches due to different inocula.
+The noise scale $\sigma$ is a fixed system property shared across experiments; the targeted sPCE framework marginalizes over both $\sigma$ and $C_{x,0}$.
+The goal is to design a sequence of feed rates $Q_{in,1}, \ldots, Q_{in,K}$ that maximizes information about $\mu_{\max}$ and $K_s$ from noisy $C_s$ measurements.
+
+\section{Information-Theoretic Criterion}
+\label{sec:criterion}
+
+In Bayesian experimental design, we begin with a prior $p(\theta)$ encoding our uncertainty about parameters $\theta = (\theta_T, \theta_N)$ as defined in Section~\ref{sec:model}, and seek a design $d$ such that the posterior on the target parameters $p(\theta_T|y,d)$ is as concentrated as possible. The standard measure of concentration is entropy:
+\begin{equation}
+H(\theta_T|y,d) = -\int p(\theta_T|y,d) \log p(\theta_T|y,d)\,d\theta_T.
+\end{equation}
+Since the outcome $y$ is unknown at the design stage, we average over all possible observations weighted by their marginal likelihood $p(y|d) = \int p(y|\theta,d)\,p(\theta)\,d\theta$:
+\begin{equation}\label{eq:bed_entropy}
+d^\star = \argmin_{d} \int H(\theta_T|y,d)\,p(y|d)\,dy.
+\end{equation}
+This is equivalent to maximizing the targeted expected information gain (EIG), the mutual information between target parameters and observations~\citep{lindley1956}:
+\begin{equation}\label{eq:eig}
+\mathcal{I}(d) = I(\theta_T; y|d) = H(\theta_T) - \E_{p(y|d)}[H(\theta_T|y,d)].
+\end{equation}
+The EIG is intractable to compute in general because $p(y|d)$ requires integrating over the full parameter space. Similarly, obtaining the posterior $p(\theta_T|y,d)$ requires the partial marginal likelihood $p(y|\theta_T,d) = \int p(y|\theta_T, \theta_N, d)\,p(\theta_N|\theta_T)\,d\theta_N$, which integrates over the nuisance parameters.
+
+The formulation above is a \emph{static} design: all inputs $d_{1:K}$ are chosen upfront by maximizing the EIG over the full trajectory.
+When $K$ experiments are conducted sequentially, however, one can do better.
+An \emph{adaptive} design instead selects $d_k$ after observing outcomes $y_{1:k-1}$, exploiting the information already gathered.
+The optimal adaptive criterion has a nested structure: the choice of $d_1$ anticipates that $d_2$ will be chosen optimally given $y_1$, which in turn anticipates optimal choice of $d_3$ given $y_{1:2}$, and so on. This is a dynamic programming problem over the space of possible observation sequences.
+The nested criterion is equivalent to optimizing over \emph{policies}---decision rules $\pi_k(h_{k-1})$ that map experimental histories to designs\ifextended{} (see Appendix~\ref{sec:policy_equiv} for a formal proof)\fi. Once an optimal policy is available, online deployment requires only evaluating the decision rule at each step, avoiding repeated optimization during the experiment. For continuous observation spaces, tabular dynamic programming is infeasible; instead, the policy is parameterized by a neural network and trained offline via Monte Carlo simulation, which is the approach pursued in this paper.
+
+\subsection{Targeted Sequential Contrastive Estimation}
+Let $\theta = (\theta_T, \theta_N)$ denote all unknown parameters,
+$h_k = ((u_1, y_1), \ldots, (u_k, y_k))$ the experimental history, and $u_k = \pi(h_{k-1})$ the policy.
+The targeted EIG from the full sequential experiment is:
+\begin{equation}
+\mathcal{I}_K^{\text{tgt}}(\pi) = \E_{p(\theta)p(h_K|\theta,\pi)}\left[\log \frac{p(h_K|\theta_T,\pi)}{p(h_K|\pi)}\right] = I(\theta_T; h_K | \pi),
+\end{equation}
+where $p(h_K|\theta_T, \pi) = \int p(h_K|\theta, \pi)\, p(\theta_N|\theta_T) \, d\theta_N$ and $p(h_K|\pi) = \int p(h_K|\theta,\pi)\,p(\theta)\,d\theta$.
+
+Direct optimization of $\mathcal{I}_K^{\text{tgt}}(\pi)$ is intractable due to these marginals. \citet{foster2021} introduced sequential Prior Contrastive Estimation (sPCE), which uses contrastive samples to obtain a tractable lower bound on the sequential EIG. We extend their framework to handle nuisance parameters, yielding a bound on the targeted EIG.
+
+\begin{theorem}[Targeted sPCE]
+\label{thm:targeted_spce_main}
+Let $\theta^{(0)} = (\theta_T^{(0)}, \theta_N^{(0)}) \sim p(\theta)$ generate $h_K$, let $\theta^{(1)},\ldots,\theta^{(L)} \sim p(\theta)$ be contrastive samples, and let $\theta_N^{(1:M)} \sim p(\theta_N|\theta_T^{(0)})$ be nuisance samples. The objective
+\begin{equation}
+\hat{\mathcal{L}}_K^{\text{tgt}}(\pi, L, M) = \E\left[\log \frac{\frac{1}{M}\sum_{m=1}^{M} p(h_K|\theta_T^{(0)}, \theta_N^{(m)}, \pi)}{\frac{1}{L+1}\sum_{\ell=0}^{L} p(h_K|\theta^{(\ell)}, \pi)}\right]
+\end{equation}
+satisfies $\hat{\mathcal{L}}_K^{\text{tgt}} \leq \mathcal{I}_K^{\text{tgt}}$, converging as $L, M \to \infty$.
+\ifextended See Appendix~\ref{sec:nuisance} for proof.\fi
+\end{theorem}
+
+\section{Optimal Policy}
+We approximate the optimal sequential design policy with a neural network $u_k = \pi_\phi(h_{k-1})$ that maps the experimental history to the next input.
+Here $\phi$ denotes the trainable parameters (weights and biases) of the policy network.
+The policy is trained offline; at deployment, computing $u_k$ requires only a forward pass.
+
+\subsection{Training}
+Training maximizes the targeted contrastive objective $\hat{\mathcal{L}}_K^{\text{tgt}}$ via Adam-based stochastic gradient ascent on $\phi$. For reparametrizable likelihoods (Gaussian observations), gradients can be computed by the reparameterization trick:
+\begin{equation}
+\begin{aligned}
+\frac{d\hat{\mathcal{L}}_K^{\text{tgt}}}{d\phi}
+&= \E\Bigg[\frac{d}{d\phi}\Bigg(
+\log\Big(\frac{1}{M}\sum_{m=1}^{M}
+p(h_K|\theta_T^{(0)}, \theta_N^{(m)}, \pi_\phi)\Big)\\
+&\qquad - \log\Big(\frac{1}{L+1}\sum_{\ell=0}^{L}
+p(h_K|\theta^{(\ell)}, \pi_\phi)\Big)
+\Bigg)\Bigg],
+\end{aligned}
+\end{equation}
+where the expectation is over $\theta^{(0:L)} \sim p(\theta)$, $\theta_N^{(1:M)} \sim p(\theta_N|\theta_T^{(0)})$, and $y_{1:K}$ sampled from the observation model via the reparameterization trick under the policy $\pi_\phi$. We implement training in Julia~\citep{bezanson2017julia} using Enzyme~\citep{moses2020enzyme} for automatic differentiation through the ODE solver and Reactant~\citep{reactant2025} for GPU-accelerated compilation. The overall training procedure is summarized in Algorithm~\ref{algo:DAD}.
+In practice, we approximate this expectation with a minibatch of $B$ independently simulated trajectories and average the resulting log-ratios.
+
+\begin{algorithm}[t]
+\caption{Targeted Deep Adaptive Design for MBDOE}
+\label{algo:DAD}
+\begin{algorithmic}[1]
+\REQUIRE Prior $p(\theta_T, \theta_N)$, dynamics $f$, output $g$, steps $K$, minibatch size $B$
+\ENSURE Trained policy network $\pi_\phi$
+\WHILE{training budget not exceeded}
+    \STATE \textit{(All likelihood evaluations below are conditioned on the current policy $\pi_\phi$.)}
+    \STATE Sample $\{\theta^{(\ell,b)}\}_{\ell=0:L,\,b=1:B} \overset{\text{i.i.d.}}{\sim} p(\theta)$
+    \STATE Sample nuisance $\{\theta_N^{(m,b)}\}_{m=1:M,\,b=1:B} \sim p(\theta_N|\theta_T^{(0,b)})$
+    \FOR{$b = 1, \ldots, B$}
+        \STATE Set $x_0^{(b)}$ from $\theta_N^{(0,b)}$, history $h_0^{(b)} = \varnothing$
+        \FOR{$k = 1, \ldots, K$}
+            \STATE Compute input $u_k^{(b)} = \pi_\phi(h_{k-1}^{(b)})$
+            \STATE Simulate $x_k^{(b)}$ from \eqref{eq:system} with $\theta^{(0,b)}$ and input $u_k^{(b)}$
+            \STATE Sample $y_k^{(b)} \sim \mathcal{N}(g(x_k^{(b)}),\, \Sigma(\theta_N^{(0,b)}))$
+            \STATE Update history $h_k^{(b)} = (h_{k-1}^{(b)}, (u_k^{(b)}, y_k^{(b)}))$
+        \ENDFOR
+        \STATE Compute $A^{(b)} = \frac{1}{M}\sum_{m=1}^{M} p(h_K^{(b)}|\theta_T^{(0,b)}, \theta_N^{(m,b)})$
+        \STATE Compute $B^{(b)} = \frac{1}{L+1}\sum_{\ell=0}^{L} p(h_K^{(b)}|\theta^{(\ell,b)})$
+        \STATE Set $r^{(b)} = \log A^{(b)} - \log B^{(b)}$
+    \ENDFOR
+    \STATE Estimate gradient of minibatch objective: $\frac{1}{B}\sum_{b=1}^{B} r^{(b)}$
+    \STATE Update $\phi$ via Adam-based stochastic gradient ascent
+\ENDWHILE
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Choosing $L$, $M$, and $B$}
+The targeted sPCE objective depends on the number of contrastive samples $L$ and nuisance samples $M$, while the optimizer uses a minibatch size $B$ to form stochastic gradient estimates.
+These hyperparameters trade off bound tightness, estimator variance, and computational cost.
+We provide a brief discussion and asymptotic guidance under a fixed compute budget in
+\ifextended Appendix~\ref{sec:budget_stub}.\else the extended version~\citep{strouwen2026extended}.\fi
+
+\subsection{Network Architecture}
+The original DAD framework~\citep{foster2021} uses a deep set architecture that exploits permutation invariance of design-outcome pairs. However, for dynamical systems, temporal order matters: the state at step $k$ depends on all previous inputs and observations.
+
+We therefore employ a transformer architecture~\citep{vaswani2017attention} with causal attention and sinusoidal positional encodings. The history $((u_1, y_1), \ldots, (u_{k-1}, y_{k-1}))$ is embedded as a sequence, and the policy outputs the next input based on the final hidden state:
+\begin{equation}
+u_k = \pi_\phi(h_{k-1}) = F_{\phi_2}(\text{Transformer}_{\phi_1}(h_{k-1})),
+\end{equation}
+where $\text{Transformer}_{\phi_1}$ processes the sequence and $F_{\phi_2}$ is a final projection head.
+
+This architecture captures temporal dependencies while enabling efficient parallel training over the sequence dimension.
+
+\section{Results}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{figures/monod_training_loss.png}
+\caption{Training loss curve (targeted sPCE objective) over iterations.}
+\label{fig:training_loss}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{figures/monod_spce_trajectories.png}
+\caption{Design trajectories: adaptive policy rollouts compared to static baselines.}
+\label{fig:trajectories}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{figures/monod_spce_histograms.png}
+\caption{sPCE score distributions across design strategies.}
+\label{fig:spce}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{figures/monod_posterior.png}
+\caption{Posterior mean estimates across design strategies.}
+\label{fig:posterior}
+\end{figure}
+
+\bibliographystyle{plainnat}
+\bibliography{references}
+
+\ifextended
+\newpage
+\onecolumn
+\appendix
+\input{appendix_nuisance}
+\fi
+
+\end{document}

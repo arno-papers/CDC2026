@@ -1,0 +1,167 @@
+% !TeX root = main.tex
+
+\section{Targeted Inference with Nuisance Parameters}
+\label{sec:nuisance}
+
+We extend the sequential contrastive estimation framework to handle nuisance parameters—parameters that must be modeled but are not the focus of inference.
+
+\subsection{Notation}
+
+Partition parameters as $\theta = (\theta_T, \theta_N)$ where $\theta_T$ are targets of interest and $\theta_N$ are nuisance parameters. The prior is $p(\theta) = p(\theta_T, \theta_N)$ with conditional $p(\theta_N|\theta_T)$.
+We use subscripts $T,N$ to denote target and nuisance blocks, and superscripts $(\cdot)$ to index Monte Carlo samples.
+
+The \emph{targeted expected information gain} is:
+\begin{equation}
+\mathcal{I}_K^{\text{tgt}}(\pi) = I(\theta_T; h_K | \pi) = \E_{p(\theta)p(h_K|\theta,\pi)}\left[\log \frac{p(h_K|\theta_T,\pi)}{p(h_K|\pi)}\right]
+\end{equation}
+where the marginal likelihood is $p(h_K|\theta_T,\pi) = \int p(h_K|\theta_T, \theta_N, \pi) p(\theta_N|\theta_T) \, d\theta_N$.
+
+\subsection{Practical Nested Monte Carlo Objective}
+
+Since $p(h_K|\theta_T,\pi)$ is intractable, we use Monte Carlo estimation with:
+\begin{itemize}
+    \item \textbf{Numerator}: $M$ samples $\theta_N^{(1:M)} \sim p(\theta_N|\theta_T^{(0)})$ to estimate $p(h_K|\theta_T^{(0)},\pi)$
+    \item \textbf{Denominator}: $L$ contrastive samples $\theta^{(1)},\ldots,\theta^{(L)} \sim p(\theta)$ (full parameter vectors) to estimate $p(h_K|\pi)$
+\end{itemize}
+
+\begin{theorem}[Targeted sPCE Lower Bound]
+\label{thm:targeted_spce}
+Let $\theta^{(0)} = (\theta_T^{(0)}, \theta_N^{(0)}) \sim p(\theta)$ generate $h_K \sim p(h_K|\theta^{(0)}, \pi)$. Let $\theta^{(1)},\ldots,\theta^{(L)} \sim p(\theta)$ be independent contrastive samples, and let $\theta_N^{(1:M)} \sim p(\theta_N|\theta_T^{(0)})$ be nuisance samples. Define
+\begin{equation}
+\hat{\mathcal{L}}_K^{\text{tgt}}(\pi, L, M) = \E\left[\log \frac{\frac{1}{M}\sum_{m=1}^{M} p(h_K|\theta_T^{(0)}, \theta_N^{(m)}, \pi)}{\frac{1}{L+1}\sum_{\ell=0}^{L} p(h_K|\theta^{(\ell)}, \pi)}\right].
+\end{equation}
+Then $\hat{\mathcal{L}}_K^{\text{tgt}}(\pi, L, M) \leq \mathcal{I}_K^{\text{tgt}}(\pi)$, with $\hat{\mathcal{L}}_K^{\text{tgt}} \to \mathcal{I}_K^{\text{tgt}}$ as $L, M \to \infty$.
+\end{theorem}
+
+\begin{proof}
+Define:
+\begin{align}
+A &= \frac{1}{M}\sum_{m=1}^{M} p(h_K|\theta_T^{(0)}, \theta_N^{(m)}, \pi) & &\text{(estimator of } p(h_K|\theta_T^{(0)},\pi)\text{)} \\
+B &= \frac{1}{L+1}\sum_{\ell=0}^{L} p(h_K|\theta^{(\ell)}, \pi) & &\text{(estimator of } p(h_K|\pi)\text{, includes } \theta^{(0)}\text{)}
+\end{align}
+
+The gap between the true objective and the practical bound is:
+\begin{align}
+\mathcal{I}_K^{\text{tgt}} - \hat{\mathcal{L}}_K^{\text{tgt}} &= \E\left[\log \frac{p(h_K|\theta_T^{(0)},\pi)}{p(h_K|\pi)} - \log \frac{A}{B}\right] \\
+&= \E\left[\log \frac{p(h_K|\theta_T^{(0)},\pi)}{A}\right] + \E\left[\log \frac{B}{p(h_K|\pi)}\right]
+\end{align}
+
+\textbf{Term 1 (Nuisance marginalization gap):} Condition on the realized $(\theta_T^{(0)}, h_K)$. Since $\theta_N^{(1:M)} \overset{\text{i.i.d.}}{\sim} p(\theta_N|\theta_T^{(0)})$,
+\begin{equation}
+\E[A \mid \theta_T^{(0)}, h_K] = \int p(h_K|\theta_T^{(0)},\theta_N,\pi)\,p(\theta_N|\theta_T^{(0)})\,d\theta_N = p(h_K|\theta_T^{(0)},\pi).
+\end{equation}
+Since $\log$ is concave, Jensen's inequality gives
+\begin{equation}
+\E[\log A \mid \theta_T^{(0)}, h_K] \leq \log \E[A \mid \theta_T^{(0)}, h_K] = \log p(h_K|\theta_T^{(0)},\pi),
+\end{equation}
+and hence $\E[\log(p(h_K|\theta_T^{(0)},\pi)/A) \mid \theta_T^{(0)}, h_K] \geq 0$. Taking expectations over $(\theta_T^{(0)}, h_K)$ yields $\E[\log(p(h_K|\theta_T^{(0)},\pi)/A)] \geq 0$.
+
+\textbf{Term 2 (Standard sPCE gap):} This is exactly the gap analyzed in Foster et al.~\cite{foster2021}. Using the symmetry of $\theta^{(0)}$ being included in the denominator sum and a change of measure argument, this equals:
+\begin{equation}
+\E_{p(h_K|\pi)}\left[\text{KL}\left(\tilde{p}(\theta^{(0:L)}|h_K) \,\|\, p(\theta^{(0:L)})\right)\right] \geq 0
+\end{equation}
+where $\tilde{p}$ is a mixture distribution (see~\cite{foster2021} for details).
+
+Since both terms are non-negative: $\hat{\mathcal{L}}_K^{\text{tgt}} \leq \mathcal{I}_K^{\text{tgt}}$.
+
+\textbf{Convergence:} Assume there exist constants $0<\kappa_{1,N} \le \kappa_{2,N}<\infty$ and $0<\kappa_1 \le \kappa_2<\infty$ such that
+\begin{align}
+\kappa_{1,N} \le \frac{p(h_K|\theta_T,\theta_N,\pi)}{p(h_K|\theta_T,\pi)} \le \kappa_{2,N} && \forall\,\theta_T,\theta_N,h_K, \\
+\kappa_1 \le \frac{p(h_K|\theta,\pi)}{p(h_K|\pi)} \le \kappa_2 && \forall\,\theta,h_K,
+\end{align}
+as in the standard sPCE analysis~\cite{foster2021}. Then the log-ratios in Term 1 and Term 2 are bounded. By the Strong Law of Large Numbers, $A \to p(h_K|\theta_T^{(0)},\pi)$ and $B \to p(h_K|\pi)$ almost surely as $M,L\to\infty$, and the Bounded Convergence Theorem yields Term 1 $\to 0$ and Term 2 $\to 0$; moreover Term 2 decreases at rate $\mathcal{O}(L^{-1})$.
+\end{proof}
+
+\begin{remark}
+The practical objective requires evaluating $p(h_K|\theta, \pi)$ for $(1+L) + M$ parameter settings per training iteration: $L+1$ full samples for the denominator, plus $M$ nuisance samples for the numerator (all sharing the same $\theta_T^{(0)}$).
+\end{remark}
+
+\subsection{Computational Budget Trade-offs}
+\label{sec:budget_stub}
+
+We briefly summarize how to allocate a fixed simulation budget across the outer minibatch size $B$, the number of contrastive samples $L$, and the number of nuisance samples $M$.
+The goal is to approximate the gradient of the targeted expected information gain, $\nabla_\phi\,\mathcal{I}_K^{\text{tgt}}(\pi_\phi)$, as accurately as possible.
+
+\paragraph{Simulation budget (ODE rollouts).}
+For mechanistic models, the dominant cost of evaluating $p(h_K|\theta,\pi)$ is simulating the system forward for $K$ design steps.
+In our implementation (Algorithm~\ref{algo:DAD}), per episode we perform
+one rollout to generate $h_K$ under $\theta^{(0)}$, $(L+1)$ rollouts for the denominator likelihoods under $\theta^{(0:L)}$, and one rollout for the numerator likelihood under $\theta_T^{(0)}$.
+Thus, a convenient compute budget is the number of full-trajectory ODE rollouts per update,
+\begin{equation}
+\label{eq:budget_rollouts}
+\mathcal{C}_{\text{traj}} \;:=\; B\,(L+3),
+\end{equation}
+which is proportional to the number of ODE solver steps (or RHS evaluations) per update.
+Crucially, in the common case where nuisance parameters only affect the observation model (e.g., a measurement noise scale), they do not appear inside the ODE solve.
+Then increasing $M$ does not increase $\mathcal{C}_{\text{traj}}$.
+
+\paragraph{Asymptotic MSE of the gradient estimator.}
+Let $g(\phi)=\nabla_\phi\,\mathcal{I}_K^{\text{tgt}}(\pi_\phi)$ denote the true targeted EIG gradient.
+Let $\hat g_{B,L,M}(\phi)$ be the stochastic gradient used in training, obtained by differentiating the nested Monte Carlo objective in Theorem~\ref{thm:targeted_spce} and averaging over $B$ simulated episodes.
+Under standard regularity assumptions (finite second moments and differentiability, allowing the delta method to be applied to $\log(\tfrac{1}{n}\sum_i Z_i)$ and its gradient), as $B,L,M\to\infty$ we have
+\begin{align}
+\mathbb{E}[\hat g_{B,L,M}(\phi)] - g(\phi) &= \mathcal{O}((L+1)^{-1}) + \mathcal{O}(M^{-1}), \\
+\mathrm{Var}(\hat g_{B,L,M}(\phi)) &= \mathcal{O}(B^{-1}) + \mathcal{O}\big((B(L+1))^{-1}\big) + \mathcal{O}((BM)^{-1}),
+\end{align}
+and therefore the mean-squared error scales as
+\begin{equation}
+\label{eq:grad_mse_scaling}
+\mathrm{MSE}(\hat g_{B,L,M})
+= \mathcal{O}(B^{-1})
++ \mathcal{O}\big((B(L+1))^{-1}\big)
++ \mathcal{O}((BM)^{-1})
++ \mathcal{O}((L+1)^{-2})
++ \mathcal{O}(M^{-2}).
+\end{equation}
+The $B^{-1}$ term is the usual outer Monte Carlo variance reduction from averaging $B$ independent episodes, while the $(L+1)^{-2}$ and $M^{-2}$ terms arise from the squared bias induced by the concavity of $\log$ (i.e., the finite-sample Jensen gaps in the nested estimators).
+
+\paragraph{Optimal scaling under fixed ODE budget.}
+Assume nuisance parameters do not enter the ODE solve so that $M$ is effectively ``ODE-free''.
+Then we can take $M$ as large as practical so that the $\mathcal{O}(M^{-1})$ and $\mathcal{O}(M^{-2})$ terms in \eqref{eq:grad_mse_scaling} are negligible.
+Under a fixed rollout budget $\mathcal{C}_{\text{traj}}$ in \eqref{eq:budget_rollouts}, we have $B \approx \mathcal{C}_{\text{traj}}/(L+3)$.
+Keeping only the leading outer-variance and inner-bias terms gives the proxy
+\begin{equation}
+\mathrm{MSE}(\hat g_{B,L,\infty}) \approx a\,B^{-1} + c\,(L+1)^{-2},
+\end{equation}
+for problem-dependent constants $a,c>0$.
+Substituting $B\approx \mathcal{C}_{\text{traj}}/(L+3)$ and minimizing over $L$ yields
+\begin{equation}
+L^\star + 1 \;\asymp\; \mathcal{C}_{\text{traj}}^{1/3},
+\qquad
+B^\star \;\asymp\; \mathcal{C}_{\text{traj}}^{2/3},
+\end{equation}
+and hence the optimal ratio obeys
+\begin{equation}
+\label{eq:bl_quadratic_scaling}
+B^\star \propto (L^\star+1)^2.
+\end{equation}
+In words: for a fixed ODE integration budget, it is asymptotically optimal to allocate substantially more samples to the outer minibatch than to the contrastive inner loop.
+
+\section{Policy Equivalence}
+\label{sec:policy_equiv}
+
+We show that the nested adaptive optimization criterion from Section~\ref{sec:criterion} is equivalent to optimizing over policies. Consider $K$ sequential design choices $d_1,\ldots,d_K$ with outcomes $Y_1,\ldots,Y_K$ and utility $u(d_{1:K},Y_{1:K})$. The nested adaptive objective is
+\begin{equation}
+V = \max_{d_1} \E_{Y_1|d_1}\Big[\max_{d_2} \E_{Y_2|Y_1,d_{1:2}}\Big[\cdots \max_{d_K} \E_{Y_K|Y_{1:K-1},d_{1:K}}[u]\cdots\Big]\Big].
+\end{equation}
+A deterministic non-anticipative policy $\pi = (\pi_1,\ldots,\pi_K)$ maps histories to designs: $\pi_1 \in \mathcal{D}_1$ and $\pi_k: \mathcal{H}_{k-1} \to \mathcal{D}_k$ for $k \geq 2$, where $\mathcal{H}_{k-1}$ is the space of histories $(d_1,Y_1,\ldots,d_{k-1},Y_{k-1})$. The policy value is $J(\pi) = \E[u(\pi_1, \pi_2(h_1), \ldots, \pi_K(h_{K-1}), Y_{1:K})]$, with $\Pi$ the set of all such policies.
+
+\begin{theorem}[Policy equivalence]
+\label{thm:policy_equiv}
+$V = \max_{\pi \in \Pi} J(\pi)$.
+\end{theorem}
+
+\begin{proof}
+Define continuation values by backward induction:
+\begin{align}
+G_K(h_{K-1}) &= \max_{a_K \in \mathcal{D}_K} \E[u(d_{1:K-1}, a_K, Y_{1:K}) \mid h_{K-1}, a_K], \\
+G_k(h_{k-1}) &= \max_{a_k \in \mathcal{D}_k} \E[G_{k+1}(h_{k-1}, a_k, Y_k) \mid h_{k-1}, a_k],
+\end{align}
+for $k = K{-}1, \ldots, 1$ (with $h_0 = \varnothing$). By construction, $G_1 = V$.
+
+\emph{Part 1: $\max_\pi J(\pi) \leq V$.}
+Fix any $\pi$. At stage $K$, $\pi_K(h_{K-1})$ is one feasible action, so its expected utility is at most $G_K(h_{K-1})$. Working backward, at each stage $k$ the policy's action $\pi_k(h_{k-1})$ achieves at most $G_k(h_{k-1})$. Taking expectations from stage 1 gives $J(\pi) \leq G_1 = V$.
+
+\emph{Part 2: $V \leq \max_\pi J(\pi)$.}
+Construct $\pi^\star$ by choosing argmax actions at each history: $\pi_k^\star(h_{k-1}) = \argmax_{a_k} \E[G_{k+1}(h_{k-1},a_k,Y_k) \mid h_{k-1},a_k]$. By iterated expectation, $J(\pi^\star) = G_1 = V$.
+\end{proof}
