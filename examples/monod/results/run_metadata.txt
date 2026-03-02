@@ -1,0 +1,15 @@
+job_id=66089668
+job_name=cdc2026
+partition=gpu_a100
+host=k28g30
+start_time=2026-03-01T18:58:47+01:00
+repo_dir=/data/leuven/325/vsc32553/CDC2026
+source_branch=3c3f3f0
+source_commit=unknown
+julia_version=1.12.5
+example=monod
+task=optimize_static
+script_path=examples/monod/optimize_static.jl
+script_args=static_spce
+results_dir=/data/leuven/325/vsc32553/CDC2026/examples/monod/results
+archive_dir=/data/leuven/325/vsc32553/CDC2026-runs/monod-optimize_static-20260301-084446

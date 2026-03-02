@@ -1,0 +1,23 @@
+# Static sPCE-optimal design (GPU + Enzyme)
+date = 2026-03-01 19:05:36
+
+# Configuration
+n_iters = 300
+n_restarts = 1
+B = 64
+L = 161
+M = 128
+n_substeps = 500
+grad_accum = 1
+lr_max = 0.01
+lr_min = 1.0e-5
+warmup = 20
+seed = 0
+
+# Result
+best_loss = -1.8902886
+best_restart = 1
+design = [0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.062667, 0.374652, 0.697733, 0.680615, 0.418148]
+
+restart_1_loss = -1.8902886
+restart_1_design = [0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0627, 0.3747, 0.6977, 0.6806, 0.4181]
