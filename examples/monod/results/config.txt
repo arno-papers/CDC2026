@@ -1,0 +1,28 @@
+branch: unknown
+commit: unknown
+date: 2026-03-01
+experiment: ODE_BUDGET=2121728, cosine LR
+
+# Hyperparameters
+n_iters = 1000
+lr_max = 0.003
+lr_min = 1.0e-5
+warmup = 50
+optimizer = Adam
+grad_accum = 16
+B_micro = 455
+B_total = 7291
+L_contrastive = 161
+M_NUISANCE = 128  # joint (sigma, Cx0) samples
+N_STEPS = 14
+N_SUBSTEPS = 500
+DT = 1.0
+seed = 0
+ODE_BUDGET_TRAJ = 2121728
+
+# Results
+best_loss = -1.6724839
+best_iter = 985
+training_time_s = 15975.8
+per_iter_s = 16.0
+total_wall_time_s = 15976.0
