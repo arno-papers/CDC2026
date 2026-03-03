@@ -28,7 +28,11 @@ examples/
     plot_training.jl     # Training loss curve (CPU)
     plot_trajectories.jl # Policy rollout visualization (CPU)
     results/             # Flat results directory (git-tracked)
-  haldane/               # Stub for Haldane substrate inhibition (TODO)
+  haldane/               # Haldane bioreactor (substrate inhibition, spike-and-slab prior)
+    model.jl             # Dynamics, constants, spike-and-slab sampling, policy
+    train.jl             # Training (GPU)
+    plot_comparison.jl   # Comparison plot: no-inhibition vs inhibition (CPU)
+    results/             # Flat results directory (git-tracked)
 
 paper/                   # Research paper (renamed from latex/)
   figures/               # Git-tracked, copied from example results by Snakefile

@@ -2,7 +2,7 @@
 #SBATCH --job-name=cdc2026
 #SBATCH --clusters=wice
 #SBATCH --partition=gpu_a100
-#SBATCH --account=intro_vsc32553
+#SBATCH --account=lp_dad
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=18

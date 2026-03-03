@@ -58,6 +58,9 @@ const Cx0_lo, Cx0_hi = 0.10f0, 0.50f0    # Nuisance: initial biomass
 const mu_max_lo, mu_max_hi = μ_max_lo, μ_max_hi
 const sigma_lo, sigma_hi = σ_lo, σ_hi
 
+const N_TARGET = 2
+const N_PARAMS_DYN = N_TARGET
+
 # ============================================================================
 #  Training Budget Allocation
 # ============================================================================
@@ -113,6 +116,10 @@ function sample_θ_N_joint(rng, M::Int, B::Int)
     Cx0 = rand(rng, Float32, M, B)
     Cx0 .= Cx0_lo .+ (Cx0_hi - Cx0_lo) .* Cx0
     return σ, Cx0
+end
+
+function sample_θ_dyn_numer(rng, θ_dyn_true, M, B)
+    return repeat(θ_dyn_true, 1, M, 1)  # all dynamics params are target → just repeat
 end
 
 function draw_prior_samples(rng, n::Int)

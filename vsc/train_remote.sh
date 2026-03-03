@@ -22,13 +22,13 @@ SSH_OPTS=(-S "${SSH_SOCKET}" -o BatchMode=yes)
 LOCAL_REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REMOTE_SUBDIR="${REMOTE_SUBDIR:-CDC2026}"
 PARTITION="${PARTITION:-gpu_a100}"
-ACCOUNT="${ACCOUNT:-intro_vsc32553}"
+ACCOUNT="${ACCOUNT:-lp_dad}"
 JULIA_VERSION="${JULIA_VERSION:-1.12.5}"
 WALLTIME="${WALLTIME:-24:00:00}"
 SCRIPT_ARGS="${SCRIPT_ARGS:-}"
 
 STATE_DIR="${LOCAL_REPO_DIR}/.pipeline-state"
-STATE_FILE="${STATE_DIR}/${TASK}.jobid"
+STATE_FILE="${STATE_DIR}/${EXAMPLE}-${TASK}.jobid"
 
 # --- Resolve remote VSC_DATA and repo path ---
 resolve_remote() {

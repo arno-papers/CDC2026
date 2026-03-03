@@ -1,10 +1,10 @@
 branch: unknown
 commit: unknown
 date: 2026-03-04
-experiment: ODE_BUDGET=2121728, cosine LR
+experiment: Haldane ODE_BUDGET=2121728, cosine LR
 
 # Hyperparameters
-n_iters = 1000
+n_iters = 250
 lr_max = 0.003
 lr_min = 1.0e-5
 warmup = 50
@@ -19,10 +19,14 @@ N_SUBSTEPS = 500
 DT = 1.0
 seed = 0
 ODE_BUDGET_TRAJ = 2121728
+SPIKE_PROB = 0.5
+SPIKE_STD = 0.003
+SLAB_MEAN = 0.1
+SLAB_STD = 0.03
 
 # Results
-best_loss = -1.6724675
-best_iter = 985
-training_time_s = 15960.6
-per_iter_s = 16.0
-total_wall_time_s = 15960.8
+best_loss = 1.5446874
+best_iter = 185
+training_time_s = 4955.2
+per_iter_s = 19.8
+total_wall_time_s = 4955.4
