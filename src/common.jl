@@ -5,8 +5,9 @@
 #   1. src/common_core.jl (CPU-safe infrastructure)
 #   2. Reactant-dependent pieces: integrate(), targeted_spce_loss(), train_policy()
 #
-# model.jl must define: dynamics(), N_STEPS, DT, N_SUBSTEPS, sampling functions,
-# policy network, budget constants (L_CONTRASTIVE, GRAD_BATCH, etc.)
+# model.jl must define: dynamics(), N_STEPS, DT, N_SUBSTEPS, N_PARAMS_DYN,
+# sampling functions (incl. sample_θ_dyn_numer), policy network,
+# budget constants (L_CONTRASTIVE, GRAD_BATCH, etc.)
 # ============================================================================
 
 include(joinpath(@__DIR__, "common_core.jl"))
@@ -31,16 +32,16 @@ end
 # ============================================================================
 
 function targeted_spce_loss(model, ps, st, data)
-    θ_full, σ_numer, Cx0_numer, u0, input_buffer, observations, designs, ε, ll_denom, ll_numer = data
+    θ_full, σ_numer, Cx0_numer, θ_dyn_numer, u0, input_buffer, observations, designs, ε, ll_denom, ll_numer = data
 
     B = size(ε, 2)
 
     ll_denom .= 0.0f0
     ll_numer .= 0.0f0
 
-    θ_T_true = θ_full[1:2, 1:1, :]
-    σ_true = θ_full[3, 1, :]
-    Cx0_true = θ_full[4, 1, :]
+    θ_dyn_true = θ_full[1:N_PARAMS_DYN, 1:1, :]
+    σ_true = θ_full[N_PARAMS_DYN+1, 1, :]
+    Cx0_true = θ_full[N_PARAMS_DYN+2, 1, :]
 
     u = vcat(
         repeat(u0[1:1, :, :], 1, 1, B),
@@ -53,7 +54,7 @@ function targeted_spce_loss(model, ps, st, data)
         Q_in = action
         designs[step, :] .= Q_in[1, :]
 
-        u = integrate(u, θ_T_true, Q_in, DT, N_SUBSTEPS)
+        u = integrate(u, θ_dyn_true, Q_in, DT, N_SUBSTEPS)
 
         obs = u[1, 1, :]
         noise = ε[step, :]
@@ -66,9 +67,9 @@ function targeted_spce_loss(model, ps, st, data)
 
     # DENOMINATOR
     n_denom = L_CONTRASTIVE + 1
-    θ_T_denom = θ_full[1:2, :, :]
-    σ²_denom = (θ_full[3, :, :]) .^ 2
-    Cx0_denom = θ_full[4:4, :, :]
+    θ_dyn_denom = θ_full[1:N_PARAMS_DYN, :, :]
+    σ²_denom = (θ_full[N_PARAMS_DYN+1, :, :]) .^ 2
+    Cx0_denom = θ_full[N_PARAMS_DYN+2:N_PARAMS_DYN+2, :, :]
 
     u_denom = vcat(
         repeat(u0[1:1, :, :], 1, n_denom, B),
@@ -78,7 +79,7 @@ function targeted_spce_loss(model, ps, st, data)
 
     for step in 1:N_STEPS
         Q_step = designs[step:step, :]
-        u_denom = integrate(u_denom, θ_T_denom, Q_step, DT, N_SUBSTEPS)
+        u_denom = integrate(u_denom, θ_dyn_denom, Q_step, DT, N_SUBSTEPS)
 
         pred_obs = u_denom[1, :, :]
         actual_obs = observations[step:step, :]
@@ -97,7 +98,7 @@ function targeted_spce_loss(model, ps, st, data)
 
     for step in 1:N_STEPS
         Q_step = designs[step:step, :]
-        u_numer = integrate(u_numer, θ_T_true, Q_step, DT, N_SUBSTEPS)
+        u_numer = integrate(u_numer, θ_dyn_numer, Q_step, DT, N_SUBSTEPS)
 
         pred_obs = u_numer[1, :, :]
         actual_obs = observations[step:step, :]
@@ -153,7 +154,10 @@ function train_policy(model, ps, st, rng;
         total_loss = 0.0f0
 
         for _k in 1:grad_accum
-            θ_full = sample_θ_full(rng, n_denom, B_micro) |> xdev
+            θ_full_cpu = sample_θ_full(rng, n_denom, B_micro)
+            θ_dyn_numer_cpu = sample_θ_dyn_numer(rng, θ_full_cpu[1:N_PARAMS_DYN, 1:1, :], M_NUISANCE, B_micro)
+            θ_full = θ_full_cpu |> xdev
+            θ_dyn_numer = θ_dyn_numer_cpu |> xdev
             σ_numer, Cx0_numer = sample_θ_N_joint(rng, M_NUISANCE, B_micro)
             σ_numer = σ_numer |> xdev
             Cx0_numer = Cx0_numer |> xdev
@@ -165,7 +169,7 @@ function train_policy(model, ps, st, rng;
             ll_denom = zeros(Float32, n_denom, B_micro) |> xdev
             ll_numer = zeros(Float32, M_NUISANCE, B_micro) |> xdev
 
-            data = (θ_full, σ_numer, Cx0_numer, u0, input_buffer, observations, designs, ε, ll_denom, ll_numer)
+            data = (θ_full, σ_numer, Cx0_numer, θ_dyn_numer, u0, input_buffer, observations, designs, ε, ll_denom, ll_numer)
 
             grads_last, loss_k, _, train_state = Lux.Training.single_train_step!(
                 AutoEnzyme(), targeted_spce_loss, data, train_state

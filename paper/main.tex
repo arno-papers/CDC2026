@@ -110,6 +110,16 @@ The nuisance parameters are $\theta_N = (\sigma, C_{x,0})$: the initial substrat
 The noise scale $\sigma$ is a fixed system property shared across experiments; the targeted sPCE framework marginalizes over both $\sigma$ and $C_{x,0}$.
 The goal is to design a sequence of feed rates $Q_{in,1}, \ldots, Q_{in,K}$ that maximizes information about $\mu_{\max}$ and $K_s$ from noisy $C_s$ measurements.
 
+\subsection{Haldane Substrate Inhibition}
+\label{sec:haldane}
+To illustrate how the adaptive policy handles model uncertainty, we extend the bioreactor to Haldane kinetics, which include substrate inhibition:
+\begin{equation}\label{eq:haldane}
+\mu(C_s; \theta_T) = \frac{\mu_{\max} C_s}{K_s + C_s + C_s^2/K_i},
+\end{equation}
+where $K_i$ is the inhibition constant. We reparameterize as $\alpha = 1/K_i$, so that $\alpha = 0$ recovers Monod kinetics. We set $\theta_T = \alpha$ as the sole target parameter, with $\theta_N = (\mu_{\max}, K_s, \sigma, C_{x,0})$ treated as nuisance. This focuses the sPCE objective entirely on learning whether substrate inhibition is present, rather than letting the EIG from $\mu_{\max}$ and $K_s$ dominate.
+
+To express uncertainty about whether inhibition is present, we place a spike-and-slab prior on $\alpha$: with probability $0.5$, $\alpha \sim |{\mathcal{N}(0, 0.003^2)}|$ (a half-normal spike near zero, effectively no inhibition), and with probability $0.5$, $\alpha \sim \mathcal{N}(0.10, 0.03^2)$ clamped to $\alpha \geq 0$ (meaningful inhibition). The remaining prior distributions are unchanged from the Monod case.
+
 \section{Information-Theoretic Criterion}
 \label{sec:criterion}
 
@@ -249,6 +259,15 @@ This architecture captures temporal dependencies while enabling efficient parall
 \caption{Posterior mean estimates across design strategies.}
 \label{fig:posterior}
 \end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{figures/haldane_comparison.png}
+\caption{Adaptive policy rollouts for the Haldane bioreactor under two ground-truth parameter settings: no inhibition ($\alpha \approx 0$, left) and substrate inhibition ($\alpha = 0.10$, right). The policy adapts its feed rate strategy based on early observations to probe whether substrate inhibition is present.}
+\label{fig:haldane}
+\end{figure}
+
+Figure~\ref{fig:haldane} shows adaptive policy rollouts for the Haldane bioreactor (Section~\ref{sec:haldane}) under two ground-truth scenarios. With $\alpha$ as the sole target parameter and $\mu_{\max}$, $K_s$ treated as nuisance, the policy is trained to focus on discriminating inhibition. When no substrate inhibition is present (left panels), the policy behaves similarly to the Monod case. When inhibition is present (right panels), the policy adapts its feed rate strategy based on early observations, probing the substrate concentration range where inhibition effects are most pronounced.
 
 \bibliographystyle{plainnat}
 \bibliography{references}

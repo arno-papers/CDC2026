@@ -1,6 +1,6 @@
 # CDC2026 Tier-2 (KU Leuven wICE) Workflow
 
-This project is configured for Julia `1.12.x` and can be run on KU Leuven Tier-2 (`wice`) with Slurm account `intro_vsc32553`.
+This project is configured for Julia `1.12.x` and can be run on KU Leuven Tier-2 (`wice`) with Slurm account `lp_dad`.
 
 This `VSC_README.md` is the single source of truth for running on Tier-2.
 

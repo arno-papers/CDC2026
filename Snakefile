@@ -1,9 +1,15 @@
 JULIA = "julia --project=."
+SRC = ["src/common_core.jl", "src/common.jl", "src/args.jl", "src/plotting.jl"]
+
 MONOD = "examples/monod"
 RESULTS = f"{MONOD}/results"
 MODEL = f"{MONOD}/model.jl"
-SRC = ["src/common_core.jl", "src/common.jl", "src/args.jl", "src/plotting.jl"]
 DEPS = [MODEL] + SRC
+
+HALDANE = "examples/haldane"
+HALDANE_RESULTS = f"{HALDANE}/results"
+HALDANE_MODEL = f"{HALDANE}/model.jl"
+HALDANE_DEPS = [HALDANE_MODEL] + SRC
 
 # ---- Default target ----
 rule all:
@@ -74,6 +80,21 @@ rule plot_training:
     output: f"{RESULTS}/plot_training_loss.png"
     shell: "{JULIA} {input.script}"
 
+# ---- Haldane training (VSC cluster) ----
+rule haldane_train:
+    input: f"{HALDANE}/train.jl", *HALDANE_DEPS
+    output: f"{HALDANE_RESULTS}/checkpoint.jls"
+    shell: "EXAMPLE=haldane WALLTIME=4:00:00 ./vsc/train_remote.sh"
+
+# ---- Haldane comparison plot (CPU, local) ----
+rule haldane_plot:
+    input:
+        script=f"{HALDANE}/plot_comparison.jl",
+        checkpoint=f"{HALDANE_RESULTS}/checkpoint.jls",
+        deps=HALDANE_DEPS,
+    output: f"{HALDANE_RESULTS}/plot_comparison.png"
+    shell: "{JULIA} {input.script}"
+
 # ---- Figures: copy to paper/figures/ ----
 rule figures:
     input:
@@ -81,11 +102,13 @@ rule figures:
         f"{RESULTS}/plot_spce_trajectories.png",
         f"{RESULTS}/plot_spce_histograms.png",
         f"{RESULTS}/plot_posterior.png",
+        f"{HALDANE_RESULTS}/plot_comparison.png",
     output:
         "paper/figures/monod_training_loss.png",
         "paper/figures/monod_spce_trajectories.png",
         "paper/figures/monod_spce_histograms.png",
         "paper/figures/monod_posterior.png",
+        "paper/figures/haldane_comparison.png",
     run:
         import shutil, os
         os.makedirs("paper/figures", exist_ok=True)
