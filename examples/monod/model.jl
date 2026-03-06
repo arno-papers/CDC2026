@@ -65,26 +65,11 @@ const N_PARAMS_DYN = N_TARGET
 #  Training Budget Allocation
 # ============================================================================
 
+include(joinpath(@__DIR__, "..", "..", "src", "budget.jl"))
+
 const ODE_BUDGET_TRAJ = 2121728
-const M_NUISANCE = 128
-
-const (L_CONTRASTIVE, GRAD_BATCH) = let
-    C = ODE_BUDGET_TRAJ
-    λ = 1.0
-    best_L, best_B, best_obj = 1, fld(C, 3 + M_NUISANCE), Inf
-    for L in 1:(C - 2 - M_NUISANCE)
-        B = fld(C, L + 2 + M_NUISANCE)
-        B < 1 && break
-        obj = 1.0/B + λ/(L+1)^2
-        if obj < best_obj
-            best_obj, best_L, best_B = obj, L, B
-        end
-    end
-    (best_L, best_B)
-end
-
+const (L_CONTRASTIVE, M_NUISANCE, GRAD_BATCH) = allocate_budget(ODE_BUDGET_TRAJ)
 const GRAD_ACCUM_STEPS = 16
-const GRAD_BATCH_MICRO = GRAD_BATCH ÷ GRAD_ACCUM_STEPS
 
 # ============================================================================
 #  Sampling

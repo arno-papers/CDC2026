@@ -7,7 +7,7 @@
 #
 # model.jl must define: dynamics(), N_STEPS, DT, N_SUBSTEPS, N_PARAMS_DYN,
 # sampling functions (incl. sample_θ_dyn_numer), policy network,
-# budget constants (L_CONTRASTIVE, GRAD_BATCH, etc.)
+# budget constants (L_CONTRASTIVE, M_NUISANCE, GRAD_BATCH, GRAD_ACCUM_STEPS)
 # ============================================================================
 
 include(joinpath(@__DIR__, "common_core.jl"))
@@ -66,7 +66,7 @@ function targeted_spce_loss(model, ps, st, data)
     end
 
     # DENOMINATOR
-    n_denom = L_CONTRASTIVE + 1
+    n_denom = size(θ_full, 2)
     θ_dyn_denom = θ_full[1:N_PARAMS_DYN, :, :]
     σ²_denom = (θ_full[N_PARAMS_DYN+1, :, :]) .^ 2
     Cx0_denom = θ_full[N_PARAMS_DYN+2:N_PARAMS_DYN+2, :, :]
@@ -89,11 +89,12 @@ function targeted_spce_loss(model, ps, st, data)
 
     # NUMERATOR
     σ²_numer = σ_numer .^ 2
+    M_N = size(ll_numer, 1)
 
     u_numer = vcat(
-        repeat(u0[1:1, :, :], 1, M_NUISANCE, B),
-        reshape(Cx0_numer, 1, M_NUISANCE, B),
-        repeat(u0[3:3, :, :], 1, M_NUISANCE, B),
+        repeat(u0[1:1, :, :], 1, M_N, B),
+        reshape(Cx0_numer, 1, M_N, B),
+        repeat(u0[3:3, :, :], 1, M_N, B),
     )
 
     for step in 1:N_STEPS
@@ -108,7 +109,7 @@ function targeted_spce_loss(model, ps, st, data)
 
     ll_max_num = maximum(ll_numer; dims=1)
     lse_num = ll_max_num .+ log.(sum(exp.(ll_numer .- ll_max_num); dims=1))
-    log_numerator = lse_num .- log(Float32(M_NUISANCE))
+    log_numerator = lse_num .- log(Float32(M_N))
 
     ll_max_den = maximum(ll_denom; dims=1)
     lse_den = ll_max_den .+ log.(sum(exp.(ll_denom .- ll_max_den); dims=1))
@@ -124,7 +125,28 @@ end
 #  Training
 # ============================================================================
 
+function _prepare_batch_default(rng, n_denom, M, B_micro, u0, xdev)
+    θ_full_cpu = sample_θ_full(rng, n_denom, B_micro)
+    θ_dyn_numer_cpu = sample_θ_dyn_numer(rng, θ_full_cpu[1:N_PARAMS_DYN, 1:1, :], M, B_micro)
+    θ_full = θ_full_cpu |> xdev
+    θ_dyn_numer = θ_dyn_numer_cpu |> xdev
+    σ_numer, Cx0_numer = sample_θ_N_joint(rng, M, B_micro)
+    σ_numer = σ_numer |> xdev
+    Cx0_numer = Cx0_numer |> xdev
+
+    input_buffer = zeros(Float32, 2, N_STEPS, B_micro) |> xdev
+    observations = zeros(Float32, N_STEPS, B_micro) |> xdev
+    designs = zeros(Float32, N_STEPS, B_micro) |> xdev
+    ε = randn(rng, Float32, N_STEPS, B_micro) |> xdev
+    ll_denom = zeros(Float32, n_denom, B_micro) |> xdev
+    ll_numer = zeros(Float32, M, B_micro) |> xdev
+
+    return (θ_full, σ_numer, Cx0_numer, θ_dyn_numer, u0, input_buffer, observations, designs, ε, ll_denom, ll_numer)
+end
+
 function train_policy(model, ps, st, rng;
+    loss_fn = targeted_spce_loss,
+    prepare_batch = _prepare_batch_default,
     xdev = identity,
     n_iters = 50,
     on_iteration = nothing,
@@ -132,11 +154,14 @@ function train_policy(model, ps, st, rng;
     lr_min = 1f-5,
     warmup = 50,
     grad_accum = GRAD_ACCUM_STEPS,
+    grad_batch = GRAD_BATCH,
+    L = L_CONTRASTIVE,
+    M = M_NUISANCE,
     clip_norm = 1.0f0,
     save_dir = ".",
 )
-    B_micro = GRAD_BATCH ÷ grad_accum
-    n_denom = L_CONTRASTIVE + 1
+    B_micro = grad_batch ÷ grad_accum
+    n_denom = L + 1
 
     opt = Adam(lr_min)
     train_state = Lux.Training.TrainState(model, ps, st, opt)
@@ -148,31 +173,17 @@ function train_policy(model, ps, st, rng;
 
     grads_last = nothing
     for iteration in 1:n_iters
+        ga = grad_accum + (iteration - 1) ÷ 10
         lr_t = cosine_lr(iteration, n_iters, lr_max, lr_min, warmup)
-        Optimisers.adjust!(train_state.optimizer_state; eta = Float32(lr_t / grad_accum))
+        Optimisers.adjust!(train_state.optimizer_state; eta = Float32(lr_t / ga))
 
         total_loss = 0.0f0
 
-        for _k in 1:grad_accum
-            θ_full_cpu = sample_θ_full(rng, n_denom, B_micro)
-            θ_dyn_numer_cpu = sample_θ_dyn_numer(rng, θ_full_cpu[1:N_PARAMS_DYN, 1:1, :], M_NUISANCE, B_micro)
-            θ_full = θ_full_cpu |> xdev
-            θ_dyn_numer = θ_dyn_numer_cpu |> xdev
-            σ_numer, Cx0_numer = sample_θ_N_joint(rng, M_NUISANCE, B_micro)
-            σ_numer = σ_numer |> xdev
-            Cx0_numer = Cx0_numer |> xdev
-
-            input_buffer = zeros(Float32, 2, N_STEPS, B_micro) |> xdev
-            observations = zeros(Float32, N_STEPS, B_micro) |> xdev
-            designs = zeros(Float32, N_STEPS, B_micro) |> xdev
-            ε = randn(rng, Float32, N_STEPS, B_micro) |> xdev
-            ll_denom = zeros(Float32, n_denom, B_micro) |> xdev
-            ll_numer = zeros(Float32, M_NUISANCE, B_micro) |> xdev
-
-            data = (θ_full, σ_numer, Cx0_numer, θ_dyn_numer, u0, input_buffer, observations, designs, ε, ll_denom, ll_numer)
+        for _k in 1:ga
+            data = prepare_batch(rng, n_denom, M, B_micro, u0, xdev)
 
             grads_last, loss_k, _, train_state = Lux.Training.single_train_step!(
-                AutoEnzyme(), targeted_spce_loss, data, train_state
+                AutoEnzyme(), loss_fn, data, train_state
             )
             total_loss += loss_k
         end
@@ -181,7 +192,7 @@ function train_policy(model, ps, st, rng;
             collect_diagnostics!(diagnostics, train_state, grads_last)
         end
 
-        avg_loss = total_loss / Float32(grad_accum)
+        avg_loss = total_loss / Float32(ga)
         push!(loss_history, avg_loss)
 
         if on_iteration !== nothing
@@ -189,7 +200,7 @@ function train_policy(model, ps, st, rng;
         end
 
         if iteration % 10 == 0 || iteration == 1
-            @printf("Iter: [%4d/%4d]\tLoss: %.8f\tlr: %.6f\n", iteration, n_iters, avg_loss, lr_t)
+            @printf("Iter: [%4d/%4d]\tLoss: %.8f\tlr: %.6f\tga: %d\n", iteration, n_iters, avg_loss, lr_t, ga)
         end
     end
 

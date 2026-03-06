@@ -11,6 +11,11 @@ HALDANE_RESULTS = f"{HALDANE}/results"
 HALDANE_MODEL = f"{HALDANE}/model.jl"
 HALDANE_DEPS = [HALDANE_MODEL] + SRC
 
+WEIBULL = "examples/weibull"
+WEIBULL_RESULTS = f"{WEIBULL}/results"
+WEIBULL_MODEL = f"{WEIBULL}/model.jl"
+WEIBULL_DEPS = [WEIBULL_MODEL] + SRC
+
 # ---- Default target ----
 rule all:
     input:
@@ -94,6 +99,12 @@ rule haldane_plot:
         deps=HALDANE_DEPS,
     output: f"{HALDANE_RESULTS}/plot_comparison.png"
     shell: "{JULIA} {input.script}"
+
+# ---- Weibull PK training (VSC cluster) ----
+rule weibull_train:
+    input: f"{WEIBULL}/train.jl", *WEIBULL_DEPS
+    output: f"{WEIBULL_RESULTS}/checkpoint.jls"
+    shell: "EXAMPLE=weibull WALLTIME=8:00:00 ./vsc/train_remote.sh"
 
 # ---- Figures: copy to paper/figures/ ----
 rule figures:

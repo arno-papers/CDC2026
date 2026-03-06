@@ -16,14 +16,16 @@ if abspath(PROGRAM_FILE) == @__FILE__
     seed = parse_int(ARGS, "seed"; default=0)
     loss_png_every = parse_int(ARGS, "loss_png_every"; default=10)
     grad_accum = parse_int(ARGS, "grad_accum"; default=GRAD_ACCUM_STEPS)
+    ode_budget = parse_int(ARGS, "ode_budget"; default=ODE_BUDGET_TRAJ)
     lr_max = parse_float(ARGS, "lr_max"; default=0.003f0)
     lr_min = parse_float(ARGS, "lr_min"; default=1f-5)
     warmup = parse_int(ARGS, "warmup"; default=50)
     clip_norm = parse_float(ARGS, "clip_norm"; default=1.0f0)
     results_dir = parse_kwarg(ARGS, "results_dir"; default=joinpath(@__DIR__, "results"))
 
+    L, M_nuis, B_total = allocate_budget(ode_budget)
     loss_png_every = loss_png_every < 1 ? 10 : loss_png_every
-    B_micro = GRAD_BATCH ÷ grad_accum
+    B_micro = B_total ÷ grad_accum
 
     using Plots
 
@@ -36,7 +38,7 @@ if abspath(PROGRAM_FILE) == @__FILE__
         println(io, "branch: $branch")
         println(io, "commit: $commit")
         println(io, "date: $(Dates.format(Dates.now(), "yyyy-mm-dd"))")
-        println(io, "experiment: ODE_BUDGET=$(ODE_BUDGET_TRAJ), cosine LR")
+        println(io, "experiment: ODE_BUDGET=$(ode_budget), cosine LR")
         println(io)
         println(io, "# Hyperparameters")
         println(io, "n_iters = $n_iters")
@@ -46,19 +48,19 @@ if abspath(PROGRAM_FILE) == @__FILE__
         println(io, "optimizer = Adam")
         println(io, "grad_accum = $grad_accum")
         println(io, "B_micro = $B_micro")
-        println(io, "B_total = $GRAD_BATCH")
-        println(io, "L_contrastive = $L_CONTRASTIVE")
-        println(io, "M_NUISANCE = $M_NUISANCE  # joint (sigma, Cx0) samples")
+        println(io, "B_total = $B_total")
+        println(io, "L_contrastive = $L")
+        println(io, "M_nuisance = $M_nuis")
         println(io, "N_STEPS = $N_STEPS")
         println(io, "N_SUBSTEPS = $N_SUBSTEPS")
         println(io, "DT = $DT")
         println(io, "seed = $seed")
-        println(io, "ODE_BUDGET_TRAJ = $ODE_BUDGET_TRAJ")
+        println(io, "ode_budget = $ode_budget")
     end
 
     println("\n=== Targeted DADS Training (Reactant + Enzyme) ===")
     println("Target params: (mu_max, K_s), Nuisance: (sigma, Cx0) jointly sampled")
-    println("L = $L_CONTRASTIVE contrastive, M_NUISANCE = $M_NUISANCE (joint sigma,Cx0), B = $GRAD_BATCH total ($(grad_accum)x$(B_micro) micro)")
+    println("L = $L contrastive, M = $M_nuis nuisance, B = $B_total total ($(grad_accum)x$(B_micro) micro)")
     println("n_iters = $n_iters, lr_max = $lr_max, lr_min = $lr_min, warmup = $warmup")
     println("grad_accum = $grad_accum, clip_norm = $clip_norm, plotting = $plotting")
     println("results_dir = $results_dir")
@@ -97,6 +99,9 @@ if abspath(PROGRAM_FILE) == @__FILE__
         lr_min = lr_min,
         warmup = warmup,
         grad_accum = grad_accum,
+        grad_batch = B_total,
+        L = L,
+        M = M_nuis,
         clip_norm = clip_norm,
         save_dir = results_dir,
     )

@@ -40,7 +40,7 @@ end
 
 const N_STEPS = 14
 const DT = 1.0f0
-const N_SUBSTEPS = 500
+const N_SUBSTEPS = 50
 
 const ACTION_LO = 0.0f0
 const ACTION_HI = 10.0f0
@@ -49,8 +49,8 @@ const ACTION_HI = 10.0f0
 #  Prior Bounds
 # ============================================================================
 
-const μ_max_lo, μ_max_hi = 0.3f0, 0.5f0
-const K_s_lo, K_s_hi = 0.3f0, 0.6f0
+const μ_max_lo, μ_max_hi = 0.35f0, 0.45f0
+const K_s_lo, K_s_hi = 0.40f0, 0.50f0
 const σ_lo, σ_hi = 0.05f0, 0.15f0       # Nuisance: measurement noise std
 const Cx0_lo, Cx0_hi = 0.10f0, 0.50f0    # Nuisance: initial biomass
 
@@ -71,26 +71,11 @@ const SLAB_STD = 0.03f0
 #  Training Budget Allocation
 # ============================================================================
 
+include(joinpath(@__DIR__, "..", "..", "src", "budget.jl"))
+
 const ODE_BUDGET_TRAJ = 2121728
-const M_NUISANCE = 512
-
-const (L_CONTRASTIVE, GRAD_BATCH) = let
-    C = ODE_BUDGET_TRAJ
-    λ = 1.0
-    best_L, best_B, best_obj = 1, fld(C, 3 + M_NUISANCE), Inf
-    for L in 1:(C - 2 - M_NUISANCE)
-        B = fld(C, L + 2 + M_NUISANCE)
-        B < 1 && break
-        obj = 1.0/B + λ/(L+1)^2
-        if obj < best_obj
-            best_obj, best_L, best_B = obj, L, B
-        end
-    end
-    (best_L, best_B)
-end
-
+const (L_CONTRASTIVE, M_NUISANCE, GRAD_BATCH) = allocate_budget(ODE_BUDGET_TRAJ)
 const GRAD_ACCUM_STEPS = 16
-const GRAD_BATCH_MICRO = GRAD_BATCH ÷ GRAD_ACCUM_STEPS
 
 # ============================================================================
 #  Sampling

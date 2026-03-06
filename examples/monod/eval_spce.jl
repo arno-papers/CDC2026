@@ -132,11 +132,12 @@ function adaptive_spce_eval(model, ps, st, data)
     end
 
     σ²_numer = σ_numer .^ 2
+    M_N = size(ll_numer, 1)
 
     u_numer = vcat(
-        repeat(u0[1:1, :, :], 1, M_NUISANCE, B),
-        reshape(Cx0_numer, 1, M_NUISANCE, B),
-        repeat(u0[3:3, :, :], 1, M_NUISANCE, B),
+        repeat(u0[1:1, :, :], 1, M_N, B),
+        reshape(Cx0_numer, 1, M_N, B),
+        repeat(u0[3:3, :, :], 1, M_N, B),
     )
 
     for step in 1:N_STEPS
@@ -151,7 +152,7 @@ function adaptive_spce_eval(model, ps, st, data)
 
     ll_max_num = maximum(ll_numer; dims=1)
     lse_num = ll_max_num .+ log.(sum(exp.(ll_numer .- ll_max_num); dims=1))
-    log_numerator = lse_num .- log(Float32(M_NUISANCE))
+    log_numerator = lse_num .- log(Float32(M_N))
 
     ll_max_den = maximum(ll_denom; dims=1)
     lse_den = ll_max_den .+ log.(sum(exp.(ll_denom .- ll_max_den); dims=1))
