@@ -82,7 +82,7 @@ const N_PARAMS_DYN = 4   # k_a, k_tr, CL, Q_d
 #  Training Budget Allocation
 # ============================================================================
 
-include(joinpath(@__DIR__, "..", "..", "src", "budget.jl"))
+include(joinpath(@__DIR__, "..", "..", "src", "utils.jl"))
 
 const ODE_BUDGET_TRAJ = 24_000_000
 const (L_CONTRASTIVE, M_NUISANCE, GRAD_BATCH) = allocate_budget(ODE_BUDGET_TRAJ)

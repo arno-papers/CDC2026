@@ -1,14 +1,6 @@
 include(joinpath(@__DIR__, "model.jl"))
 include(joinpath(@__DIR__, "..", "..", "src", "common.jl"))
 
-function git_info_or_unknown(args...)
-    try
-        return strip(read(`git $(args...)`, String))
-    catch
-        return "unknown"
-    end
-end
-
 if abspath(PROGRAM_FILE) == @__FILE__
     plotting = false
     n_iters = 250
@@ -31,11 +23,7 @@ if abspath(PROGRAM_FILE) == @__FILE__
     Reactant.set_default_backend("gpu")
 
     mkpath(results_dir)
-    branch = git_info_or_unknown("rev-parse", "--abbrev-ref", "HEAD")
-    commit = git_info_or_unknown("rev-parse", "--short", "HEAD")
     open(joinpath(results_dir, "config.txt"), "w") do io
-        println(io, "branch: $branch")
-        println(io, "commit: $commit")
         println(io, "date: $(Dates.format(Dates.now(), "yyyy-mm-dd"))")
         println(io, "experiment: Haldane ODE_BUDGET=$(ode_budget), cosine LR")
         println(io)

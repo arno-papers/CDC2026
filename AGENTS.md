@@ -36,6 +36,10 @@ examples/
 paper/                   # Research paper (renamed from latex/)
   figures/               # Git-tracked, copied from example results by Snakefile
 
+scripts/
+  profile_budget.jl          # Find max ODE budget for GPU (search + probe modes)
+  submit_profile_budget.sh   # Submit budget profiling to VSC
+
 vsc/                     # Supercomputer scripts
   submit.sh              # Direct submission: EXAMPLE=monod TASK=train ./vsc/submit.sh
   train_remote.sh        # Idempotent wrapper called by Snakefile train rule
@@ -87,6 +91,16 @@ julia --project=. examples/monod/plot_trajectories.jl
 ```bash
 EXAMPLE=monod TASK=train ./vsc/submit.sh
 DRY_RUN=1 EXAMPLE=monod TASK=train ./vsc/submit.sh  # cost estimate only
+```
+
+### Budget profiling (GPU)
+
+```bash
+# Local GPU
+julia --project=. scripts/profile_budget.jl example=monod
+
+# VSC (batch job with full GPU memory)
+EXAMPLE=monod ./scripts/submit_profile_budget.sh
 ```
 
 See VSC_README.md for full details about the Flemish supercomputer.

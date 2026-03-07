@@ -7,7 +7,7 @@
 #
 # model.jl must define: dynamics(), N_STEPS, DT, N_SUBSTEPS, N_PARAMS_DYN,
 # sampling functions (incl. sample_θ_dyn_numer), policy network,
-# budget constants (L_CONTRASTIVE, M_NUISANCE, GRAD_BATCH, GRAD_ACCUM_STEPS)
+# and budget constants (L_CONTRASTIVE, M_NUISANCE, GRAD_BATCH, GRAD_ACCUM_STEPS)
 # ============================================================================
 
 include(joinpath(@__DIR__, "common_core.jl"))

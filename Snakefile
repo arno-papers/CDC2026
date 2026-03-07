@@ -1,5 +1,5 @@
 JULIA = "julia --project=."
-SRC = ["src/common_core.jl", "src/common.jl", "src/plotting.jl"]
+SRC = ["src/utils.jl", "src/common_core.jl", "src/common.jl", "src/plotting.jl"]
 
 MONOD = "examples/monod"
 RESULTS = f"{MONOD}/results"

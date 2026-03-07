@@ -180,3 +180,17 @@ function load_results(dir::AbstractString)
 
     return (; parameters=ps, states=st, loss_history, diagnostics)
 end
+
+# ============================================================================
+#  Checkpoint loading
+# ============================================================================
+
+function load_checkpoint_cpu(path::AbstractString)
+    if isdir(path)
+        r = load_results(path)
+        return r.parameters, r.states, path
+    end
+    @assert isfile(path) "Checkpoint not found: $path"
+    ckpt = deserialize(path)
+    return ckpt["parameters"], ckpt["states"], dirname(path)
+end

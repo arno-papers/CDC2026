@@ -65,7 +65,7 @@ const N_PARAMS_DYN = N_TARGET
 #  Training Budget Allocation
 # ============================================================================
 
-include(joinpath(@__DIR__, "..", "..", "src", "budget.jl"))
+include(joinpath(@__DIR__, "..", "..", "src", "utils.jl"))
 
 const ODE_BUDGET_TRAJ = 2121728
 const (L_CONTRASTIVE, M_NUISANCE, GRAD_BATCH) = allocate_budget(ODE_BUDGET_TRAJ)
@@ -344,18 +344,4 @@ function rollout_adaptive_design_cpu(model, ps_cpu, st_cpu, rng,
         input_buffer[2, step, 1] = q_in
     end
     return designs
-end
-
-# ============================================================================
-#  Checkpoint loading
-# ============================================================================
-
-function load_checkpoint_cpu(path::AbstractString)
-    if isdir(path)
-        r = load_results(path)
-        return r.parameters, r.states, path
-    end
-    @assert isfile(path) "Checkpoint not found: $path"
-    ckpt = deserialize(path)
-    return ckpt["parameters"], ckpt["states"], dirname(path)
 end
