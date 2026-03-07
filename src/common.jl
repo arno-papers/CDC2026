@@ -12,6 +12,7 @@
 
 include(joinpath(@__DIR__, "common_core.jl"))
 
+using Lux, Optimisers, Printf
 using Reactant
 using Reactant: @trace
 
@@ -166,12 +167,10 @@ function train_policy(model, ps, st, rng;
     opt = Adam(lr_min)
     train_state = Lux.Training.TrainState(model, ps, st, opt)
     loss_history = Float32[]
-    diagnostics = Dict{String, Vector{Float32}}()
 
     u0 = make_u0()
     u0 = u0 |> xdev
 
-    grads_last = nothing
     for iteration in 1:n_iters
         ga = grad_accum + (iteration - 1) ÷ 10
         lr_t = cosine_lr(iteration, n_iters, lr_max, lr_min, warmup)
@@ -182,14 +181,10 @@ function train_policy(model, ps, st, rng;
         for _k in 1:ga
             data = prepare_batch(rng, n_denom, M, B_micro, u0, xdev)
 
-            grads_last, loss_k, _, train_state = Lux.Training.single_train_step!(
+            _, loss_k, _, train_state = Lux.Training.single_train_step!(
                 AutoEnzyme(), loss_fn, data, train_state
             )
             total_loss += loss_k
-        end
-
-        if iteration % 10 == 0 || iteration == 1
-            collect_diagnostics!(diagnostics, train_state, grads_last)
         end
 
         avg_loss = total_loss / Float32(ga)
@@ -204,7 +199,7 @@ function train_policy(model, ps, st, rng;
         end
     end
 
-    save_results(save_dir, train_state, loss_history, diagnostics)
+    save_results(save_dir, train_state, loss_history)
 
-    return train_state, loss_history, diagnostics
+    return train_state, loss_history
 end

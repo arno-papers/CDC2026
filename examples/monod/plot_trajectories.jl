@@ -26,10 +26,6 @@ function rollout_policy_cpu(model, ps_cpu, st_cpu; theta, u0)
 end
 
 function plot_trajectories(model, train_state; rng, n_samples=20, outfile=joinpath(@__DIR__, "results", "plot_trajectories.png"))
-    _to_cpu(x) = x
-    _to_cpu(x::AbstractArray) = collect(x)
-    _to_cpu(x::NamedTuple) = map(_to_cpu, x)
-    _to_cpu(x::Tuple) = map(_to_cpu, x)
     plot_trajectories(model, _to_cpu(train_state.parameters), _to_cpu(train_state.states); rng, n_samples, outfile)
 end
 

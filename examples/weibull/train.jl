@@ -3,6 +3,7 @@ include(joinpath(@__DIR__, "..", "..", "src", "common.jl"))
 include(joinpath(@__DIR__, "..", "..", "src", "plotting.jl"))
 
 if abspath(PROGRAM_FILE) == @__FILE__
+    using Dates
     plotting = false
     n_iters = 250
     seed = 0
@@ -77,7 +78,7 @@ if abspath(PROGRAM_FILE) == @__FILE__
 
     println("Starting training...")
     t_start = time()
-    train_state, loss_history, diagnostics = train_policy(
+    train_state, loss_history = train_policy(
         policy, ps_ra, st_ra, rng;
         loss_fn = targeted_spce_loss_pk,
         prepare_batch = prepare_batch_pk,
