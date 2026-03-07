@@ -2,6 +2,7 @@ include(joinpath(@__DIR__, "model.jl"))
 include(joinpath(@__DIR__, "..", "..", "src", "common_core.jl"))
 
 using Plots
+include(joinpath(@__DIR__, "..", "..", "src", "plotting.jl"))
 
 function rollout_trajectory_cpu(model, ps_cpu, st_cpu, rng,
         theta_dyn::Vector{Float32}, sigma::Float32;
@@ -64,9 +65,7 @@ function plot_comparison(model, ps_cpu, st_cpu;
     end
 
     plt = plot(p1, p2, p3, p4; layout=(2, 2), size=(900, 700))
-    mkpath(dirname(outfile))
-    savefig(plt, outfile)
-    println("Saved comparison plot: $outfile")
+    save_plot(plt, outfile)
     return plt
 end
 

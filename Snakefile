@@ -25,7 +25,7 @@ rule all:
 # ---- Training (VSC cluster) ----
 rule train:
     input: f"{MONOD}/train.jl", *DEPS
-    output: f"{RESULTS}/checkpoint.jls"
+    output: f"{RESULTS}/checkpoint.jls", f"{RESULTS}/plot_training_loss.png"
     shell: "./vsc/train_remote.sh"
 
 # ---- BIM design optimization (CPU, local, sequential via resource lock) ----
@@ -66,15 +66,6 @@ rule eval_posterior:
     output:
         results=f"{RESULTS}/posterior_results.jls",
         plot=f"{RESULTS}/plot_posterior.png",
-    shell: "{JULIA} {input.script}"
-
-# ---- Training loss plot (CPU, local) ----
-rule plot_training:
-    input:
-        script=f"{MONOD}/plot_training.jl",
-        checkpoint=f"{RESULTS}/checkpoint.jls",
-        deps=DEPS,
-    output: f"{RESULTS}/plot_training_loss.png"
     shell: "{JULIA} {input.script}"
 
 # ---- Haldane training (VSC cluster) ----

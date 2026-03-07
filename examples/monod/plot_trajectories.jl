@@ -1,4 +1,5 @@
 using Plots, Serialization
+include(joinpath(@__DIR__, "..", "..", "src", "plotting.jl"))
 
 function rollout_policy_cpu(model, ps_cpu, st_cpu; theta, u0)
     u = reshape(u0, 3, 1)
@@ -59,8 +60,7 @@ function plot_trajectories(model, ps_cpu::NamedTuple, st_cpu::NamedTuple; rng, n
     end
 
     plt = plot(p1, p2, p3, p4; layout = (2, 2), size = (900, 700))
-    savefig(plt, outfile)
-    println("Saved trajectories plot: $outfile")
+    save_plot(plt, outfile)
 
     return plt
 end

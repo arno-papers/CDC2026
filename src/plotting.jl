@@ -4,11 +4,35 @@
 # Reusable via include(joinpath(@__DIR__, "..", "src", "plotting.jl"))
 # ============================================================================
 
-using Distributions: TDist, ccdf
 using Plots
 using Printf
-using Serialization
 using Statistics
+
+# ============================================================================
+#  Utility: save figure + print path
+# ============================================================================
+
+function save_plot(plt, path)
+    mkpath(dirname(path))
+    savefig(plt, path)
+    println("Saved: $path")
+end
+
+# ============================================================================
+#  Callback: live loss plot during training
+# ============================================================================
+
+function loss_plot_callback(; title="Training Loss", output_path="plot_loss_live.png",
+                              save_every=10, n_iters=0)
+    return (iter, _loss, loss_history, _train_state) -> begin
+        if iter % save_every == 0 || iter == 1 || (n_iters > 0 && iter == n_iters)
+            p = Plots.plot(loss_history;
+                xlabel="Iteration", ylabel="Targeted sPCE Loss",
+                title=title, label="loss", linewidth=2)
+            save_plot(p, output_path)
+        end
+    end
+end
 
 # ============================================================================
 #  Canonical design styles
@@ -35,45 +59,6 @@ function extract_designs(d::Dict)
         end
     end
     return designs
-end
-
-# ============================================================================
-#  Compute summary stats: mean +/- std per design, paired deltas vs adaptive
-# ============================================================================
-
-function compute_summary_stats(designs::Vector{Pair{String, Vector{Float64}}})
-    lines = String[]
-
-    adaptive_idx = findfirst(p -> p.first == "adaptive", designs)
-    adaptive_scores = adaptive_idx !== nothing ? designs[adaptive_idx].second : nothing
-
-    push!(lines, "=== Results (targeted sPCE, higher = more informative) ===")
-    push!(lines, "")
-    for (key, scores) in designs
-        style = get(DESIGN_STYLES, key, (label = key, color = :black))
-        n = length(scores)
-        suffix = key == "adaptive" ? "  (baseline)" : ""
-        push!(lines, @sprintf("  %-30s  mean = %8.4f  std = %8.4f  (n=%d)%s",
-                               style.label, mean(scores), std(scores), n, suffix))
-    end
-
-    if adaptive_scores !== nothing
-        push!(lines, "")
-        for (key, scores) in designs
-            key == "adaptive" && continue
-            style = get(DESIGN_STYLES, key, (label = key, color = :black))
-            delta = adaptive_scores .- scores
-            n = length(delta)
-            m = mean(delta)
-            sem = std(delta) / sqrt(n)
-            t_stat = m / sem
-            p_val = 2 * ccdf(TDist(n - 1), abs(t_stat))
-            push!(lines, @sprintf("  Paired: Adaptive - %-17s  delta = %+.4f ± %.4f (SEM)  t=%6.2f  p=%.2e",
-                                   style.label, m, sem, t_stat, p_val))
-        end
-    end
-
-    return join(lines, "\n")
 end
 
 # ============================================================================
@@ -114,8 +99,7 @@ function plot_spce_histograms(designs::Vector{Pair{String, Vector{Float64}}};
         end
     end
 
-    savefig(p, output_path)
-    println("Saved: $output_path")
+    save_plot(p, output_path)
     return p
 end
 
@@ -148,7 +132,6 @@ function plot_design_trajectories(adaptive_designs::AbstractMatrix,
               color = style.color, lw = 2.5, label = style.label)
     end
 
-    savefig(p, output_path)
-    println("Saved: $output_path")
+    save_plot(p, output_path)
     return p
 end

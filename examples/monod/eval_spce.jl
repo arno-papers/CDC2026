@@ -9,7 +9,6 @@ include(joinpath(@__DIR__, "..", "..", "src", "common.jl"))
 include(joinpath(@__DIR__, "..", "..", "src", "plotting.jl"))
 
 using Dates
-using Distributions: TDist, ccdf
 using Plots
 using Printf
 using Random
@@ -412,10 +411,6 @@ if abspath(PROGRAM_FILE) == @__FILE__
     serialize(joinpath(results_dir, "spce_scores.jls"), scores_dict)
 
     score_designs = extract_designs(scores_dict)
-    summary = compute_summary_stats(score_designs)
-    println()
-    println(summary)
-    flush(stdout)
 
     plot_spce_histograms(score_designs;
         output_path = joinpath(results_dir, "plot_spce_histograms.png"),
@@ -440,8 +435,6 @@ if abspath(PROGRAM_FILE) == @__FILE__
         if has_spce_opt
             println(io, "static_spce_design  = [", join(round.(static_spce_opt; digits=4), ", "), "]")
         end
-        println(io)
-        println(io, summary)
     end
 
     println("\nDone. Outputs in: $results_dir")

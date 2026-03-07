@@ -2,6 +2,7 @@ include(joinpath(@__DIR__, "model.jl"))
 include(joinpath(@__DIR__, "..", "..", "src", "common_core.jl"))
 
 using Plots, Serialization
+include(joinpath(@__DIR__, "..", "..", "src", "plotting.jl"))
 
 function rollout_trajectory_cpu(model, ps_cpu, st_cpu, rng,
         theta_dyn::Vector{Float32}, sigma_prop::Float32, sigma_add::Float32;
@@ -77,6 +78,5 @@ if abspath(PROGRAM_FILE) == @__FILE__
 
     plt = plot(p1, p2, p3, p4; layout=(2, 2), size=(1000, 700))
     outfile = joinpath(results_dir, "plot_trajectories.png")
-    savefig(plt, outfile)
-    println("Saved: $outfile")
+    save_plot(plt, outfile)
 end

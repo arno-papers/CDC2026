@@ -1,5 +1,6 @@
 include(joinpath(@__DIR__, "model.jl"))
 include(joinpath(@__DIR__, "..", "..", "src", "common.jl"))
+include(joinpath(@__DIR__, "..", "..", "src", "plotting.jl"))
 
 if abspath(PROGRAM_FILE) == @__FILE__
     plotting = false
@@ -69,18 +70,10 @@ if abspath(PROGRAM_FILE) == @__FILE__
     ps_ra = ps |> xdev
     st_ra = st |> xdev
 
-    on_iteration = (iter, _loss, loss_history, _) -> begin
-        if iter % loss_png_every == 0 || iter == 1 || iter == n_iters
-            p = Plots.plot(loss_history;
-                xlabel = "Iteration",
-                ylabel = "Targeted sPCE Loss",
-                title = "Training Loss (Weibull PK)",
-                label = "loss",
-                linewidth = 2,
-            )
-            Plots.savefig(p, joinpath(results_dir, "plot_loss_live.png"))
-        end
-    end
+    on_iteration = loss_plot_callback(;
+        title="Training Loss (Weibull PK)",
+        output_path=joinpath(results_dir, "plot_loss_live.png"),
+        save_every=loss_png_every, n_iters)
 
     println("Starting training...")
     t_start = time()
