@@ -8,6 +8,7 @@
 using Lux, Random
 using ForwardDiff
 using LinearAlgebra
+using Optimisers
 using Printf
 using Serialization
 
@@ -40,7 +41,7 @@ end
 
 const N_STEPS = 14
 const DT = 1.0f0
-const N_SUBSTEPS = 500
+const N_SUBSTEPS = 50
 
 const ACTION_LO = 0.0f0
 const ACTION_HI = 10.0f0
@@ -69,9 +70,9 @@ const N_NOISE_CHANNELS = 1  # single additive Gaussian noise
 
 include(joinpath(@__DIR__, "..", "..", "src", "utils.jl"))
 
-const ODE_BUDGET_TRAJ = 2121728
+const ODE_BUDGET_TRAJ = 1250000
 const (L_CONTRASTIVE, M_NUISANCE, GRAD_BATCH) = allocate_budget(ODE_BUDGET_TRAJ)
-const GRAD_ACCUM_STEPS = 16
+const GRAD_ACCUM_STEPS = 1
 
 # ============================================================================
 #  Sampling
@@ -251,85 +252,58 @@ end
 #  Design optimization helpers
 # ============================================================================
 
-function init_design(restart::Int)
-    designs = [
-        fill(0.1, N_STEPS),
-        vcat(fill(0.1, N_STEPS - 3), [4.0, 7.0, 10.0]),
-        fill(5.0, N_STEPS),
-        collect(range(10.0, 0.0; length=N_STEPS)),
-    ]
-    return restart <= length(designs) ? copy(designs[restart]) : 10.0 .* rand(N_STEPS)
-end
-
 function optimize_design_grad(objective;
-        n_iters::Int=300, lr_max::Float64=1.0, lr_min::Float64=0.01,
-        n_restarts::Int=4, results_dir::Union{String,Nothing}=nothing,
+        n_iters::Int=250, lr_max::Float64=0.003, lr_min::Float64=1e-5,
+        warmup::Int=50, results_dir::Union{String,Nothing}=nothing,
         prefix::String="bim")
 
-    best_design = zeros(Float64, N_STEPS)
+    design = fill(5.0, N_STEPS)
+    opt_state = Optimisers.setup(Adam(lr_min), design)
+
+    best_design = copy(design)
     best_score = -Inf
-    best_restart = 0
-    all_histories = Vector{Vector{Float64}}()
+    score_history = Float64[]
 
-    for r in 1:n_restarts
-        design = init_design(r)
-        velocity = zeros(Float64, N_STEPS)
-        local_best = copy(design)
-        local_best_score = -Inf
-        score_history = Float64[]
+    for iter in 1:n_iters
+        g = ForwardDiff.gradient(objective, design)
+        lr = cosine_lr(iter, n_iters, lr_max, lr_min, warmup)
+        Optimisers.adjust!(opt_state; eta = lr)
+        # Adam minimizes, but we maximize: negate gradient
+        opt_state, design = Optimisers.update!(opt_state, design, -g)
+        clamp!(design, 0.0, 10.0)
 
-        for iter in 1:n_iters
-            g = ForwardDiff.gradient(objective, design)
-            lr = cosine_lr(iter, n_iters, lr_max, lr_min, 10)
-            velocity .= 0.5 .* velocity .+ g
-            design .+= lr .* velocity
-            clamp!(design, 0.0, 10.0)
-
-            score = objective(design)
-            push!(score_history, score)
-            if score > local_best_score
-                local_best_score = score
-                local_best .= design
-            end
-
-            if iter % 25 == 0 || iter == 1 || iter == n_iters
-                @printf("[GRAD r%d] iter %3d/%3d | lr=%.4f | score=%.5f | best=%.5f\n",
-                        r, iter, n_iters, lr, score, local_best_score)
-                flush(stdout)
-
-                if results_dir !== nothing && isdefined(Main, :Plots)
-                    p = Plots.plot(; xlabel="Iteration", ylabel="BIM logdet",
-                                     title="BIM Optimization ($prefix)", legend=:bottomright)
-                    for (ri, hist) in enumerate(all_histories)
-                        Plots.plot!(p, hist; label="restart $ri", lw=1.5)
-                    end
-                    Plots.plot!(p, score_history; label="restart $r", lw=1.5)
-                    Plots.savefig(p, joinpath(results_dir, "plot_$(prefix)_loss.png"))
-                end
-            end
+        score = objective(design)
+        push!(score_history, score)
+        if score > best_score
+            best_score = score
+            best_design .= design
         end
 
-        push!(all_histories, score_history)
-        @printf("[GRAD] restart %d/%d -> best = %.5f\n", r, n_restarts, local_best_score)
-        flush(stdout)
-        if local_best_score > best_score
-            best_score = local_best_score
-            best_design .= local_best
-            best_restart = r
+        if iter % 25 == 0 || iter == 1 || iter == n_iters
+            @printf("[GRAD] iter %3d/%3d | lr=%.6f | score=%.5f | best=%.5f\n",
+                    iter, n_iters, lr, score, best_score)
+            flush(stdout)
+
+            if results_dir !== nothing && isdefined(Main, :Plots)
+                p = Plots.plot(; xlabel="Iteration", ylabel="BIM logdet",
+                                 title="BIM Optimization ($prefix)", legend=:bottomright)
+                Plots.plot!(p, score_history; label="score", lw=1.5)
+                Plots.savefig(p, joinpath(results_dir, "plot_$(prefix)_loss.png"))
+            end
         end
     end
 
-    @printf("[GRAD] selected restart %d with score = %.5f\n", best_restart, best_score)
+    @printf("[GRAD] best score = %.5f\n", best_score)
     flush(stdout)
     return Float32.(best_design), best_score
 end
 
 function optimize_static_design_grad(prior_samples;
-        n_iters::Int=300, lr_max::Float64=1.0, lr_min::Float64=0.01,
-        n_restarts::Int=4, n_substeps::Int=N_SUBSTEPS,
+        n_iters::Int=250, lr_max::Float64=0.003, lr_min::Float64=1e-5,
+        warmup::Int=50, n_substeps::Int=N_SUBSTEPS,
         results_dir::Union{String,Nothing}=nothing, prefix::String="bim")
     objective = ξ -> bim_logdet(ξ, prior_samples; n_substeps=n_substeps)
-    return optimize_design_grad(objective; n_iters, lr_max, lr_min, n_restarts,
+    return optimize_design_grad(objective; n_iters, lr_max, lr_min, warmup,
                                 results_dir, prefix)
 end
 

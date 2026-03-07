@@ -77,12 +77,12 @@ We consider dynamical systems of the form:
 \begin{equation}\label{eq:system}
 \begin{aligned}
 \frac{dx}{dt} &= f(t, x, \theta_T, \theta_N, u(t)), \quad x(0) = x_0(\theta_N),\\
-y_k \mid x(t_k), \theta_N &\sim \mathcal{N}(g(x(t_k)),\, \Sigma(\theta_N)), \quad k = 1, \ldots, K,
+y_k \mid x(t_k), \theta_N &\sim \mathcal{N}(g(x(t_k)),\, \Sigma(x(t_k), \theta_N)), \quad k = 1, \ldots, K,
 \end{aligned}
 \end{equation}
 where $x(t) \in \mathbb{R}^n$ is the state vector, $u(t) \in \mathbb{R}^m$ is a controllable input vector, and $y_k \in \mathbb{R}^q$ is the observation vector at measurement time $t_k$.
 We partition parameters as $\theta = (\theta_T, \theta_N)$, where $\theta_T$ are the target parameters of interest and $\theta_N$ are nuisance parameters (e.g., measurement noise scale, uncertain initial conditions).
-Some components of the initial state $x_0$ may depend on $\theta_N$, and $\Sigma(\theta_N) \in \mathbb{R}^{q \times q}$ is the observation noise covariance.
+Some components of the initial state $x_0$ may depend on $\theta_N$, and $\Sigma(x(t_k), \theta_N) \in \mathbb{R}^{q \times q}$ is the observation noise covariance, which may depend on the state (e.g., proportional noise).
 We assume a fixed experimental schedule with known measurement times $0 < t_1 < \cdots < t_K$ and piecewise-constant inputs, $u(t)=u_k$ for $t \in [t_{k-1}, t_k)$.
 The design goal is to choose the input profile $u(t)$ (equivalently, the sequence $u_{1:K}$) to maximize the information gained about $\theta_T$.
 
@@ -200,7 +200,7 @@ In practice, we approximate this expectation with a minibatch of $B$ independent
         \FOR{$k = 1, \ldots, K$}
             \STATE Compute input $u_k^{(b)} = \pi_\phi(h_{k-1}^{(b)})$
             \STATE Simulate $x_k^{(b)}$ from \eqref{eq:system} with $\theta^{(0,b)}$ and input $u_k^{(b)}$
-            \STATE Sample $y_k^{(b)} \sim \mathcal{N}(g(x_k^{(b)}),\, \Sigma(\theta_N^{(0,b)}))$
+            \STATE Sample $y_k^{(b)} \sim \mathcal{N}(g(x_k^{(b)}),\, \Sigma(x_k^{(b)}, \theta_N^{(0,b)}))$
             \STATE Update history $h_k^{(b)} = (h_{k-1}^{(b)}, (u_k^{(b)}, y_k^{(b)}))$
         \ENDFOR
         \STATE Compute $A^{(b)} = \frac{1}{M}\sum_{m=1}^{M} p(h_K^{(b)}|\theta_T^{(0,b)}, \theta_N^{(m,b)})$

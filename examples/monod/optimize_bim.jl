@@ -22,10 +22,10 @@ if abspath(PROGRAM_FILE) == @__FILE__
     n_prior_opt    = 512
     n_prior_report = 1024
     n_substeps     = N_SUBSTEPS
-    grad_iters     = 300
-    grad_restarts  = 1
-    lr_max         = 0.1
-    lr_min         = 0.001
+    n_iters        = 250
+    lr_max         = 0.003
+    lr_min         = 1e-5
+    warmup         = 50
 
     results_dir = joinpath(@__DIR__, "results")
     mkpath(results_dir)
@@ -35,8 +35,8 @@ if abspath(PROGRAM_FILE) == @__FILE__
     println("seed              = $seed")
     println("n_prior_opt       = $n_prior_opt")
     println("n_prior_report    = $n_prior_report")
-    println("grad              = $grad_iters iters x $grad_restarts restarts")
-    println("lr                = [$lr_min, $lr_max] cosine")
+    println("n_iters           = $n_iters")
+    println("lr                = [$lr_min, $lr_max] cosine, warmup=$warmup")
     println("BIM: 3x3 FIM + prior, Schur complement -> 2x2")
     @printf("Prior precision: mu_max=%.1f  K_s=%.1f  Cx0=%.1f\n", PRIOR_PREC...)
     flush(stdout)
@@ -48,8 +48,8 @@ if abspath(PROGRAM_FILE) == @__FILE__
 
     prior_opt = draw_prior_samples(rng_opt, n_prior_opt)
     static_design, static_obj = optimize_static_design_grad(
-        prior_opt; n_iters=grad_iters, lr_max=lr_max, lr_min=lr_min,
-        n_restarts=grad_restarts, n_substeps=n_substeps,
+        prior_opt; n_iters=n_iters, lr_max=lr_max, lr_min=lr_min,
+        warmup=warmup, n_substeps=n_substeps,
         results_dir=results_dir, prefix="bim_std")
 
     rng_report = MersenneTwister(seed + 1)

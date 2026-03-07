@@ -89,15 +89,15 @@ end
 # ============================================================================
 
 function optimize_static_spce(;
-    n_iters::Int = 1000,
+    n_iters::Int = 250,
     n_restarts::Int = 1,
     B::Int = 64,
     L::Int = L_CONTRASTIVE,
     M::Int = M_NUISANCE,
     n_substeps::Int = N_SUBSTEPS,
-    lr_max::Float32 = 0.01f0,
+    lr_max::Float32 = 0.003f0,
     lr_min::Float32 = 1f-5,
-    warmup::Int = 20,
+    warmup::Int = 50,
     grad_accum::Int = 1,
     seed::Int = 0,
     results_dir::AbstractString = joinpath(@__DIR__, "results"),
@@ -258,15 +258,15 @@ end
 # ============================================================================
 
 if abspath(PROGRAM_FILE) == @__FILE__
-    n_iters     = 1000
+    n_iters     = 250
     n_restarts  = 1
     B           = 64
     L           = L_CONTRASTIVE
     M           = M_NUISANCE
     n_substeps  = N_SUBSTEPS
-    lr_max      = 0.01f0
+    lr_max      = 0.003f0
     lr_min      = 1f-5
-    warmup      = 20
+    warmup      = 50
     grad_accum  = 1
     seed        = 0
     results_dir = joinpath(@__DIR__, "results")

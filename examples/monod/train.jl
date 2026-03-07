@@ -5,7 +5,7 @@ include(joinpath(@__DIR__, "..", "..", "src", "plotting.jl"))
 if abspath(PROGRAM_FILE) == @__FILE__
     using Dates
     plotting = false
-    n_iters = 1000
+    n_iters = 250
     seed = 0
     loss_png_every = 10
     grad_accum = GRAD_ACCUM_STEPS
