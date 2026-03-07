@@ -60,6 +60,8 @@ const sigma_lo, sigma_hi = σ_lo, σ_hi
 
 const N_TARGET = 1
 const N_PARAMS_DYN = 3
+const N_PARAMS_OBS = 2      # σ, Cx0
+const N_NOISE_CHANNELS = 1  # single additive Gaussian noise
 
 # Spike-and-slab prior on α = 1/K_i
 const SPIKE_PROB = 0.5f0
@@ -125,11 +127,12 @@ function sample_θ_full(rng, n_denom::Int, B::Int)
 end
 
 function sample_θ_N_joint(rng, M::Int, B::Int)
-    σ = rand(rng, Float32, M, B)
-    σ .= σ_lo .+ (σ_hi - σ_lo) .* σ
-    Cx0 = rand(rng, Float32, M, B)
-    Cx0 .= Cx0_lo .+ (Cx0_hi - Cx0_lo) .* Cx0
-    return σ, Cx0
+    θ_obs = rand(rng, Float32, N_PARAMS_OBS, M, B)
+    @views begin
+        θ_obs[1, :, :] .= σ_lo .+ (σ_hi - σ_lo) .* θ_obs[1, :, :]
+        θ_obs[2, :, :] .= Cx0_lo .+ (Cx0_hi - Cx0_lo) .* θ_obs[2, :, :]
+    end
+    return θ_obs
 end
 
 function sample_θ_dyn_numer(rng, θ_dyn_true, M, B)
@@ -163,6 +166,32 @@ function make_u0()
     u0[2, 1, 1] = 0.25f0
     u0[3, 1, 1] = 7.0f0
     return u0
+end
+
+# ============================================================================
+#  Observation Model Callbacks
+# ============================================================================
+
+function make_initial_state(u0, θ_obs, B)
+    n_samples = size(θ_obs, 2)
+    return vcat(
+        repeat(u0[1:1, :, :], 1, n_samples, B),
+        θ_obs[2:2, :, :],
+        repeat(u0[3:3, :, :], 1, n_samples, B),
+    )
+end
+
+function observe_noisy(u, θ_obs_true, ε, step)
+    obs = u[1, 1, :]
+    return obs .+ θ_obs_true[1, :] .* ε[1, step, :]
+end
+
+function log_likelihood_step!(ll, y_broadcast, u_pred, θ_obs)
+    pred_obs = u_pred[1, :, :]
+    σ² = θ_obs[1, :, :] .^ 2
+    residual = y_broadcast .- pred_obs
+    ll .-= 0.5f0 .* (residual .^ 2 ./ σ² .+ log.(σ²))
+    return nothing
 end
 
 # ============================================================================

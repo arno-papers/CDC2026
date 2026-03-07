@@ -5,9 +5,13 @@
 #   1. src/common_core.jl (CPU-safe infrastructure)
 #   2. Reactant-dependent pieces: integrate(), targeted_spce_loss(), train_policy()
 #
-# model.jl must define: dynamics(), N_STEPS, DT, N_SUBSTEPS, N_PARAMS_DYN,
-# sampling functions (incl. sample_θ_dyn_numer), policy network,
-# and budget constants (L_CONTRASTIVE, M_NUISANCE, GRAD_BATCH, GRAD_ACCUM_STEPS)
+# model.jl must define:
+#   Constants: dynamics(), N_STEPS, DT, N_SUBSTEPS, N_PARAMS_DYN,
+#     N_PARAMS_OBS, N_NOISE_CHANNELS, policy network,
+#     budget constants (L_CONTRASTIVE, M_NUISANCE, GRAD_BATCH, GRAD_ACCUM_STEPS)
+#   Sampling: sample_θ_full(), sample_θ_dyn_numer(), sample_θ_N_joint()
+#   Observation model: make_initial_state(), observe_noisy(), log_likelihood_step!()
+#   Initial state: make_u0()
 # ============================================================================
 
 include(joinpath(@__DIR__, "common_core.jl"))
@@ -33,22 +37,18 @@ end
 # ============================================================================
 
 function targeted_spce_loss(model, ps, st, data)
-    θ_full, σ_numer, Cx0_numer, θ_dyn_numer, u0, input_buffer, observations, designs, ε, ll_denom, ll_numer = data
+    θ_full, θ_obs_numer, θ_dyn_numer, u0, input_buffer, observations, designs, ε, ll_denom, ll_numer = data
 
-    B = size(ε, 2)
+    B = size(ε, 3)
 
     ll_denom .= 0.0f0
     ll_numer .= 0.0f0
 
     θ_dyn_true = θ_full[1:N_PARAMS_DYN, 1:1, :]
-    σ_true = θ_full[N_PARAMS_DYN+1, 1, :]
-    Cx0_true = θ_full[N_PARAMS_DYN+2, 1, :]
+    θ_obs_true_3d = θ_full[N_PARAMS_DYN+1:N_PARAMS_DYN+N_PARAMS_OBS, 1:1, :]
+    θ_obs_true = θ_full[N_PARAMS_DYN+1:N_PARAMS_DYN+N_PARAMS_OBS, 1, :]
 
-    u = vcat(
-        repeat(u0[1:1, :, :], 1, 1, B),
-        reshape(Cx0_true, 1, 1, B),
-        repeat(u0[3:3, :, :], 1, 1, B),
-    )
+    u = make_initial_state(u0, θ_obs_true_3d, B)
 
     for step in 1:N_STEPS
         action, st = model(input_buffer, ps, st)
@@ -57,9 +57,7 @@ function targeted_spce_loss(model, ps, st, data)
 
         u = integrate(u, θ_dyn_true, d, DT, N_SUBSTEPS)
 
-        obs = u[1, 1, :]
-        noise = ε[step, :]
-        y_noisy = obs .+ σ_true .* noise
+        y_noisy = observe_noisy(u, θ_obs_true, ε, step)
 
         observations[step, :] .= y_noisy
         input_buffer[1, step, :] .= y_noisy
@@ -69,43 +67,25 @@ function targeted_spce_loss(model, ps, st, data)
     # DENOMINATOR
     n_denom = size(θ_full, 2)
     θ_dyn_denom = θ_full[1:N_PARAMS_DYN, :, :]
-    σ²_denom = (θ_full[N_PARAMS_DYN+1, :, :]) .^ 2
-    Cx0_denom = θ_full[N_PARAMS_DYN+2:N_PARAMS_DYN+2, :, :]
+    θ_obs_denom = θ_full[N_PARAMS_DYN+1:N_PARAMS_DYN+N_PARAMS_OBS, :, :]
 
-    u_denom = vcat(
-        repeat(u0[1:1, :, :], 1, n_denom, B),
-        Cx0_denom,
-        repeat(u0[3:3, :, :], 1, n_denom, B),
-    )
+    u_denom = make_initial_state(u0, θ_obs_denom, B)
 
     for step in 1:N_STEPS
         d_step = designs[step:step, :]
         u_denom = integrate(u_denom, θ_dyn_denom, d_step, DT, N_SUBSTEPS)
-
-        pred_obs = u_denom[1, :, :]
-        actual_obs = observations[step:step, :]
-        residual = actual_obs .- pred_obs
-        ll_denom .-= 0.5f0 .* (residual.^2 ./ σ²_denom .+ log.(σ²_denom))
+        log_likelihood_step!(ll_denom, observations[step:step, :], u_denom, θ_obs_denom)
     end
 
     # NUMERATOR
-    σ²_numer = σ_numer .^ 2
     M_N = size(ll_numer, 1)
 
-    u_numer = vcat(
-        repeat(u0[1:1, :, :], 1, M_N, B),
-        reshape(Cx0_numer, 1, M_N, B),
-        repeat(u0[3:3, :, :], 1, M_N, B),
-    )
+    u_numer = make_initial_state(u0, θ_obs_numer, B)
 
     for step in 1:N_STEPS
         d_step = designs[step:step, :]
         u_numer = integrate(u_numer, θ_dyn_numer, d_step, DT, N_SUBSTEPS)
-
-        pred_obs = u_numer[1, :, :]
-        actual_obs = observations[step:step, :]
-        residual = actual_obs .- pred_obs
-        ll_numer .-= 0.5f0 .* (residual.^2 ./ σ²_numer .+ log.(σ²_numer))
+        log_likelihood_step!(ll_numer, observations[step:step, :], u_numer, θ_obs_numer)
     end
 
     ll_max_num = maximum(ll_numer; dims=1)
@@ -131,18 +111,16 @@ function _prepare_batch_default(rng, n_denom, M, B_micro, u0, xdev)
     θ_dyn_numer_cpu = sample_θ_dyn_numer(rng, θ_full_cpu[1:N_PARAMS_DYN, 1:1, :], M, B_micro)
     θ_full = θ_full_cpu |> xdev
     θ_dyn_numer = θ_dyn_numer_cpu |> xdev
-    σ_numer, Cx0_numer = sample_θ_N_joint(rng, M, B_micro)
-    σ_numer = σ_numer |> xdev
-    Cx0_numer = Cx0_numer |> xdev
+    θ_obs_numer = sample_θ_N_joint(rng, M, B_micro) |> xdev
 
     input_buffer = zeros(Float32, 2, N_STEPS, B_micro) |> xdev
     observations = zeros(Float32, N_STEPS, B_micro) |> xdev
     designs = zeros(Float32, N_STEPS, B_micro) |> xdev
-    ε = randn(rng, Float32, N_STEPS, B_micro) |> xdev
+    ε = randn(rng, Float32, N_NOISE_CHANNELS, N_STEPS, B_micro) |> xdev
     ll_denom = zeros(Float32, n_denom, B_micro) |> xdev
     ll_numer = zeros(Float32, M, B_micro) |> xdev
 
-    return (θ_full, σ_numer, Cx0_numer, θ_dyn_numer, u0, input_buffer, observations, designs, ε, ll_denom, ll_numer)
+    return (θ_full, θ_obs_numer, θ_dyn_numer, u0, input_buffer, observations, designs, ε, ll_denom, ll_numer)
 end
 
 function train_policy(model, ps, st, rng;

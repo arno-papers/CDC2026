@@ -75,33 +75,27 @@ end
 # ============================================================================
 
 function adaptive_spce_eval(model, ps, st, data)
-    θ_full, σ_numer, Cx0_numer, u0, input_buffer, observations, designs, ε, ll_denom, ll_numer, n_substeps_val = data
+    θ_full, θ_obs_numer, u0, input_buffer, observations, designs, ε, ll_denom, ll_numer, n_substeps_val = data
 
-    B = size(ε, 2)
+    B = size(ε, 3)
 
     ll_denom .= 0.0f0
     ll_numer .= 0.0f0
 
-    θ_T_true = θ_full[1:2, 1:1, :]
-    σ_true = θ_full[3, 1, :]
-    Cx0_true = θ_full[4, 1, :]
+    θ_dyn_true = θ_full[1:N_PARAMS_DYN, 1:1, :]
+    θ_obs_true_3d = θ_full[N_PARAMS_DYN+1:N_PARAMS_DYN+N_PARAMS_OBS, 1:1, :]
+    θ_obs_true = θ_full[N_PARAMS_DYN+1:N_PARAMS_DYN+N_PARAMS_OBS, 1, :]
 
-    u = vcat(
-        repeat(u0[1:1, :, :], 1, 1, B),
-        reshape(Cx0_true, 1, 1, B),
-        repeat(u0[3:3, :, :], 1, 1, B),
-    )
+    u = make_initial_state(u0, θ_obs_true_3d, B)
 
     for step in 1:N_STEPS
         action, st = model(input_buffer, ps, st)
         d = action
         designs[step, :] .= d[1, :]
 
-        u = integrate(u, θ_T_true, d, DT, n_substeps_val)
+        u = integrate(u, θ_dyn_true, d, DT, n_substeps_val)
 
-        obs = u[1, 1, :]
-        noise = ε[step, :]
-        y_noisy = obs .+ σ_true .* noise
+        y_noisy = observe_noisy(u, θ_obs_true, ε, step)
 
         observations[step, :] .= y_noisy
         input_buffer[1, step, :] .= y_noisy
@@ -109,43 +103,25 @@ function adaptive_spce_eval(model, ps, st, data)
     end
 
     n_denom = size(θ_full, 2)
-    θ_T_denom = θ_full[1:2, :, :]
-    σ²_denom = (θ_full[3, :, :]) .^ 2
-    Cx0_denom = θ_full[4:4, :, :]
+    θ_dyn_denom = θ_full[1:N_PARAMS_DYN, :, :]
+    θ_obs_denom = θ_full[N_PARAMS_DYN+1:N_PARAMS_DYN+N_PARAMS_OBS, :, :]
 
-    u_denom = vcat(
-        repeat(u0[1:1, :, :], 1, n_denom, B),
-        Cx0_denom,
-        repeat(u0[3:3, :, :], 1, n_denom, B),
-    )
+    u_denom = make_initial_state(u0, θ_obs_denom, B)
 
     for step in 1:N_STEPS
         d_step = designs[step:step, :]
-        u_denom = integrate(u_denom, θ_T_denom, d_step, DT, n_substeps_val)
-
-        pred_obs = u_denom[1, :, :]
-        actual_obs = observations[step:step, :]
-        residual = actual_obs .- pred_obs
-        ll_denom .-= 0.5f0 .* (residual.^2 ./ σ²_denom .+ log.(σ²_denom))
+        u_denom = integrate(u_denom, θ_dyn_denom, d_step, DT, n_substeps_val)
+        log_likelihood_step!(ll_denom, observations[step:step, :], u_denom, θ_obs_denom)
     end
 
-    σ²_numer = σ_numer .^ 2
     M_N = size(ll_numer, 1)
 
-    u_numer = vcat(
-        repeat(u0[1:1, :, :], 1, M_N, B),
-        reshape(Cx0_numer, 1, M_N, B),
-        repeat(u0[3:3, :, :], 1, M_N, B),
-    )
+    u_numer = make_initial_state(u0, θ_obs_numer, B)
 
     for step in 1:N_STEPS
         d_step = designs[step:step, :]
-        u_numer = integrate(u_numer, θ_T_true, d_step, DT, n_substeps_val)
-
-        pred_obs = u_numer[1, :, :]
-        actual_obs = observations[step:step, :]
-        residual = actual_obs .- pred_obs
-        ll_numer .-= 0.5f0 .* (residual.^2 ./ σ²_numer .+ log.(σ²_numer))
+        u_numer = integrate(u_numer, θ_dyn_true, d_step, DT, n_substeps_val)
+        log_likelihood_step!(ll_numer, observations[step:step, :], u_numer, θ_obs_numer)
     end
 
     ll_max_num = maximum(ll_numer; dims=1)
@@ -161,70 +137,47 @@ function adaptive_spce_eval(model, ps, st, data)
 end
 
 function static_spce_eval(model, ps, st, data)
-    θ_full, σ_numer, Cx0_numer, u0, ε, ll_denom, ll_numer, n_substeps_val = data
+    θ_full, θ_obs_numer, u0, observations, ε, ll_denom, ll_numer, n_substeps_val = data
 
-    B = size(ε, 2)
+    B = size(ε, 3)
     design = ps.layer_1.weight
 
     ll_denom .= 0.0f0
     ll_numer .= 0.0f0
 
-    θ_T_true = θ_full[1:2, 1:1, :]
-    σ_true = θ_full[3, 1, :]
-    Cx0_true = θ_full[4, 1, :]
+    θ_dyn_true = θ_full[1:N_PARAMS_DYN, 1:1, :]
+    θ_obs_true_3d = θ_full[N_PARAMS_DYN+1:N_PARAMS_DYN+N_PARAMS_OBS, 1:1, :]
+    θ_obs_true = θ_full[N_PARAMS_DYN+1:N_PARAMS_DYN+N_PARAMS_OBS, 1, :]
 
-    u = vcat(
-        repeat(u0[1:1, :, :], 1, 1, B),
-        reshape(Cx0_true, 1, 1, B),
-        repeat(u0[3:3, :, :], 1, 1, B),
-    )
-
-    observations = similar(ε)
+    u = make_initial_state(u0, θ_obs_true_3d, B)
 
     for step in 1:N_STEPS
         d_step = design[step:step, :]
-        u = integrate(u, θ_T_true, d_step, DT, n_substeps_val)
-        obs = u[1, 1, :]
-        y_noisy = obs .+ σ_true .* ε[step, :]
+        u = integrate(u, θ_dyn_true, d_step, DT, n_substeps_val)
+        y_noisy = observe_noisy(u, θ_obs_true, ε, step)
         observations[step, :] .= y_noisy
     end
 
     n_denom = size(θ_full, 2)
-    θ_T_denom = θ_full[1:2, :, :]
-    σ²_denom = (θ_full[3, :, :]) .^ 2
-    Cx0_denom = θ_full[4:4, :, :]
+    θ_dyn_denom = θ_full[1:N_PARAMS_DYN, :, :]
+    θ_obs_denom = θ_full[N_PARAMS_DYN+1:N_PARAMS_DYN+N_PARAMS_OBS, :, :]
 
-    u_denom = vcat(
-        repeat(u0[1:1, :, :], 1, n_denom, B),
-        Cx0_denom,
-        repeat(u0[3:3, :, :], 1, n_denom, B),
-    )
+    u_denom = make_initial_state(u0, θ_obs_denom, B)
 
     for step in 1:N_STEPS
         d_step = design[step:step, :]
-        u_denom = integrate(u_denom, θ_T_denom, d_step, DT, n_substeps_val)
-        pred_obs = u_denom[1, :, :]
-        actual_obs = observations[step:step, :]
-        residual = actual_obs .- pred_obs
-        ll_denom .-= 0.5f0 .* (residual .^ 2 ./ σ²_denom .+ log.(σ²_denom))
+        u_denom = integrate(u_denom, θ_dyn_denom, d_step, DT, n_substeps_val)
+        log_likelihood_step!(ll_denom, observations[step:step, :], u_denom, θ_obs_denom)
     end
 
-    σ²_numer = σ_numer .^ 2
-    M_N = size(σ_numer, 1)
+    M_N = size(ll_numer, 1)
 
-    u_numer = vcat(
-        repeat(u0[1:1, :, :], 1, M_N, B),
-        reshape(Cx0_numer, 1, M_N, B),
-        repeat(u0[3:3, :, :], 1, M_N, B),
-    )
+    u_numer = make_initial_state(u0, θ_obs_numer, B)
 
     for step in 1:N_STEPS
         d_step = design[step:step, :]
-        u_numer = integrate(u_numer, θ_T_true, d_step, DT, n_substeps_val)
-        pred_obs = u_numer[1, :, :]
-        actual_obs = observations[step:step, :]
-        residual = actual_obs .- pred_obs
-        ll_numer .-= 0.5f0 .* (residual .^ 2 ./ σ²_numer .+ log.(σ²_numer))
+        u_numer = integrate(u_numer, θ_dyn_true, d_step, DT, n_substeps_val)
+        log_likelihood_step!(ll_numer, observations[step:step, :], u_numer, θ_obs_numer)
     end
 
     ll_max_num = maximum(ll_numer; dims=1)
@@ -338,12 +291,11 @@ if abspath(PROGRAM_FILE) == @__FILE__
         actual_B = min(B, n_trials - (batch_idx - 1) * B)
 
         θ_full = sample_θ_full(rng, n_denom, B)
-        σ_numer, Cx0_numer = sample_θ_N_joint(rng, M, B)
-        ε_shared = randn(rng, Float32, N_STEPS, B)
+        θ_obs_numer = sample_θ_N_joint(rng, M, B)
+        ε_shared = randn(rng, Float32, N_NOISE_CHANNELS, N_STEPS, B)
 
         θ_full_ra = θ_full |> xdev
-        σ_numer_ra = σ_numer |> xdev
-        Cx0_numer_ra = Cx0_numer |> xdev
+        θ_obs_numer_ra = θ_obs_numer |> xdev
 
         input_buffer = zeros(Float32, 2, N_STEPS, B) |> xdev
         observations = zeros(Float32, N_STEPS, B) |> xdev
@@ -352,7 +304,7 @@ if abspath(PROGRAM_FILE) == @__FILE__
         ll_denom_buf = zeros(Float32, n_denom, B) |> xdev
         ll_numer_buf = zeros(Float32, M, B) |> xdev
 
-        data_adaptive = (θ_full_ra, σ_numer_ra, Cx0_numer_ra, u0_ra,
+        data_adaptive = (θ_full_ra, θ_obs_numer_ra, u0_ra,
                          input_buffer, observations, designs_buf, ε_ra,
                          ll_denom_buf, ll_numer_buf, n_substeps)
 
@@ -365,15 +317,16 @@ if abspath(PROGRAM_FILE) == @__FILE__
         all_adaptive_designs[:, col_start:col_start + actual_B - 1] .= designs_cpu[:, 1:actual_B]
 
         for (name, design) in static_designs
-            ε_static = randn(rng, Float32, N_STEPS, B)
+            ε_static = randn(rng, Float32, N_NOISE_CHANNELS, N_STEPS, B)
             ε_static_ra = ε_static |> xdev
+            observations_s = zeros(Float32, N_STEPS, B) |> xdev
             ll_denom_s = zeros(Float32, n_denom, B) |> xdev
             ll_numer_s = zeros(Float32, M, B) |> xdev
 
             copyto!(ps_static_ra.layer_1.weight, reshape(design, N_STEPS, 1))
 
-            data_static = (θ_full_ra, σ_numer_ra, Cx0_numer_ra, u0_ra,
-                           ε_static_ra, ll_denom_s, ll_numer_s, n_substeps)
+            data_static = (θ_full_ra, θ_obs_numer_ra, u0_ra,
+                           observations_s, ε_static_ra, ll_denom_s, ll_numer_s, n_substeps)
 
             scores_s_ra, _, _ = @jit static_spce_eval(static_model, ps_static_ra, st_static_ra, data_static)
             scores_s_cpu = Array(scores_s_ra)

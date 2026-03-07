@@ -80,8 +80,6 @@ if abspath(PROGRAM_FILE) == @__FILE__
     t_start = time()
     train_state, loss_history = train_policy(
         policy, ps_ra, st_ra, rng;
-        loss_fn = targeted_spce_loss_pk,
-        prepare_batch = prepare_batch_pk,
         xdev = xdev,
         n_iters = n_iters,
         on_iteration = on_iteration,

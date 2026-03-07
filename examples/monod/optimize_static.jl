@@ -27,70 +27,47 @@ end
 # ============================================================================
 
 function static_spce_loss(model, ps, st, data)
-    θ_full, σ_numer, Cx0_numer, u0, ε, ll_denom, ll_numer, n_substeps_val = data
+    θ_full, θ_obs_numer, u0, observations, ε, ll_denom, ll_numer, n_substeps_val = data
 
-    B = size(ε, 2)
+    B = size(ε, 3)
     design = ps.layer_1.weight
 
     ll_denom .= 0.0f0
     ll_numer .= 0.0f0
 
-    θ_T_true = θ_full[1:2, 1:1, :]
-    σ_true = θ_full[3, 1, :]
-    Cx0_true = θ_full[4, 1, :]
+    θ_dyn_true = θ_full[1:N_PARAMS_DYN, 1:1, :]
+    θ_obs_true_3d = θ_full[N_PARAMS_DYN+1:N_PARAMS_DYN+N_PARAMS_OBS, 1:1, :]
+    θ_obs_true = θ_full[N_PARAMS_DYN+1:N_PARAMS_DYN+N_PARAMS_OBS, 1, :]
 
-    u = vcat(
-        repeat(u0[1:1, :, :], 1, 1, B),
-        reshape(Cx0_true, 1, 1, B),
-        repeat(u0[3:3, :, :], 1, 1, B),
-    )
-
-    observations = similar(ε)
+    u = make_initial_state(u0, θ_obs_true_3d, B)
 
     for step in 1:N_STEPS
         d_step = design[step:step, :]
-        u = integrate(u, θ_T_true, d_step, DT, n_substeps_val)
-        obs = u[1, 1, :]
-        y_noisy = obs .+ σ_true .* ε[step, :]
+        u = integrate(u, θ_dyn_true, d_step, DT, n_substeps_val)
+        y_noisy = observe_noisy(u, θ_obs_true, ε, step)
         observations[step, :] .= y_noisy
     end
 
     n_denom = size(θ_full, 2)
-    θ_T_denom = θ_full[1:2, :, :]
-    σ²_denom = (θ_full[3, :, :]) .^ 2
-    Cx0_denom = θ_full[4:4, :, :]
+    θ_dyn_denom = θ_full[1:N_PARAMS_DYN, :, :]
+    θ_obs_denom = θ_full[N_PARAMS_DYN+1:N_PARAMS_DYN+N_PARAMS_OBS, :, :]
 
-    u_denom = vcat(
-        repeat(u0[1:1, :, :], 1, n_denom, B),
-        Cx0_denom,
-        repeat(u0[3:3, :, :], 1, n_denom, B),
-    )
+    u_denom = make_initial_state(u0, θ_obs_denom, B)
 
     for step in 1:N_STEPS
         d_step = design[step:step, :]
-        u_denom = integrate(u_denom, θ_T_denom, d_step, DT, n_substeps_val)
-        pred_obs = u_denom[1, :, :]
-        actual_obs = observations[step:step, :]
-        residual = actual_obs .- pred_obs
-        ll_denom .-= 0.5f0 .* (residual .^ 2 ./ σ²_denom .+ log.(σ²_denom))
+        u_denom = integrate(u_denom, θ_dyn_denom, d_step, DT, n_substeps_val)
+        log_likelihood_step!(ll_denom, observations[step:step, :], u_denom, θ_obs_denom)
     end
 
-    σ²_numer = σ_numer .^ 2
-    M_N = size(σ_numer, 1)
+    M_N = size(ll_numer, 1)
 
-    u_numer = vcat(
-        repeat(u0[1:1, :, :], 1, M_N, B),
-        reshape(Cx0_numer, 1, M_N, B),
-        repeat(u0[3:3, :, :], 1, M_N, B),
-    )
+    u_numer = make_initial_state(u0, θ_obs_numer, B)
 
     for step in 1:N_STEPS
         d_step = design[step:step, :]
-        u_numer = integrate(u_numer, θ_T_true, d_step, DT, n_substeps_val)
-        pred_obs = u_numer[1, :, :]
-        actual_obs = observations[step:step, :]
-        residual = actual_obs .- pred_obs
-        ll_numer .-= 0.5f0 .* (residual .^ 2 ./ σ²_numer .+ log.(σ²_numer))
+        u_numer = integrate(u_numer, θ_dyn_true, d_step, DT, n_substeps_val)
+        log_likelihood_step!(ll_numer, observations[step:step, :], u_numer, θ_obs_numer)
     end
 
     ll_max_num = maximum(ll_numer; dims=1)
@@ -169,14 +146,13 @@ function optimize_static_spce(;
             total_loss = 0.0f0
             for _k in 1:grad_accum
                 θ_full = sample_θ_full(rng, n_denom, B_micro) |> xdev
-                σ_numer, Cx0_numer = sample_θ_N_joint(rng, M, B_micro)
-                σ_numer = σ_numer |> xdev
-                Cx0_numer = Cx0_numer |> xdev
-                ε = randn(rng, Float32, N_STEPS, B_micro) |> xdev
+                θ_obs_numer = sample_θ_N_joint(rng, M, B_micro) |> xdev
+                ε = randn(rng, Float32, N_NOISE_CHANNELS, N_STEPS, B_micro) |> xdev
+                observations = zeros(Float32, N_STEPS, B_micro) |> xdev
                 ll_denom_buf = zeros(Float32, n_denom, B_micro) |> xdev
                 ll_numer_buf = zeros(Float32, M, B_micro) |> xdev
 
-                data = (θ_full, σ_numer, Cx0_numer, u0_ra, ε,
+                data = (θ_full, θ_obs_numer, u0_ra, observations, ε,
                         ll_denom_buf, ll_numer_buf, n_substeps_val)
 
                 _, loss_k, _, train_state = Lux.Training.single_train_step!(

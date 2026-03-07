@@ -52,7 +52,7 @@ reference/               # Reference material (gitignored)
 ## Include Path Strategy
 
 All scripts use `joinpath(@__DIR__, ...)` for robust path resolution:
-1. `model.jl` is included first (defines `dynamics()`, constants, sampling, policy)
+1. `model.jl` is included first (defines `dynamics()`, constants, sampling, observation model callbacks, policy)
 2. `src/common.jl` (or `src/common_core.jl` for CPU-only) is included next
 
 ## Implementation

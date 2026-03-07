@@ -78,24 +78,15 @@ function posterior_mean_eval(model, ps, st, data)
 
     ll_buf .= 0.0f0
 
-    θ_T = θ_post[1:2, :, :]
-    σ² = θ_post[3, :, :] .^ 2
-    Cx0 = θ_post[4:4, :, :]
+    θ_dyn = θ_post[1:N_PARAMS_DYN, :, :]
+    θ_obs = θ_post[N_PARAMS_DYN+1:N_PARAMS_DYN+N_PARAMS_OBS, :, :]
 
-    u = vcat(
-        repeat(u0[1:1, :, :], 1, N_p, B),
-        Cx0,
-        repeat(u0[3:3, :, :], 1, N_p, B),
-    )
+    u = make_initial_state(u0, θ_obs, B)
 
     for step in 1:N_STEPS
         d_step = design_mat[step:step, :]
-        u = integrate(u, θ_T, d_step, DT, n_substeps_val)
-
-        pred_obs = u[1, :, :]
-        actual_obs = observations[step:step, :]
-        residual = actual_obs .- pred_obs
-        ll_buf .-= 0.5f0 .* (residual .^ 2 ./ σ² .+ log.(σ²))
+        u = integrate(u, θ_dyn, d_step, DT, n_substeps_val)
+        log_likelihood_step!(ll_buf, observations[step:step, :], u, θ_obs)
     end
 
     ll_max = maximum(ll_buf; dims=1)

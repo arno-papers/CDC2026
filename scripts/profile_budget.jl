@@ -45,8 +45,8 @@ if budget_str !== nothing
         exit(1)
     end
 
-    loss_fn = @isdefined(targeted_spce_loss_pk) ? targeted_spce_loss_pk : targeted_spce_loss
-    batch_fn = @isdefined(prepare_batch_pk) ? prepare_batch_pk : _prepare_batch_default
+    loss_fn = targeted_spce_loss
+    batch_fn = _prepare_batch_default
 
     Reactant.set_default_backend("gpu")
     xdev = reactant_device()
