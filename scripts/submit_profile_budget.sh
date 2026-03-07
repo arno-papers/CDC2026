@@ -79,6 +79,7 @@ sbatch --parsable \
   --time="${walltime}" \
   --output="logs/profile-${example}-%j.out" \
   --error="logs/profile-${example}-%j.err" \
+  --export=ALL,JULIA_DEPOT_PATH="$VSC_DATA/julia-depot-cdc2026" \
   --wrap="${julia_bin} --project=. scripts/profile_budget.jl example=${example}"
 SUBMIT
 )"
