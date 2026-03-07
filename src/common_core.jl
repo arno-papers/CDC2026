@@ -19,18 +19,18 @@ using Serialization
 #  ODE integrator (CPU, calls dynamics() defined in model.jl)
 # ============================================================================
 
-function rk4_step(u, θ, Q_in, dt)
-    k1 = dynamics(u, θ, Q_in)
-    k2 = dynamics(u .+ 0.5f0 * dt .* k1, θ, Q_in)
-    k3 = dynamics(u .+ 0.5f0 * dt .* k2, θ, Q_in)
-    k4 = dynamics(u .+ dt .* k3, θ, Q_in)
+function rk4_step(u, θ, d, dt)
+    k1 = dynamics(u, θ, d)
+    k2 = dynamics(u .+ 0.5f0 * dt .* k1, θ, d)
+    k3 = dynamics(u .+ 0.5f0 * dt .* k2, θ, d)
+    k4 = dynamics(u .+ dt .* k3, θ, d)
     return u .+ (dt / 6.0f0) .* (k1 .+ 2.0f0 .* k2 .+ 2.0f0 .* k3 .+ k4)
 end
 
-function integrate_cpu(u, θ, Q_in, dt, n_substeps)
+function integrate_cpu(u, θ, d, dt, n_substeps)
     dt_sub = dt / n_substeps
     for _ in 1:n_substeps
-        u = rk4_step(u, θ, Q_in, dt_sub)
+        u = rk4_step(u, θ, d, dt_sub)
     end
     return u
 end

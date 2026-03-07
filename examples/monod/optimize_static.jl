@@ -48,8 +48,8 @@ function static_spce_loss(model, ps, st, data)
     observations = similar(ε)
 
     for step in 1:N_STEPS
-        Q_in = design[step:step, :]
-        u = integrate(u, θ_T_true, Q_in, DT, n_substeps_val)
+        d_step = design[step:step, :]
+        u = integrate(u, θ_T_true, d_step, DT, n_substeps_val)
         obs = u[1, 1, :]
         y_noisy = obs .+ σ_true .* ε[step, :]
         observations[step, :] .= y_noisy
@@ -67,8 +67,8 @@ function static_spce_loss(model, ps, st, data)
     )
 
     for step in 1:N_STEPS
-        Q_step = design[step:step, :]
-        u_denom = integrate(u_denom, θ_T_denom, Q_step, DT, n_substeps_val)
+        d_step = design[step:step, :]
+        u_denom = integrate(u_denom, θ_T_denom, d_step, DT, n_substeps_val)
         pred_obs = u_denom[1, :, :]
         actual_obs = observations[step:step, :]
         residual = actual_obs .- pred_obs
@@ -85,8 +85,8 @@ function static_spce_loss(model, ps, st, data)
     )
 
     for step in 1:N_STEPS
-        Q_step = design[step:step, :]
-        u_numer = integrate(u_numer, θ_T_true, Q_step, DT, n_substeps_val)
+        d_step = design[step:step, :]
+        u_numer = integrate(u_numer, θ_T_true, d_step, DT, n_substeps_val)
         pred_obs = u_numer[1, :, :]
         actual_obs = observations[step:step, :]
         residual = actual_obs .- pred_obs

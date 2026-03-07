@@ -21,7 +21,7 @@ using Serialization
 const V_C = 10.0f0   # Central volume (L)
 const V_P = 30.0f0   # Peripheral volume (L)
 
-function dynamics(u, θ, Q_in)
+function dynamics(u, θ, R_inf)
     A_t1 = selectdim(u, 1, 1)
     A_t2 = selectdim(u, 1, 2)
     A_t3 = selectdim(u, 1, 3)
@@ -33,7 +33,7 @@ function dynamics(u, θ, Q_in)
     CL   = selectdim(θ, 1, 3)
     Q_d  = selectdim(θ, 1, 4)
 
-    du1 = @. Q_in - k_tr * A_t1
+    du1 = @. R_inf - k_tr * A_t1
     du2 = @. k_tr * A_t1 - k_tr * A_t2
     du3 = @. k_tr * A_t2 - k_a * A_t3
     du4 = @. k_a * A_t3 - (CL + Q_d) / V_C * A_c + Q_d / V_P * A_p
@@ -190,17 +190,17 @@ function targeted_spce_loss_pk(model, ps, st, data)
 
     for step in 1:N_STEPS
         action, st = model(input_buffer, ps, st)
-        Q_in = action
-        designs[step, :] .= Q_in[1, :]
+        d = action
+        designs[step, :] .= d[1, :]
 
-        u = integrate(u, θ_dyn_true, Q_in, DT, N_SUBSTEPS)
+        u = integrate(u, θ_dyn_true, d, DT, N_SUBSTEPS)
 
         obs = u[4, 1, :] ./ V_C
         y_noisy = obs .+ σ_prop_true .* obs .* ε_prop[step, :] .+ σ_add_true .* ε_add[step, :]
 
         observations[step, :] .= y_noisy
         input_buffer[1, step, :] .= y_noisy
-        input_buffer[2, step, :] .= Q_in[1, :]
+        input_buffer[2, step, :] .= d[1, :]
     end
 
     # DENOMINATOR
@@ -212,8 +212,8 @@ function targeted_spce_loss_pk(model, ps, st, data)
     u_denom = repeat(u0, 1, n_denom, B)
 
     for step in 1:N_STEPS
-        Q_step = designs[step:step, :]
-        u_denom = integrate(u_denom, θ_dyn_denom, Q_step, DT, N_SUBSTEPS)
+        d_step = designs[step:step, :]
+        u_denom = integrate(u_denom, θ_dyn_denom, d_step, DT, N_SUBSTEPS)
 
         pred = u_denom[4, :, :] ./ V_C
         actual_obs = observations[step:step, :]
@@ -228,8 +228,8 @@ function targeted_spce_loss_pk(model, ps, st, data)
     u_numer = repeat(u0, 1, M_N, B)
 
     for step in 1:N_STEPS
-        Q_step = designs[step:step, :]
-        u_numer = integrate(u_numer, θ_dyn_numer, Q_step, DT, N_SUBSTEPS)
+        d_step = designs[step:step, :]
+        u_numer = integrate(u_numer, θ_dyn_numer, d_step, DT, N_SUBSTEPS)
 
         pred = u_numer[4, :, :] ./ V_C
         actual_obs = observations[step:step, :]

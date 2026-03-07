@@ -94,10 +94,10 @@ function adaptive_spce_eval(model, ps, st, data)
 
     for step in 1:N_STEPS
         action, st = model(input_buffer, ps, st)
-        Q_in = action
-        designs[step, :] .= Q_in[1, :]
+        d = action
+        designs[step, :] .= d[1, :]
 
-        u = integrate(u, θ_T_true, Q_in, DT, n_substeps_val)
+        u = integrate(u, θ_T_true, d, DT, n_substeps_val)
 
         obs = u[1, 1, :]
         noise = ε[step, :]
@@ -105,7 +105,7 @@ function adaptive_spce_eval(model, ps, st, data)
 
         observations[step, :] .= y_noisy
         input_buffer[1, step, :] .= y_noisy
-        input_buffer[2, step, :] .= Q_in[1, :]
+        input_buffer[2, step, :] .= d[1, :]
     end
 
     n_denom = size(θ_full, 2)
@@ -120,8 +120,8 @@ function adaptive_spce_eval(model, ps, st, data)
     )
 
     for step in 1:N_STEPS
-        Q_step = designs[step:step, :]
-        u_denom = integrate(u_denom, θ_T_denom, Q_step, DT, n_substeps_val)
+        d_step = designs[step:step, :]
+        u_denom = integrate(u_denom, θ_T_denom, d_step, DT, n_substeps_val)
 
         pred_obs = u_denom[1, :, :]
         actual_obs = observations[step:step, :]
@@ -139,8 +139,8 @@ function adaptive_spce_eval(model, ps, st, data)
     )
 
     for step in 1:N_STEPS
-        Q_step = designs[step:step, :]
-        u_numer = integrate(u_numer, θ_T_true, Q_step, DT, n_substeps_val)
+        d_step = designs[step:step, :]
+        u_numer = integrate(u_numer, θ_T_true, d_step, DT, n_substeps_val)
 
         pred_obs = u_numer[1, :, :]
         actual_obs = observations[step:step, :]
@@ -182,8 +182,8 @@ function static_spce_eval(model, ps, st, data)
     observations = similar(ε)
 
     for step in 1:N_STEPS
-        Q_in = design[step:step, :]
-        u = integrate(u, θ_T_true, Q_in, DT, n_substeps_val)
+        d_step = design[step:step, :]
+        u = integrate(u, θ_T_true, d_step, DT, n_substeps_val)
         obs = u[1, 1, :]
         y_noisy = obs .+ σ_true .* ε[step, :]
         observations[step, :] .= y_noisy
@@ -201,8 +201,8 @@ function static_spce_eval(model, ps, st, data)
     )
 
     for step in 1:N_STEPS
-        Q_step = design[step:step, :]
-        u_denom = integrate(u_denom, θ_T_denom, Q_step, DT, n_substeps_val)
+        d_step = design[step:step, :]
+        u_denom = integrate(u_denom, θ_T_denom, d_step, DT, n_substeps_val)
         pred_obs = u_denom[1, :, :]
         actual_obs = observations[step:step, :]
         residual = actual_obs .- pred_obs
@@ -219,8 +219,8 @@ function static_spce_eval(model, ps, st, data)
     )
 
     for step in 1:N_STEPS
-        Q_step = design[step:step, :]
-        u_numer = integrate(u_numer, θ_T_true, Q_step, DT, n_substeps_val)
+        d_step = design[step:step, :]
+        u_numer = integrate(u_numer, θ_T_true, d_step, DT, n_substeps_val)
         pred_obs = u_numer[1, :, :]
         actual_obs = observations[step:step, :]
         residual = actual_obs .- pred_obs
@@ -417,7 +417,8 @@ if abspath(PROGRAM_FILE) == @__FILE__
         title_suffix = " (L=$L, M=$M, $n_trials trials, GPU)")
 
     plot_design_trajectories(all_adaptive_designs, static_designs;
-        output_path = joinpath(results_dir, "plot_spce_trajectories.png"))
+        output_path = joinpath(results_dir, "plot_spce_trajectories.png"),
+        design_ylabel = "Q_in (L/h)")
 
     open(joinpath(results_dir, "spce_summary.txt"), "w") do io
         println(io, "# Targeted sPCE Evaluation (GPU)")

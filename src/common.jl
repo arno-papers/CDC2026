@@ -19,10 +19,10 @@ using Reactant: @trace
 #  Reactant-compiled ODE integrator
 # ============================================================================
 
-function integrate(u, θ, Q_in, dt, n_substeps)
+function integrate(u, θ, d, dt, n_substeps)
     dt_sub = dt / n_substeps
     @trace mincut=true for _ in 1:n_substeps
-        u = rk4_step(u, θ, Q_in, dt_sub)
+        u = rk4_step(u, θ, d, dt_sub)
     end
     return u
 end
@@ -51,10 +51,10 @@ function targeted_spce_loss(model, ps, st, data)
 
     for step in 1:N_STEPS
         action, st = model(input_buffer, ps, st)
-        Q_in = action
-        designs[step, :] .= Q_in[1, :]
+        d = action
+        designs[step, :] .= d[1, :]
 
-        u = integrate(u, θ_dyn_true, Q_in, DT, N_SUBSTEPS)
+        u = integrate(u, θ_dyn_true, d, DT, N_SUBSTEPS)
 
         obs = u[1, 1, :]
         noise = ε[step, :]
@@ -62,7 +62,7 @@ function targeted_spce_loss(model, ps, st, data)
 
         observations[step, :] .= y_noisy
         input_buffer[1, step, :] .= y_noisy
-        input_buffer[2, step, :] .= Q_in[1, :]
+        input_buffer[2, step, :] .= d[1, :]
     end
 
     # DENOMINATOR
@@ -78,8 +78,8 @@ function targeted_spce_loss(model, ps, st, data)
     )
 
     for step in 1:N_STEPS
-        Q_step = designs[step:step, :]
-        u_denom = integrate(u_denom, θ_dyn_denom, Q_step, DT, N_SUBSTEPS)
+        d_step = designs[step:step, :]
+        u_denom = integrate(u_denom, θ_dyn_denom, d_step, DT, N_SUBSTEPS)
 
         pred_obs = u_denom[1, :, :]
         actual_obs = observations[step:step, :]
@@ -98,8 +98,8 @@ function targeted_spce_loss(model, ps, st, data)
     )
 
     for step in 1:N_STEPS
-        Q_step = designs[step:step, :]
-        u_numer = integrate(u_numer, θ_dyn_numer, Q_step, DT, N_SUBSTEPS)
+        d_step = designs[step:step, :]
+        u_numer = integrate(u_numer, θ_dyn_numer, d_step, DT, N_SUBSTEPS)
 
         pred_obs = u_numer[1, :, :]
         actual_obs = observations[step:step, :]

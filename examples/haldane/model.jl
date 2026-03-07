@@ -201,12 +201,12 @@ function rollout_adaptive_design_cpu(model, ps_cpu, st_cpu, rng,
     theta_mat = reshape(theta_dyn, N_PARAMS_DYN, 1)
     @inbounds for step in 1:N_STEPS
         action, st_local = model(input_buffer, ps_cpu, st_local)
-        q_in = clamp(Float32(action[1]), ACTION_LO, ACTION_HI)
-        designs[step] = q_in
-        u = integrate_cpu(u, theta_mat, q_in, DT, n_substeps)
+        d = clamp(Float32(action[1]), ACTION_LO, ACTION_HI)
+        designs[step] = d
+        u = integrate_cpu(u, theta_mat, d, DT, n_substeps)
         y_obs = u[1, 1] + sigma * randn(rng, Float32)
         input_buffer[1, step, 1] = y_obs
-        input_buffer[2, step, 1] = q_in
+        input_buffer[2, step, 1] = d
     end
     return designs
 end

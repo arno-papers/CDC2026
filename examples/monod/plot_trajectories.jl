@@ -11,15 +11,15 @@ function rollout_policy_cpu(model, ps_cpu, st_cpu; theta, u0)
     st_local = st_cpu
     for step in 1:N_STEPS
         action, st_local = model(input_buffer, ps_cpu, st_local)
-        Q_in = Float32(action[1])
-        designs[step] = Q_in
+        d = Float32(action[1])
+        designs[step] = d
 
-        u = integrate_cpu(u, reshape(theta, 2, 1), Q_in, DT, N_SUBSTEPS)
+        u = integrate_cpu(u, reshape(theta, 2, 1), d, DT, N_SUBSTEPS)
         traj[step + 1, :] .= vec(u)
 
         y_obs = u[1, 1]
         input_buffer[1, step, 1] = y_obs
-        input_buffer[2, step, 1] = Q_in
+        input_buffer[2, step, 1] = d
     end
 
     return traj, designs

@@ -89,8 +89,8 @@ function posterior_mean_eval(model, ps, st, data)
     )
 
     for step in 1:N_STEPS
-        Q_step = design_mat[step:step, :]
-        u = integrate(u, θ_T, Q_step, DT, n_substeps_val)
+        d_step = design_mat[step:step, :]
+        u = integrate(u, θ_T, d_step, DT, n_substeps_val)
 
         pred_obs = u[1, :, :]
         actual_obs = observations[step:step, :]

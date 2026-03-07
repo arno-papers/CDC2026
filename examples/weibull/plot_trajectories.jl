@@ -15,14 +15,14 @@ function rollout_trajectory_cpu(model, ps_cpu, st_cpu, rng,
     theta_mat = reshape(theta_dyn, N_PARAMS_DYN, 1)
     @inbounds for step in 1:N_STEPS
         action, st_local = model(input_buffer, ps_cpu, st_local)
-        q_in = clamp(Float32(action[1]), ACTION_LO, ACTION_HI)
-        designs[step] = q_in
-        u = integrate_cpu(u, theta_mat, q_in, DT, n_substeps)
+        d = clamp(Float32(action[1]), ACTION_LO, ACTION_HI)
+        designs[step] = d
+        u = integrate_cpu(u, theta_mat, d, DT, n_substeps)
         cc = u[4, 1] / V_C
         cc_traj[step + 1] = cc
         y_obs = cc + sigma_prop * cc * randn(rng, Float32) + sigma_add * randn(rng, Float32)
         input_buffer[1, step, 1] = y_obs
-        input_buffer[2, step, 1] = q_in
+        input_buffer[2, step, 1] = d
     end
     return cc_traj, designs
 end
@@ -52,9 +52,9 @@ if abspath(PROGRAM_FILE) == @__FILE__
     p2 = plot(title="Fast absorption (k_a=2.5, k_tr=2.5)",
               xlabel="Time (hr)", ylabel="C_c (mg/L)")
     p3 = plot(title="Dosing — slow absorption",
-              xlabel="Time (hr)", ylabel="Q_in (mg/hr)", ylims=(-0.5, ACTION_HI + 0.5))
+              xlabel="Time (hr)", ylabel="d (mg/hr)", ylims=(-0.5, ACTION_HI + 0.5))
     p4 = plot(title="Dosing — fast absorption",
-              xlabel="Time (hr)", ylabel="Q_in (mg/hr)", ylims=(-0.5, ACTION_HI + 0.5))
+              xlabel="Time (hr)", ylabel="d (mg/hr)", ylims=(-0.5, ACTION_HI + 0.5))
 
     for i in 1:n_samples
         cl = CL_LO + (CL_HI - CL_LO) * rand(rng, Float32)

@@ -104,18 +104,19 @@ function plot_spce_histograms(designs::Vector{Pair{String, Vector{Float64}}};
 end
 
 # ============================================================================
-#  Plot: design trajectories (Q_in over time steps)
+#  Plot: design trajectories (d over time steps)
 # ============================================================================
 
 function plot_design_trajectories(adaptive_designs::AbstractMatrix,
                                   static_designs::Vector{<:Pair};
                                   output_path::String = "plot_design_trajectories.png",
-                                  n_show::Int = 50)
+                                  n_show::Int = 50,
+                                  design_ylabel::String = "design")
     n_steps = size(adaptive_designs, 1)
     n_trials = size(adaptive_designs, 2)
     steps = collect(1:n_steps)
 
-    p = plot(; xlabel = "step", ylabel = "Q_in (L/h)",
+    p = plot(; xlabel = "step", ylabel = design_ylabel,
                title = "Design comparison ($n_trials adaptive rollouts)",
                legend = :topleft, ylims = (-0.5, 10.5), size = (800, 450))
 
