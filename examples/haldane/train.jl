@@ -1,6 +1,5 @@
 include(joinpath(@__DIR__, "model.jl"))
 include(joinpath(@__DIR__, "..", "..", "src", "common.jl"))
-include(joinpath(@__DIR__, "..", "..", "src", "args.jl"))
 
 function git_info_or_unknown(args...)
     try
@@ -11,17 +10,17 @@ function git_info_or_unknown(args...)
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__
-    plotting = parse_bool(ARGS, "plotting"; default=false)
-    n_iters = parse_int(ARGS, "n_iters"; default=250)
-    seed = parse_int(ARGS, "seed"; default=0)
-    loss_png_every = parse_int(ARGS, "loss_png_every"; default=10)
-    grad_accum = parse_int(ARGS, "grad_accum"; default=GRAD_ACCUM_STEPS)
-    ode_budget = parse_int(ARGS, "ode_budget"; default=ODE_BUDGET_TRAJ)
-    lr_max = parse_float(ARGS, "lr_max"; default=0.003f0)
-    lr_min = parse_float(ARGS, "lr_min"; default=1f-5)
-    warmup = parse_int(ARGS, "warmup"; default=50)
-    clip_norm = parse_float(ARGS, "clip_norm"; default=1.0f0)
-    results_dir = parse_kwarg(ARGS, "results_dir"; default=joinpath(@__DIR__, "results"))
+    plotting = false
+    n_iters = 250
+    seed = 0
+    loss_png_every = 10
+    grad_accum = GRAD_ACCUM_STEPS
+    ode_budget = ODE_BUDGET_TRAJ
+    lr_max = 0.003f0
+    lr_min = 1f-5
+    warmup = 50
+    clip_norm = 1.0f0
+    results_dir = joinpath(@__DIR__, "results")
 
     L, M_nuis, B_total = allocate_budget(ode_budget)
     loss_png_every = loss_png_every < 1 ? 10 : loss_png_every

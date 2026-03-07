@@ -6,7 +6,6 @@
 
 include(joinpath(@__DIR__, "model.jl"))
 include(joinpath(@__DIR__, "..", "..", "src", "common.jl"))
-include(joinpath(@__DIR__, "..", "..", "src", "args.jl"))
 include(joinpath(@__DIR__, "..", "..", "src", "plotting.jl"))
 
 using Dates
@@ -246,14 +245,13 @@ end
 # ============================================================================
 
 if abspath(PROGRAM_FILE) == @__FILE__
-    checkpoint       = parse_kwarg(ARGS, "checkpoint"; default=joinpath(@__DIR__, "results"))
-    spce_design_path = parse_kwarg(ARGS, "spce_design"; default=nothing)
-    n_trials         = parse_int(ARGS, "n_trials"; default=500)
-    n_substeps       = parse_int(ARGS, "n_substeps"; default=N_SUBSTEPS)
-    L                = parse_int(ARGS, "L"; default=L_CONTRASTIVE)
-    M                = parse_int(ARGS, "M"; default=M_NUISANCE)
-    B                = parse_int(ARGS, "B"; default=32)
-    seed             = parse_int(ARGS, "seed"; default=0)
+    checkpoint       = joinpath(@__DIR__, "results")
+    n_trials         = 500
+    n_substeps       = N_SUBSTEPS
+    L                = L_CONTRASTIVE
+    M                = M_NUISANCE
+    B                = 32
+    seed             = 0
 
     results_dir = joinpath(@__DIR__, "results")
     mkpath(results_dir)
@@ -269,11 +267,7 @@ if abspath(PROGRAM_FILE) == @__FILE__
 
     has_spce_opt = false
     local static_spce_opt
-    if spce_design_path !== nothing
-        spce_file = spce_design_path
-    else
-        spce_file = joinpath(results_dir, "spce_static_design.jls")
-    end
+    spce_file = joinpath(results_dir, "spce_static_design.jls")
     if isfile(spce_file)
         spce_data = deserialize(spce_file)
         static_spce_opt = spce_data["design"]

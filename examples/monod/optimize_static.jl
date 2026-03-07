@@ -6,7 +6,6 @@
 
 include(joinpath(@__DIR__, "model.jl"))
 include(joinpath(@__DIR__, "..", "..", "src", "common.jl"))
-include(joinpath(@__DIR__, "..", "..", "src", "args.jl"))
 
 using Dates
 using Plots
@@ -283,18 +282,18 @@ end
 # ============================================================================
 
 if abspath(PROGRAM_FILE) == @__FILE__
-    n_iters     = parse_int(ARGS, "n_iters"; default=1000)
-    n_restarts  = parse_int(ARGS, "n_restarts"; default=1)
-    B           = parse_int(ARGS, "B"; default=64)
-    L           = parse_int(ARGS, "L"; default=L_CONTRASTIVE)
-    M           = parse_int(ARGS, "M"; default=M_NUISANCE)
-    n_substeps  = parse_int(ARGS, "n_substeps"; default=N_SUBSTEPS)
-    lr_max      = parse_float(ARGS, "lr_max"; default=0.01f0)
-    lr_min      = parse_float(ARGS, "lr_min"; default=1f-5)
-    warmup      = parse_int(ARGS, "warmup"; default=20)
-    grad_accum  = parse_int(ARGS, "grad_accum"; default=1)
-    seed        = parse_int(ARGS, "seed"; default=0)
-    results_dir = parse_kwarg(ARGS, "results_dir"; default=joinpath(@__DIR__, "results"))
+    n_iters     = 1000
+    n_restarts  = 1
+    B           = 64
+    L           = L_CONTRASTIVE
+    M           = M_NUISANCE
+    n_substeps  = N_SUBSTEPS
+    lr_max      = 0.01f0
+    lr_min      = 1f-5
+    warmup      = 20
+    grad_accum  = 1
+    seed        = 0
+    results_dir = joinpath(@__DIR__, "results")
 
     println("\n=== Static sPCE Design Optimizer (Reactant + Enzyme) ===")
     println("n_iters     = $n_iters")

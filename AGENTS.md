@@ -12,7 +12,6 @@ The goal is a research paper for the CDC conference.
 
 ```
 src/                     # Shared Julia infrastructure
-  args.jl                # CLI argument parsing
   common_core.jl         # RK4, positional encoding, diagnostics, I/O (CPU-safe)
   common.jl              # Reactant: integrate(), targeted_spce_loss(), train_policy()
   plotting.jl            # Shared plot styles, histograms, t-tests
@@ -51,7 +50,6 @@ reference/               # Reference material (gitignored)
 All scripts use `joinpath(@__DIR__, ...)` for robust path resolution:
 1. `model.jl` is included first (defines `dynamics()`, constants, sampling, policy)
 2. `src/common.jl` (or `src/common_core.jl` for CPU-only) is included next
-3. `src/args.jl` for CLI argument parsing
 
 ## Implementation
 
@@ -77,9 +75,9 @@ snakemake -n
 ### Individual scripts
 
 ```bash
-julia --project=. examples/monod/train.jl n_iters=1000 grad_accum=16
+julia --project=. examples/monod/train.jl
 julia --project=. examples/monod/optimize_bim.jl
-julia --project=. examples/monod/optimize_bim.jl cheating=true
+julia --project=. examples/monod/optimize_bim.jl cheating
 julia --project=. examples/monod/plot_training.jl
 julia --project=. examples/monod/plot_trajectories.jl
 ```

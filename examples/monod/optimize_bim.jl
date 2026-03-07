@@ -7,7 +7,6 @@
 
 include(joinpath(@__DIR__, "model.jl"))
 include(joinpath(@__DIR__, "..", "..", "src", "common_core.jl"))
-include(joinpath(@__DIR__, "..", "..", "src", "args.jl"))
 
 using Dates
 using Plots
@@ -20,26 +19,24 @@ using Serialization
 # ============================================================================
 
 if abspath(PROGRAM_FILE) == @__FILE__
-    checkpoint    = parse_kwarg(ARGS, "checkpoint"; default=joinpath(@__DIR__, "results"))
-    output_dir_arg = parse_kwarg(ARGS, "output_dir"; default=nothing)
-    seed          = parse_int(ARGS, "seed"; default=0)
-    n_prior_opt   = parse_int(ARGS, "n_prior_opt"; default=512)
-    n_prior_report = parse_int(ARGS, "n_prior_report"; default=1024)
-    n_substeps    = parse_int(ARGS, "n_substeps"; default=N_SUBSTEPS)
-    grad_iters    = parse_int(ARGS, "grad_iters"; default=300)
-    grad_restarts = parse_int(ARGS, "grad_restarts"; default=1)
-    lr_max        = parse_float64(ARGS, "lr_max"; default=0.1)
-    lr_min        = parse_float64(ARGS, "lr_min"; default=0.001)
-    cheating      = parse_bool(ARGS, "cheating"; default=false)
-    true_mu_max   = parse_float64(ARGS, "true_mu_max"; default=Float64(μ_max_lo + μ_max_hi) / 2)
-    true_K_s      = parse_float64(ARGS, "true_K_s"; default=Float64(K_s_lo + K_s_hi) / 2)
-    true_sigma    = parse_float64(ARGS, "true_sigma"; default=Float64(σ_lo + σ_hi) / 2)
-    n_cx0_opt     = parse_int(ARGS, "n_cx0_opt"; default=512)
+    seed           = 0
+    n_prior_opt    = 512
+    n_prior_report = 1024
+    n_substeps     = N_SUBSTEPS
+    grad_iters     = 300
+    grad_restarts  = 1
+    lr_max         = 0.1
+    lr_min         = 0.001
+    cheating       = "cheating" in ARGS
+    true_mu_max    = Float64(μ_max_lo + μ_max_hi) / 2
+    true_K_s       = Float64(K_s_lo + K_s_hi) / 2
+    true_sigma     = Float64(σ_lo + σ_hi) / 2
+    n_cx0_opt      = 512
 
     results_dir = joinpath(@__DIR__, "results")
 
     prefix = cheating ? "bim_cheat" : "bim_std"
-    output_dir = output_dir_arg !== nothing ? output_dir_arg : results_dir
+    output_dir = results_dir
     mkpath(output_dir)
 
     mode_str = cheating ? "CHEATING (known kinetics)" : "standard"

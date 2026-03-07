@@ -1,5 +1,5 @@
 JULIA = "julia --project=."
-SRC = ["src/common_core.jl", "src/common.jl", "src/args.jl", "src/plotting.jl"]
+SRC = ["src/common_core.jl", "src/common.jl", "src/plotting.jl"]
 
 MONOD = "examples/monod"
 RESULTS = f"{MONOD}/results"
@@ -39,7 +39,7 @@ rule optimize_bim_cheat:
     input: f"{MONOD}/optimize_bim.jl", *DEPS
     output: f"{RESULTS}/bim_cheat_design.jls"
     resources: bim_slot=1
-    shell: "{JULIA} {input[0]} cheating=true"
+    shell: "{JULIA} {input[0]} cheating"
 
 # ---- Static sPCE optimization (GPU, VSC cluster) ----
 rule optimize_static:

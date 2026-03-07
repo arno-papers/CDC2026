@@ -6,12 +6,11 @@
 
 include(joinpath(@__DIR__, "model.jl"))
 include(joinpath(@__DIR__, "..", "..", "src", "common_core.jl"))
-include(joinpath(@__DIR__, "..", "..", "src", "args.jl"))
 
 using Plots
 using Serialization
 
-checkpoint = parse_kwarg(ARGS, "checkpoint"; default=joinpath(@__DIR__, "results"))
+checkpoint = joinpath(@__DIR__, "results")
 results_dir = joinpath(@__DIR__, "results")
 
 r = load_results(isdir(checkpoint) ? checkpoint : dirname(checkpoint))

@@ -6,7 +6,6 @@
 
 include(joinpath(@__DIR__, "model.jl"))
 include(joinpath(@__DIR__, "..", "..", "src", "common.jl"))
-include(joinpath(@__DIR__, "..", "..", "src", "args.jl"))
 include(joinpath(@__DIR__, "..", "..", "src", "plotting.jl"))
 
 using Dates
@@ -118,18 +117,17 @@ end
 # ============================================================================
 
 if abspath(PROGRAM_FILE) == @__FILE__
-    checkpoint       = parse_kwarg(ARGS, "checkpoint"; default=joinpath(@__DIR__, "results"))
-    spce_design_path = parse_kwarg(ARGS, "spce_design"; default=nothing)
-    n_trials         = parse_int(ARGS, "n_trials"; default=200)
-    N_post           = parse_int(ARGS, "N_post"; default=5000)
-    B                = parse_int(ARGS, "B"; default=32)
-    n_substeps       = parse_int(ARGS, "n_substeps"; default=N_SUBSTEPS)
-    seed             = parse_int(ARGS, "seed"; default=0)
+    checkpoint       = joinpath(@__DIR__, "results")
+    n_trials         = 200
+    N_post           = 5000
+    B                = 32
+    n_substeps       = N_SUBSTEPS
+    seed             = 0
 
-    true_μ = Float32(parse_float64(ARGS, "true_mu_max"; default=Float64(μ_max_lo + μ_max_hi) / 2))
-    true_K = Float32(parse_float64(ARGS, "true_K_s";    default=Float64(K_s_lo + K_s_hi) / 2))
-    true_σ = Float32(parse_float64(ARGS, "true_sigma";  default=Float64(σ_lo + σ_hi) / 2))
-    true_Cx0 = Float32(parse_float64(ARGS, "true_Cx0";  default=Float64(Cx0_lo + Cx0_hi) / 2))
+    true_μ = Float32(Float64(μ_max_lo + μ_max_hi) / 2)
+    true_K = Float32(Float64(K_s_lo + K_s_hi) / 2)
+    true_σ = Float32(Float64(σ_lo + σ_hi) / 2)
+    true_Cx0 = Float32(Float64(Cx0_lo + Cx0_hi) / 2)
     θT = Float32[true_μ, true_K]
 
     results_dir = joinpath(@__DIR__, "results")
@@ -145,11 +143,7 @@ if abspath(PROGRAM_FILE) == @__FILE__
 
     has_spce_opt = false
     local static_spce_opt
-    if spce_design_path !== nothing
-        spce_file = spce_design_path
-    else
-        spce_file = joinpath(results_dir, "spce_static_design.jls")
-    end
+    spce_file = joinpath(results_dir, "spce_static_design.jls")
     if isfile(spce_file)
         spce_data = deserialize(spce_file)
         static_spce_opt = spce_data["design"]
