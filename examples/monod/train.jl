@@ -13,7 +13,6 @@ if abspath(PROGRAM_FILE) == @__FILE__
     lr_max = 0.003f0
     lr_min = 1f-5
     warmup = 50
-    clip_norm = 1.0f0
     results_dir = joinpath(@__DIR__, "results")
 
     L, M_nuis, B_total = allocate_budget(ode_budget)
@@ -51,7 +50,7 @@ if abspath(PROGRAM_FILE) == @__FILE__
     println("Target params: (mu_max, K_s), Nuisance: (sigma, Cx0) jointly sampled")
     println("L = $L contrastive, M = $M_nuis nuisance, B = $B_total total ($(grad_accum)x$(B_micro) micro)")
     println("n_iters = $n_iters, lr_max = $lr_max, lr_min = $lr_min, warmup = $warmup")
-    println("grad_accum = $grad_accum, clip_norm = $clip_norm, plotting = $plotting")
+    println("grad_accum = $grad_accum, plotting = $plotting")
     println("results_dir = $results_dir")
     println("loss_png_every = $loss_png_every\n")
 
@@ -83,7 +82,6 @@ if abspath(PROGRAM_FILE) == @__FILE__
         grad_batch = B_total,
         L = L,
         M = M_nuis,
-        clip_norm = clip_norm,
         save_dir = results_dir,
     )
     t_train = time() - t_start

@@ -136,7 +136,6 @@ function train_policy(model, ps, st, rng;
     grad_batch = GRAD_BATCH,
     L = L_CONTRASTIVE,
     M = M_NUISANCE,
-    clip_norm = 1.0f0,
     save_dir = ".",
 )
     B_micro = grad_batch ÷ grad_accum
