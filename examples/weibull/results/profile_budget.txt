@@ -1,0 +1,497 @@
+Finished startup file
+probe C=500000 L=99 M=99 B=2500 B_micro=2500
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+I0000 00:00:1772866270.773103   12621 service.cc:153] XLA service 0x144b63c0 initialized for platform CUDA (this does not guarantee that XLA will be used). Devices:
+I0000 00:00:1772866270.773129   12621 service.cc:161]   StreamExecutor [0]: NVIDIA GeForce RTX 3080, Compute Capability 8.6 (Driver: 13.1.0; Runtime: 13.0.0; Toolkit: 13.0.0; DNN: 9.14.0)
+I0000 00:00:1772866270.773971   12621 se_gpu_pjrt_client.cc:1448] Using BFC allocator.
+I0000 00:00:1772866270.773997   12621 gpu_helpers.cc:141] XLA backend allocating 7749992448 bytes on device 0 for BFCAllocator.
+I0000 00:00:1772866270.774025   12621 gpu_helpers.cc:183] XLA backend will use up to 2583330816 bytes on device 0 for CollectiveBFCAllocator.
+I0000 00:00:1772866270.782031   12621 cuda_dnn.cc:461] Loaded cuDNN version 91400
+I0000 00:00:1772866913.288665   12621 dot_merger.cc:481] Merging Dots in computation: main.592
+I0000 00:00:1772866925.041993   12728 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'input_multiply_reduce_fusion_2', 36 bytes spill stores, 36 bytes spill loads
+
+I0000 00:00:1772866929.956374   12742 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'input_add_transpose_fusion_22', 112 bytes spill stores, 112 bytes spill loads
+
+I0000 00:00:1772866935.556710   12728 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'input_add_transpose_fusion_1', 236 bytes spill stores, 236 bytes spill loads
+
+I0000 00:00:1772866949.636513   12621 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'input_multiply_reduce_fusion_2', 36 bytes spill stores, 36 bytes spill loads
+
+OK C=500000 loss=0.243637 ps_norm=325.672119 time=684.0s
+---
+Finished startup file
+probe C=1000000 L=125 M=127 B=3937 B_micro=3937
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+I0000 00:00:1772866967.621805   15112 service.cc:153] XLA service 0x37cff380 initialized for platform CUDA (this does not guarantee that XLA will be used). Devices:
+I0000 00:00:1772866967.621829   15112 service.cc:161]   StreamExecutor [0]: NVIDIA GeForce RTX 3080, Compute Capability 8.6 (Driver: 13.1.0; Runtime: 13.0.0; Toolkit: 13.0.0; DNN: 9.14.0)
+I0000 00:00:1772866967.622477   15112 se_gpu_pjrt_client.cc:1448] Using BFC allocator.
+I0000 00:00:1772866967.622523   15112 gpu_helpers.cc:141] XLA backend allocating 7749992448 bytes on device 0 for BFCAllocator.
+I0000 00:00:1772866967.622572   15112 gpu_helpers.cc:183] XLA backend will use up to 2583330816 bytes on device 0 for CollectiveBFCAllocator.
+I0000 00:00:1772866967.629702   15112 cuda_dnn.cc:461] Loaded cuDNN version 91400
+I0000 00:00:1772867597.151145   15112 dot_merger.cc:481] Merging Dots in computation: main.592
+I0000 00:00:1772867599.917177   15206 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_transpose_2472', 24 bytes spill stores, 20 bytes spill loads
+
+I0000 00:00:1772867610.783190   15206 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'input_multiply_reduce_fusion_2', 36 bytes spill stores, 36 bytes spill loads
+
+OK C=1000000 loss=0.117146 ps_norm=325.668488 time=670.5s
+---
+Finished startup file
+probe C=2000000 L=158 M=160 B=6250 B_micro=6250
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+I0000 00:00:1772867650.900905   16807 service.cc:153] XLA service 0x3dc1e70 initialized for platform CUDA (this does not guarantee that XLA will be used). Devices:
+I0000 00:00:1772867650.900923   16807 service.cc:161]   StreamExecutor [0]: NVIDIA GeForce RTX 3080, Compute Capability 8.6 (Driver: 13.1.0; Runtime: 13.0.0; Toolkit: 13.0.0; DNN: 9.14.0)
+I0000 00:00:1772867650.901312   16807 se_gpu_pjrt_client.cc:1448] Using BFC allocator.
+I0000 00:00:1772867650.901344   16807 gpu_helpers.cc:141] XLA backend allocating 7749992448 bytes on device 0 for BFCAllocator.
+I0000 00:00:1772867650.901380   16807 gpu_helpers.cc:183] XLA backend will use up to 2583330816 bytes on device 0 for CollectiveBFCAllocator.
+I0000 00:00:1772867650.909007   16807 cuda_dnn.cc:461] Loaded cuDNN version 91400
+I0000 00:00:1772868313.190479   16807 dot_merger.cc:481] Merging Dots in computation: main.592
+I0000 00:00:1772868325.221162   16909 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'input_add_transpose_fusion_1', 16 bytes spill stores, 16 bytes spill loads
+
+I0000 00:00:1772868328.356042   16909 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'input_multiply_reduce_fusion_3', 12 bytes spill stores, 12 bytes spill loads
+
+I0000 00:00:1772868335.983686   16909 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'input_multiply_reduce_fusion_2', 12 bytes spill stores, 12 bytes spill loads
+
+I0000 00:00:1772868336.596369   16913 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'input_add_transpose_fusion_22', 72 bytes spill stores, 72 bytes spill loads
+
+I0000 00:00:1772868351.617555   16807 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'input_multiply_reduce_fusion_3', 12 bytes spill stores, 12 bytes spill loads
+
+OK C=2000000 loss=0.055986 ps_norm=325.667999 time=706.6s
+---
+Finished startup file
+probe C=4000000 L=199 M=200 B=9975 B_micro=9975
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+I0000 00:00:1772868370.017989   18454 service.cc:153] XLA service 0xe8b1d90 initialized for platform CUDA (this does not guarantee that XLA will be used). Devices:
+I0000 00:00:1772868370.018015   18454 service.cc:161]   StreamExecutor [0]: NVIDIA GeForce RTX 3080, Compute Capability 8.6 (Driver: 13.1.0; Runtime: 13.0.0; Toolkit: 13.0.0; DNN: 9.14.0)
+I0000 00:00:1772868370.018553   18454 se_gpu_pjrt_client.cc:1448] Using BFC allocator.
+I0000 00:00:1772868370.018599   18454 gpu_helpers.cc:141] XLA backend allocating 7749992448 bytes on device 0 for BFCAllocator.
+I0000 00:00:1772868370.018646   18454 gpu_helpers.cc:183] XLA backend will use up to 2583330816 bytes on device 0 for CollectiveBFCAllocator.
+I0000 00:00:1772868370.025196   18454 cuda_dnn.cc:461] Loaded cuDNN version 91400
+I0000 00:00:1772869027.059557   18454 dot_merger.cc:481] Merging Dots in computation: main.590
+I0000 00:00:1772869043.029968   18538 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'input_multiply_transpose_fusion_13', 184 bytes spill stores, 184 bytes spill loads
+
+I0000 00:00:1772869054.712084   18538 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'loop_multiply_fusion_122', 1516 bytes spill stores, 1516 bytes spill loads
+
+W0000 00:00:1772869059.034930   18454 hlo_rematerialization.cc:3204] Can't reduce memory use below 7.23GiB (7761530435 bytes) by rematerialization; only reduced to 11.33GiB (12167573100 bytes), down from 15.59GiB (16742987636 bytes) originally
+I0000 00:00:1772869070.193543   18454 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'input_multiply_transpose_fusion_13', 184 bytes spill stores, 184 bytes spill loads
+
+W0000 00:00:1772869087.699506   18454 bfc_allocator.cc:502] Allocator (GPU_0_bfc) ran out of memory trying to allocate 11.30GiB (rounded to 12137453312)requested by op 
+If the cause is memory fragmentation maybe the environment variable 'TF_GPU_ALLOCATOR=cuda_malloc_async' will improve the situation. 
+Current allocation summary follows.
+Current allocation summary follows.
+I0000 00:00:1772869087.699580   18454 bfc_allocator.cc:1049] BFCAllocator dump for GPU_0_bfc
+I0000 00:00:1772869087.699601   18454 bfc_allocator.cc:1056] Bin (256): 	Total Chunks: 94, Chunks in use: 94. 23.5KiB allocated for chunks. 23.5KiB in use in bin. 4.8KiB client-requested in use in bin.
+I0000 00:00:1772869087.699608   18454 bfc_allocator.cc:1056] Bin (512): 	Total Chunks: 1, Chunks in use: 1. 768B allocated for chunks. 768B in use in bin. 720B client-requested in use in bin.
+I0000 00:00:1772869087.699614   18454 bfc_allocator.cc:1056] Bin (1024): 	Total Chunks: 0, Chunks in use: 0. 0B allocated for chunks. 0B in use in bin. 0B client-requested in use in bin.
+I0000 00:00:1772869087.699627   18454 bfc_allocator.cc:1056] Bin (2048): 	Total Chunks: 0, Chunks in use: 0. 0B allocated for chunks. 0B in use in bin. 0B client-requested in use in bin.
+I0000 00:00:1772869087.699631   18454 bfc_allocator.cc:1056] Bin (4096): 	Total Chunks: 16, Chunks in use: 16. 64.0KiB allocated for chunks. 64.0KiB in use in bin. 64.0KiB client-requested in use in bin.
+I0000 00:00:1772869087.699637   18454 bfc_allocator.cc:1056] Bin (8192): 	Total Chunks: 8, Chunks in use: 8. 64.0KiB allocated for chunks. 64.0KiB in use in bin. 64.0KiB client-requested in use in bin.
+I0000 00:00:1772869087.699645   18454 bfc_allocator.cc:1056] Bin (16384): 	Total Chunks: 0, Chunks in use: 0. 0B allocated for chunks. 0B in use in bin. 0B client-requested in use in bin.
+I0000 00:00:1772869087.699650   18454 bfc_allocator.cc:1056] Bin (32768): 	Total Chunks: 0, Chunks in use: 0. 0B allocated for chunks. 0B in use in bin. 0B client-requested in use in bin.
+I0000 00:00:1772869087.699654   18454 bfc_allocator.cc:1056] Bin (65536): 	Total Chunks: 0, Chunks in use: 0. 0B allocated for chunks. 0B in use in bin. 0B client-requested in use in bin.
+I0000 00:00:1772869087.699659   18454 bfc_allocator.cc:1056] Bin (131072): 	Total Chunks: 0, Chunks in use: 0. 0B allocated for chunks. 0B in use in bin. 0B client-requested in use in bin.
+I0000 00:00:1772869087.699663   18454 bfc_allocator.cc:1056] Bin (262144): 	Total Chunks: 0, Chunks in use: 0. 0B allocated for chunks. 0B in use in bin. 0B client-requested in use in bin.
+I0000 00:00:1772869087.699687   18454 bfc_allocator.cc:1056] Bin (524288): 	Total Chunks: 4, Chunks in use: 4. 3.65MiB allocated for chunks. 3.65MiB in use in bin. 3.65MiB client-requested in use in bin.
+I0000 00:00:1772869087.699696   18454 bfc_allocator.cc:1056] Bin (1048576): 	Total Chunks: 1, Chunks in use: 1. 1.83MiB allocated for chunks. 1.83MiB in use in bin. 1.83MiB client-requested in use in bin.
+I0000 00:00:1772869087.699705   18454 bfc_allocator.cc:1056] Bin (2097152): 	Total Chunks: 0, Chunks in use: 0. 0B allocated for chunks. 0B in use in bin. 0B client-requested in use in bin.
+I0000 00:00:1772869087.699712   18454 bfc_allocator.cc:1056] Bin (4194304): 	Total Chunks: 4, Chunks in use: 4. 30.44MiB allocated for chunks. 30.44MiB in use in bin. 30.44MiB client-requested in use in bin.
+I0000 00:00:1772869087.699721   18454 bfc_allocator.cc:1056] Bin (8388608): 	Total Chunks: 0, Chunks in use: 0. 0B allocated for chunks. 0B in use in bin. 0B client-requested in use in bin.
+I0000 00:00:1772869087.699728   18454 bfc_allocator.cc:1056] Bin (16777216): 	Total Chunks: 1, Chunks in use: 1. 30.44MiB allocated for chunks. 30.44MiB in use in bin. 30.44MiB client-requested in use in bin.
+I0000 00:00:1772869087.699737   18454 bfc_allocator.cc:1056] Bin (33554432): 	Total Chunks: 1, Chunks in use: 1. 45.66MiB allocated for chunks. 45.66MiB in use in bin. 45.66MiB client-requested in use in bin.
+I0000 00:00:1772869087.699745   18454 bfc_allocator.cc:1056] Bin (67108864): 	Total Chunks: 0, Chunks in use: 0. 0B allocated for chunks. 0B in use in bin. 0B client-requested in use in bin.
+I0000 00:00:1772869087.699752   18454 bfc_allocator.cc:1056] Bin (134217728): 	Total Chunks: 0, Chunks in use: 0. 0B allocated for chunks. 0B in use in bin. 0B client-requested in use in bin.
+I0000 00:00:1772869087.699759   18454 bfc_allocator.cc:1056] Bin (268435456): 	Total Chunks: 1, Chunks in use: 0. 7.11GiB allocated for chunks. 0B in use in bin. 0B client-requested in use in bin.
+I0000 00:00:1772869087.699766   18454 bfc_allocator.cc:1072] Bin for 11.30GiB was 256.00MiB, Chunk State: 
+I0000 00:00:1772869087.699771   18454 bfc_allocator.cc:1078]   Size: 7.11GiB | Requested Size: 23.61MiB | in_use: 0 | bin_num: 20, prev:   Size: 256B | Requested Size: 4B | in_use: 1 | bin_num: -1
+I0000 00:00:1772869087.699781   18454 bfc_allocator.cc:1085] Next region of size 7749992448
+I0000 00:00:1772869087.699789   18454 bfc_allocator.cc:1105] InUse at 7144da000000 of size 256 next 1
+I0000 00:00:1772869087.699795   18454 bfc_allocator.cc:1105] InUse at 7144da000100 of size 256 next 2
+I0000 00:00:1772869087.699799   18454 bfc_allocator.cc:1105] InUse at 7144da000200 of size 256 next 3
+I0000 00:00:1772869087.699803   18454 bfc_allocator.cc:1105] InUse at 7144da000300 of size 4096 next 4
+I0000 00:00:1772869087.699807   18454 bfc_allocator.cc:1105] InUse at 7144da001300 of size 4096 next 5
+I0000 00:00:1772869087.699810   18454 bfc_allocator.cc:1105] InUse at 7144da002300 of size 4096 next 6
+I0000 00:00:1772869087.699814   18454 bfc_allocator.cc:1105] InUse at 7144da003300 of size 4096 next 7
+I0000 00:00:1772869087.699818   18454 bfc_allocator.cc:1105] InUse at 7144da004300 of size 256 next 8
+I0000 00:00:1772869087.699822   18454 bfc_allocator.cc:1105] InUse at 7144da004400 of size 8192 next 9
+I0000 00:00:1772869087.699825   18454 bfc_allocator.cc:1105] InUse at 7144da006400 of size 256 next 10
+I0000 00:00:1772869087.699829   18454 bfc_allocator.cc:1105] InUse at 7144da006500 of size 8192 next 11
+I0000 00:00:1772869087.699833   18454 bfc_allocator.cc:1105] InUse at 7144da008500 of size 256 next 12
+I0000 00:00:1772869087.699836   18454 bfc_allocator.cc:1105] InUse at 7144da008600 of size 256 next 13
+I0000 00:00:1772869087.699840   18454 bfc_allocator.cc:1105] InUse at 7144da008700 of size 256 next 14
+I0000 00:00:1772869087.699844   18454 bfc_allocator.cc:1105] InUse at 7144da008800 of size 256 next 15
+I0000 00:00:1772869087.699848   18454 bfc_allocator.cc:1105] InUse at 7144da008900 of size 47880192 next 16
+I0000 00:00:1772869087.699852   18454 bfc_allocator.cc:1105] InUse at 7144dcdb2100 of size 31920128 next 17
+I0000 00:00:1772869087.699856   18454 bfc_allocator.cc:1105] InUse at 7144dec23100 of size 7980032 next 18
+I0000 00:00:1772869087.699860   18454 bfc_allocator.cc:1105] InUse at 7144df3bf500 of size 7980032 next 19
+I0000 00:00:1772869087.699868   18454 bfc_allocator.cc:1105] InUse at 7144dfb5b900 of size 1915392 next 20
+I0000 00:00:1772869087.699872   18454 bfc_allocator.cc:1105] InUse at 7144dfd2f300 of size 957696 next 21
+I0000 00:00:1772869087.699878   18454 bfc_allocator.cc:1105] InUse at 7144dfe19000 of size 957696 next 22
+I0000 00:00:1772869087.699881   18454 bfc_allocator.cc:1105] InUse at 7144dff02d00 of size 957696 next 23
+I0000 00:00:1772869087.699888   18454 bfc_allocator.cc:1105] InUse at 7144dffeca00 of size 957696 next 24
+I0000 00:00:1772869087.699892   18454 bfc_allocator.cc:1105] InUse at 7144e00d6700 of size 7980032 next 25
+I0000 00:00:1772869087.699895   18454 bfc_allocator.cc:1105] InUse at 7144e0872b00 of size 7980032 next 26
+I0000 00:00:1772869087.699903   18454 bfc_allocator.cc:1105] InUse at 7144e100ef00 of size 256 next 27
+I0000 00:00:1772869087.699906   18454 bfc_allocator.cc:1105] InUse at 7144e100f000 of size 256 next 28
+I0000 00:00:1772869087.699910   18454 bfc_allocator.cc:1105] InUse at 7144e100f100 of size 256 next 29
+I0000 00:00:1772869087.699913   18454 bfc_allocator.cc:1105] InUse at 7144e100f200 of size 256 next 30
+I0000 00:00:1772869087.699915   18454 bfc_allocator.cc:1105] InUse at 7144e100f300 of size 256 next 31
+I0000 00:00:1772869087.699917   18454 bfc_allocator.cc:1105] InUse at 7144e100f400 of size 256 next 32
+I0000 00:00:1772869087.699918   18454 bfc_allocator.cc:1105] InUse at 7144e100f500 of size 256 next 33
+I0000 00:00:1772869087.699920   18454 bfc_allocator.cc:1105] InUse at 7144e100f600 of size 256 next 34
+I0000 00:00:1772869087.699921   18454 bfc_allocator.cc:1105] InUse at 7144e100f700 of size 256 next 35
+I0000 00:00:1772869087.699923   18454 bfc_allocator.cc:1105] InUse at 7144e100f800 of size 256 next 36
+I0000 00:00:1772869087.699924   18454 bfc_allocator.cc:1105] InUse at 7144e100f900 of size 256 next 37
+I0000 00:00:1772869087.699926   18454 bfc_allocator.cc:1105] InUse at 7144e100fa00 of size 256 next 38
+I0000 00:00:1772869087.699928   18454 bfc_allocator.cc:1105] InUse at 7144e100fb00 of size 256 next 39
+I0000 00:00:1772869087.699929   18454 bfc_allocator.cc:1105] InUse at 7144e100fc00 of size 256 next 40
+I0000 00:00:1772869087.699931   18454 bfc_allocator.cc:1105] InUse at 7144e100fd00 of size 256 next 41
+I0000 00:00:1772869087.699935   18454 bfc_allocator.cc:1105] InUse at 7144e100fe00 of size 256 next 42
+I0000 00:00:1772869087.699937   18454 bfc_allocator.cc:1105] InUse at 7144e100ff00 of size 4096 next 43
+I0000 00:00:1772869087.699939   18454 bfc_allocator.cc:1105] InUse at 7144e1010f00 of size 4096 next 44
+I0000 00:00:1772869087.699940   18454 bfc_allocator.cc:1105] InUse at 7144e1011f00 of size 256 next 45
+I0000 00:00:1772869087.699942   18454 bfc_allocator.cc:1105] InUse at 7144e1012000 of size 256 next 46
+I0000 00:00:1772869087.699943   18454 bfc_allocator.cc:1105] InUse at 7144e1012100 of size 4096 next 47
+I0000 00:00:1772869087.699945   18454 bfc_allocator.cc:1105] InUse at 7144e1013100 of size 4096 next 48
+I0000 00:00:1772869087.699947   18454 bfc_allocator.cc:1105] InUse at 7144e1014100 of size 256 next 49
+I0000 00:00:1772869087.699948   18454 bfc_allocator.cc:1105] InUse at 7144e1014200 of size 256 next 50
+I0000 00:00:1772869087.699950   18454 bfc_allocator.cc:1105] InUse at 7144e1014300 of size 4096 next 51
+I0000 00:00:1772869087.699951   18454 bfc_allocator.cc:1105] InUse at 7144e1015300 of size 4096 next 52
+I0000 00:00:1772869087.699956   18454 bfc_allocator.cc:1105] InUse at 7144e1016300 of size 256 next 53
+I0000 00:00:1772869087.699958   18454 bfc_allocator.cc:1105] InUse at 7144e1016400 of size 256 next 54
+I0000 00:00:1772869087.699959   18454 bfc_allocator.cc:1105] InUse at 7144e1016500 of size 4096 next 55
+I0000 00:00:1772869087.699961   18454 bfc_allocator.cc:1105] InUse at 7144e1017500 of size 4096 next 56
+I0000 00:00:1772869087.699962   18454 bfc_allocator.cc:1105] InUse at 7144e1018500 of size 256 next 57
+I0000 00:00:1772869087.699964   18454 bfc_allocator.cc:1105] InUse at 7144e1018600 of size 256 next 58
+I0000 00:00:1772869087.699965   18454 bfc_allocator.cc:1105] InUse at 7144e1018700 of size 256 next 59
+I0000 00:00:1772869087.699967   18454 bfc_allocator.cc:1105] InUse at 7144e1018800 of size 256 next 60
+I0000 00:00:1772869087.699968   18454 bfc_allocator.cc:1105] InUse at 7144e1018900 of size 256 next 61
+I0000 00:00:1772869087.699970   18454 bfc_allocator.cc:1105] InUse at 7144e1018a00 of size 256 next 62
+I0000 00:00:1772869087.699972   18454 bfc_allocator.cc:1105] InUse at 7144e1018b00 of size 8192 next 63
+I0000 00:00:1772869087.699973   18454 bfc_allocator.cc:1105] InUse at 7144e101ab00 of size 8192 next 64
+I0000 00:00:1772869087.699975   18454 bfc_allocator.cc:1105] InUse at 7144e101cb00 of size 256 next 65
+I0000 00:00:1772869087.699977   18454 bfc_allocator.cc:1105] InUse at 7144e101cc00 of size 256 next 66
+I0000 00:00:1772869087.699978   18454 bfc_allocator.cc:1105] InUse at 7144e101cd00 of size 256 next 67
+I0000 00:00:1772869087.699980   18454 bfc_allocator.cc:1105] InUse at 7144e101ce00 of size 256 next 68
+I0000 00:00:1772869087.699982   18454 bfc_allocator.cc:1105] InUse at 7144e101cf00 of size 256 next 69
+I0000 00:00:1772869087.699983   18454 bfc_allocator.cc:1105] InUse at 7144e101d000 of size 256 next 70
+I0000 00:00:1772869087.699985   18454 bfc_allocator.cc:1105] InUse at 7144e101d100 of size 8192 next 71
+I0000 00:00:1772869087.699986   18454 bfc_allocator.cc:1105] InUse at 7144e101f100 of size 8192 next 72
+I0000 00:00:1772869087.699988   18454 bfc_allocator.cc:1105] InUse at 7144e1021100 of size 256 next 73
+I0000 00:00:1772869087.699989   18454 bfc_allocator.cc:1105] InUse at 7144e1021200 of size 256 next 74
+I0000 00:00:1772869087.699991   18454 bfc_allocator.cc:1105] InUse at 7144e1021300 of size 256 next 75
+I0000 00:00:1772869087.699996   18454 bfc_allocator.cc:1105] InUse at 7144e1021400 of size 256 next 76
+I0000 00:00:1772869087.699997   18454 bfc_allocator.cc:1105] InUse at 7144e1021500 of size 256 next 77
+I0000 00:00:1772869087.699999   18454 bfc_allocator.cc:1105] InUse at 7144e1021600 of size 256 next 78
+I0000 00:00:1772869087.700000   18454 bfc_allocator.cc:1105] InUse at 7144e1021700 of size 256 next 79
+I0000 00:00:1772869087.700002   18454 bfc_allocator.cc:1105] InUse at 7144e1021800 of size 256 next 80
+I0000 00:00:1772869087.700004   18454 bfc_allocator.cc:1105] InUse at 7144e1021900 of size 256 next 81
+I0000 00:00:1772869087.700005   18454 bfc_allocator.cc:1105] InUse at 7144e1021a00 of size 256 next 82
+I0000 00:00:1772869087.700007   18454 bfc_allocator.cc:1105] InUse at 7144e1021b00 of size 256 next 83
+I0000 00:00:1772869087.700008   18454 bfc_allocator.cc:1105] InUse at 7144e1021c00 of size 256 next 84
+I0000 00:00:1772869087.700010   18454 bfc_allocator.cc:1105] InUse at 7144e1021d00 of size 256 next 85
+I0000 00:00:1772869087.700011   18454 bfc_allocator.cc:1105] InUse at 7144e1021e00 of size 256 next 86
+I0000 00:00:1772869087.700013   18454 bfc_allocator.cc:1105] InUse at 7144e1021f00 of size 256 next 87
+I0000 00:00:1772869087.700018   18454 bfc_allocator.cc:1105] InUse at 7144e1022000 of size 256 next 88
+I0000 00:00:1772869087.700019   18454 bfc_allocator.cc:1105] InUse at 7144e1022100 of size 256 next 89
+I0000 00:00:1772869087.700021   18454 bfc_allocator.cc:1105] InUse at 7144e1022200 of size 4096 next 90
+I0000 00:00:1772869087.700022   18454 bfc_allocator.cc:1105] InUse at 7144e1023200 of size 4096 next 91
+I0000 00:00:1772869087.700024   18454 bfc_allocator.cc:1105] InUse at 7144e1024200 of size 4096 next 92
+I0000 00:00:1772869087.700025   18454 bfc_allocator.cc:1105] InUse at 7144e1025200 of size 4096 next 93
+I0000 00:00:1772869087.700027   18454 bfc_allocator.cc:1105] InUse at 7144e1026200 of size 256 next 94
+I0000 00:00:1772869087.700029   18454 bfc_allocator.cc:1105] InUse at 7144e1026300 of size 8192 next 95
+I0000 00:00:1772869087.700030   18454 bfc_allocator.cc:1105] InUse at 7144e1028300 of size 256 next 96
+I0000 00:00:1772869087.700035   18454 bfc_allocator.cc:1105] InUse at 7144e1028400 of size 8192 next 97
+I0000 00:00:1772869087.700036   18454 bfc_allocator.cc:1105] InUse at 7144e102a400 of size 256 next 98
+I0000 00:00:1772869087.700038   18454 bfc_allocator.cc:1105] InUse at 7144e102a500 of size 256 next 99
+I0000 00:00:1772869087.700039   18454 bfc_allocator.cc:1105] InUse at 7144e102a600 of size 256 next 100
+I0000 00:00:1772869087.700041   18454 bfc_allocator.cc:1105] InUse at 7144e102a700 of size 768 next 154
+I0000 00:00:1772869087.700043   18454 bfc_allocator.cc:1105] InUse at 7144e102aa00 of size 256 next 153
+I0000 00:00:1772869087.700044   18454 bfc_allocator.cc:1105] InUse at 7144e102ab00 of size 256 next 155
+I0000 00:00:1772869087.700046   18454 bfc_allocator.cc:1105] InUse at 7144e102ac00 of size 256 next 156
+I0000 00:00:1772869087.700047   18454 bfc_allocator.cc:1105] InUse at 7144e102ad00 of size 256 next 157
+I0000 00:00:1772869087.700049   18454 bfc_allocator.cc:1105] InUse at 7144e102ae00 of size 256 next 159
+I0000 00:00:1772869087.700053   18454 bfc_allocator.cc:1105] InUse at 7144e102af00 of size 256 next 158
+I0000 00:00:1772869087.700055   18454 bfc_allocator.cc:1105] InUse at 7144e102b000 of size 256 next 152
+I0000 00:00:1772869087.700057   18454 bfc_allocator.cc:1105] InUse at 7144e102b100 of size 256 next 151
+I0000 00:00:1772869087.700058   18454 bfc_allocator.cc:1105] InUse at 7144e102b200 of size 256 next 150
+I0000 00:00:1772869087.700060   18454 bfc_allocator.cc:1105] InUse at 7144e102b300 of size 256 next 102
+I0000 00:00:1772869087.700061   18454 bfc_allocator.cc:1105] InUse at 7144e102b400 of size 256 next 104
+I0000 00:00:1772869087.700063   18454 bfc_allocator.cc:1105] InUse at 7144e102b500 of size 256 next 105
+I0000 00:00:1772869087.700064   18454 bfc_allocator.cc:1105] InUse at 7144e102b600 of size 256 next 106
+I0000 00:00:1772869087.700066   18454 bfc_allocator.cc:1105] InUse at 7144e102b700 of size 256 next 101
+I0000 00:00:1772869087.700067   18454 bfc_allocator.cc:1105] InUse at 7144e102b800 of size 256 next 103
+I0000 00:00:1772869087.700069   18454 bfc_allocator.cc:1105] InUse at 7144e102b900 of size 256 next 107
+I0000 00:00:1772869087.700070   18454 bfc_allocator.cc:1105] InUse at 7144e102ba00 of size 256 next 108
+I0000 00:00:1772869087.700072   18454 bfc_allocator.cc:1105] InUse at 7144e102bb00 of size 256 next 109
+I0000 00:00:1772869087.700074   18454 bfc_allocator.cc:1105] InUse at 7144e102bc00 of size 256 next 110
+I0000 00:00:1772869087.700075   18454 bfc_allocator.cc:1105] InUse at 7144e102bd00 of size 256 next 111
+I0000 00:00:1772869087.700077   18454 bfc_allocator.cc:1105] InUse at 7144e102be00 of size 256 next 112
+I0000 00:00:1772869087.700079   18454 bfc_allocator.cc:1105] InUse at 7144e102bf00 of size 256 next 113
+I0000 00:00:1772869087.700080   18454 bfc_allocator.cc:1105] InUse at 7144e102c000 of size 256 next 114
+I0000 00:00:1772869087.700085   18454 bfc_allocator.cc:1105] InUse at 7144e102c100 of size 256 next 115
+I0000 00:00:1772869087.700086   18454 bfc_allocator.cc:1105] InUse at 7144e102c200 of size 256 next 116
+I0000 00:00:1772869087.700088   18454 bfc_allocator.cc:1105] InUse at 7144e102c300 of size 256 next 117
+I0000 00:00:1772869087.700090   18454 bfc_allocator.cc:1105] InUse at 7144e102c400 of size 256 next 118
+I0000 00:00:1772869087.700091   18454 bfc_allocator.cc:1105] InUse at 7144e102c500 of size 256 next 119
+I0000 00:00:1772869087.700093   18454 bfc_allocator.cc:1105] InUse at 7144e102c600 of size 256 next 120
+I0000 00:00:1772869087.700094   18454 bfc_allocator.cc:1105] Free  at 7144e102c700 of size 7632369920 next 18446744073709551615
+I0000 00:00:1772869087.700096   18454 bfc_allocator.cc:1110]      Summary of in-use Chunks by size: 
+I0000 00:00:1772869087.700098   18454 bfc_allocator.cc:1113] 94 Chunks of size 256 totalling 23.5KiB
+I0000 00:00:1772869087.700103   18454 bfc_allocator.cc:1113] 1 Chunks of size 768 totalling 768B
+I0000 00:00:1772869087.700105   18454 bfc_allocator.cc:1113] 16 Chunks of size 4096 totalling 64.0KiB
+I0000 00:00:1772869087.700107   18454 bfc_allocator.cc:1113] 8 Chunks of size 8192 totalling 64.0KiB
+I0000 00:00:1772869087.700109   18454 bfc_allocator.cc:1113] 4 Chunks of size 957696 totalling 3.65MiB
+I0000 00:00:1772869087.700110   18454 bfc_allocator.cc:1113] 1 Chunks of size 1915392 totalling 1.83MiB
+I0000 00:00:1772869087.700112   18454 bfc_allocator.cc:1113] 4 Chunks of size 7980032 totalling 30.44MiB
+I0000 00:00:1772869087.700117   18454 bfc_allocator.cc:1113] 1 Chunks of size 31920128 totalling 30.44MiB
+I0000 00:00:1772869087.700119   18454 bfc_allocator.cc:1113] 1 Chunks of size 47880192 totalling 45.66MiB
+I0000 00:00:1772869087.700121   18454 bfc_allocator.cc:1117] Sum Total of in-use chunks: 112.17MiB
+I0000 00:00:1772869087.700123   18454 bfc_allocator.cc:1119] Total size in pool: 7.22GiB memory_limit_: 7.22GiB available size: 0B curr_region_allocation_bytes_: 14.43GiB
+I0000 00:00:1772869087.700125   18454 bfc_allocator.cc:1128] Stats: 
+Limit:                         7.22GiB
+InUse:                       112.17MiB
+MaxInUse:                      1.71GiB
+NumAllocs:                        1352
+MaxAllocSize:                103.67MiB
+Reserved:                           0B
+PeakReserved:                       0B
+LargestFreeBlock:                   0B
+
+W0000 00:00:1772869087.700131   18454 bfc_allocator.cc:513] **__________________________________________________________________________________________________
+FAIL C=4000000 loss=0.000000 ps_norm=NaN (corrupt result)
+error copying to host: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 11.30GiB. [tf-allocator-allocation-error='']
+error copying to host: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 11.30GiB. [tf-allocator-allocation-error='']
+error copying to host: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 11.30GiB. [tf-allocator-allocation-error='']
+error copying to host: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 11.30GiB. [tf-allocator-allocation-error='']
+error copying to host: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 11.30GiB. [tf-allocator-allocation-error='']
+error copying to host: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 11.30GiB. [tf-allocator-allocation-error='']
+error copying to host: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 11.30GiB. [tf-allocator-allocation-error='']
+error copying to host: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 11.30GiB. [tf-allocator-allocation-error='']
+error copying to host: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 11.30GiB. [tf-allocator-allocation-error='']
+error copying to host: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 11.30GiB. [tf-allocator-allocation-error='']
+error copying to host: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 11.30GiB. [tf-allocator-allocation-error='']
+error copying to host: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 11.30GiB. [tf-allocator-allocation-error='']
+error copying to host: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 11.30GiB. [tf-allocator-allocation-error='']
+error copying to host: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 11.30GiB. [tf-allocator-allocation-error='']
+error copying to host: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 11.30GiB. [tf-allocator-allocation-error='']
+---
+Finished startup file
+probe C=3000000 L=181 M=182 B=8219 B_micro=8219
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+I0000 00:00:1772869097.452966   20004 service.cc:153] XLA service 0xbde79e0 initialized for platform CUDA (this does not guarantee that XLA will be used). Devices:
+I0000 00:00:1772869097.452983   20004 service.cc:161]   StreamExecutor [0]: NVIDIA GeForce RTX 3080, Compute Capability 8.6 (Driver: 13.1.0; Runtime: 13.0.0; Toolkit: 13.0.0; DNN: 9.14.0)
+I0000 00:00:1772869097.453392   20004 se_gpu_pjrt_client.cc:1448] Using BFC allocator.
+I0000 00:00:1772869097.453427   20004 gpu_helpers.cc:141] XLA backend allocating 7749992448 bytes on device 0 for BFCAllocator.
+I0000 00:00:1772869097.453463   20004 gpu_helpers.cc:183] XLA backend will use up to 2583330816 bytes on device 0 for CollectiveBFCAllocator.
+I0000 00:00:1772869097.460186   20004 cuda_dnn.cc:461] Loaded cuDNN version 91400
+I0000 00:00:1772869735.452388   20004 dot_merger.cc:481] Merging Dots in computation: main.590
+I0000 00:00:1772869739.134177   20103 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_transpose_2337', 32 bytes spill stores, 32 bytes spill loads
+
+I0000 00:00:1772869746.531878   20099 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'input_add_transpose_fusion_2', 20 bytes spill stores, 20 bytes spill loads
+
+I0000 00:00:1772869752.129526   20099 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'input_transpose_fusion_304', 16 bytes spill stores, 16 bytes spill loads
+
+I0000 00:00:1772869756.985863   20099 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'input_reduce_fusion_2', 348 bytes spill stores, 348 bytes spill loads
+
+W0000 00:00:1772869761.044916   20004 hlo_rematerialization.cc:3204] Can't reduce memory use below 7.25GiB (7784378232 bytes) by rematerialization; only reduced to 8.62GiB (9251400860 bytes), down from 12.63GiB (13563616012 bytes) originally
+I0000 00:00:1772869773.198391   20004 subprocess_compilation.cc:348] ptxas warning : Registers are spilled to local memory in function 'input_reduce_fusion_2', 348 bytes spill stores, 348 bytes spill loads
+ptxas warning : Registers are spilled to local memory in function 'input_transpose_fusion_304', 16 bytes spill stores, 16 bytes spill loads
+
+W0000 00:00:1772869791.090162   20004 bfc_allocator.cc:502] Allocator (GPU_0_bfc) ran out of memory trying to allocate 8.60GiB (rounded to 9236412160)requested by op 
+If the cause is memory fragmentation maybe the environment variable 'TF_GPU_ALLOCATOR=cuda_malloc_async' will improve the situation. 
+Current allocation summary follows.
+Current allocation summary follows.
+I0000 00:00:1772869791.090223   20004 bfc_allocator.cc:1049] BFCAllocator dump for GPU_0_bfc
+I0000 00:00:1772869791.090244   20004 bfc_allocator.cc:1056] Bin (256): 	Total Chunks: 94, Chunks in use: 94. 23.5KiB allocated for chunks. 23.5KiB in use in bin. 4.8KiB client-requested in use in bin.
+I0000 00:00:1772869791.090254   20004 bfc_allocator.cc:1056] Bin (512): 	Total Chunks: 1, Chunks in use: 1. 768B allocated for chunks. 768B in use in bin. 720B client-requested in use in bin.
+I0000 00:00:1772869791.090261   20004 bfc_allocator.cc:1056] Bin (1024): 	Total Chunks: 0, Chunks in use: 0. 0B allocated for chunks. 0B in use in bin. 0B client-requested in use in bin.
+I0000 00:00:1772869791.090266   20004 bfc_allocator.cc:1056] Bin (2048): 	Total Chunks: 0, Chunks in use: 0. 0B allocated for chunks. 0B in use in bin. 0B client-requested in use in bin.
+I0000 00:00:1772869791.090270   20004 bfc_allocator.cc:1056] Bin (4096): 	Total Chunks: 16, Chunks in use: 16. 64.0KiB allocated for chunks. 64.0KiB in use in bin. 64.0KiB client-requested in use in bin.
+I0000 00:00:1772869791.090278   20004 bfc_allocator.cc:1056] Bin (8192): 	Total Chunks: 8, Chunks in use: 8. 64.0KiB allocated for chunks. 64.0KiB in use in bin. 64.0KiB client-requested in use in bin.
+I0000 00:00:1772869791.090283   20004 bfc_allocator.cc:1056] Bin (16384): 	Total Chunks: 0, Chunks in use: 0. 0B allocated for chunks. 0B in use in bin. 0B client-requested in use in bin.
+I0000 00:00:1772869791.090290   20004 bfc_allocator.cc:1056] Bin (32768): 	Total Chunks: 0, Chunks in use: 0. 0B allocated for chunks. 0B in use in bin. 0B client-requested in use in bin.
+I0000 00:00:1772869791.090295   20004 bfc_allocator.cc:1056] Bin (65536): 	Total Chunks: 0, Chunks in use: 0. 0B allocated for chunks. 0B in use in bin. 0B client-requested in use in bin.
+I0000 00:00:1772869791.090302   20004 bfc_allocator.cc:1056] Bin (131072): 	Total Chunks: 0, Chunks in use: 0. 0B allocated for chunks. 0B in use in bin. 0B client-requested in use in bin.
+I0000 00:00:1772869791.090306   20004 bfc_allocator.cc:1056] Bin (262144): 	Total Chunks: 0, Chunks in use: 0. 0B allocated for chunks. 0B in use in bin. 0B client-requested in use in bin.
+I0000 00:00:1772869791.090313   20004 bfc_allocator.cc:1056] Bin (524288): 	Total Chunks: 4, Chunks in use: 4. 3.01MiB allocated for chunks. 3.01MiB in use in bin. 3.01MiB client-requested in use in bin.
+I0000 00:00:1772869791.090318   20004 bfc_allocator.cc:1056] Bin (1048576): 	Total Chunks: 1, Chunks in use: 1. 1.50MiB allocated for chunks. 1.50MiB in use in bin. 1.50MiB client-requested in use in bin.
+I0000 00:00:1772869791.090323   20004 bfc_allocator.cc:1056] Bin (2097152): 	Total Chunks: 0, Chunks in use: 0. 0B allocated for chunks. 0B in use in bin. 0B client-requested in use in bin.
+I0000 00:00:1772869791.090327   20004 bfc_allocator.cc:1056] Bin (4194304): 	Total Chunks: 4, Chunks in use: 4. 22.83MiB allocated for chunks. 22.83MiB in use in bin. 22.82MiB client-requested in use in bin.
+I0000 00:00:1772869791.090332   20004 bfc_allocator.cc:1056] Bin (8388608): 	Total Chunks: 0, Chunks in use: 0. 0B allocated for chunks. 0B in use in bin. 0B client-requested in use in bin.
+I0000 00:00:1772869791.090336   20004 bfc_allocator.cc:1056] Bin (16777216): 	Total Chunks: 1, Chunks in use: 1. 22.83MiB allocated for chunks. 22.83MiB in use in bin. 22.82MiB client-requested in use in bin.
+I0000 00:00:1772869791.090345   20004 bfc_allocator.cc:1056] Bin (33554432): 	Total Chunks: 1, Chunks in use: 1. 34.24MiB allocated for chunks. 34.24MiB in use in bin. 34.24MiB client-requested in use in bin.
+I0000 00:00:1772869791.090349   20004 bfc_allocator.cc:1056] Bin (67108864): 	Total Chunks: 0, Chunks in use: 0. 0B allocated for chunks. 0B in use in bin. 0B client-requested in use in bin.
+I0000 00:00:1772869791.090353   20004 bfc_allocator.cc:1056] Bin (134217728): 	Total Chunks: 0, Chunks in use: 0. 0B allocated for chunks. 0B in use in bin. 0B client-requested in use in bin.
+I0000 00:00:1772869791.090356   20004 bfc_allocator.cc:1056] Bin (268435456): 	Total Chunks: 1, Chunks in use: 0. 7.13GiB allocated for chunks. 0B in use in bin. 0B client-requested in use in bin.
+I0000 00:00:1772869791.090359   20004 bfc_allocator.cc:1072] Bin for 8.60GiB was 256.00MiB, Chunk State: 
+I0000 00:00:1772869791.090364   20004 bfc_allocator.cc:1078]   Size: 7.13GiB | Requested Size: 21.71MiB | in_use: 0 | bin_num: 20, prev:   Size: 256B | Requested Size: 4B | in_use: 1 | bin_num: -1
+I0000 00:00:1772869791.090369   20004 bfc_allocator.cc:1085] Next region of size 7749992448
+I0000 00:00:1772869791.090374   20004 bfc_allocator.cc:1105] InUse at 72ac18000000 of size 256 next 1
+I0000 00:00:1772869791.090378   20004 bfc_allocator.cc:1105] InUse at 72ac18000100 of size 256 next 2
+I0000 00:00:1772869791.090380   20004 bfc_allocator.cc:1105] InUse at 72ac18000200 of size 256 next 3
+I0000 00:00:1772869791.090383   20004 bfc_allocator.cc:1105] InUse at 72ac18000300 of size 4096 next 4
+I0000 00:00:1772869791.090385   20004 bfc_allocator.cc:1105] InUse at 72ac18001300 of size 4096 next 5
+I0000 00:00:1772869791.090387   20004 bfc_allocator.cc:1105] InUse at 72ac18002300 of size 4096 next 6
+I0000 00:00:1772869791.090392   20004 bfc_allocator.cc:1105] InUse at 72ac18003300 of size 4096 next 7
+I0000 00:00:1772869791.090394   20004 bfc_allocator.cc:1105] InUse at 72ac18004300 of size 256 next 8
+I0000 00:00:1772869791.090396   20004 bfc_allocator.cc:1105] InUse at 72ac18004400 of size 8192 next 9
+I0000 00:00:1772869791.090398   20004 bfc_allocator.cc:1105] InUse at 72ac18006400 of size 256 next 10
+I0000 00:00:1772869791.090400   20004 bfc_allocator.cc:1105] InUse at 72ac18006500 of size 8192 next 11
+I0000 00:00:1772869791.090406   20004 bfc_allocator.cc:1105] InUse at 72ac18008500 of size 256 next 12
+I0000 00:00:1772869791.090408   20004 bfc_allocator.cc:1105] InUse at 72ac18008600 of size 256 next 13
+I0000 00:00:1772869791.090410   20004 bfc_allocator.cc:1105] InUse at 72ac18008700 of size 256 next 14
+I0000 00:00:1772869791.090412   20004 bfc_allocator.cc:1105] InUse at 72ac18008800 of size 256 next 15
+I0000 00:00:1772869791.090414   20004 bfc_allocator.cc:1105] InUse at 72ac18008900 of size 35900672 next 16
+I0000 00:00:1772869791.090420   20004 bfc_allocator.cc:1105] InUse at 72ac1a245600 of size 23933952 next 17
+I0000 00:00:1772869791.090422   20004 bfc_allocator.cc:1105] InUse at 72ac1b918a00 of size 5983488 next 18
+I0000 00:00:1772869791.090424   20004 bfc_allocator.cc:1105] InUse at 72ac1becd700 of size 5983488 next 19
+I0000 00:00:1772869791.090428   20004 bfc_allocator.cc:1105] InUse at 72ac1c482400 of size 1578240 next 20
+I0000 00:00:1772869791.090430   20004 bfc_allocator.cc:1105] InUse at 72ac1c603900 of size 789248 next 21
+I0000 00:00:1772869791.090432   20004 bfc_allocator.cc:1105] InUse at 72ac1c6c4400 of size 789248 next 22
+I0000 00:00:1772869791.090434   20004 bfc_allocator.cc:1105] InUse at 72ac1c784f00 of size 789248 next 23
+I0000 00:00:1772869791.090436   20004 bfc_allocator.cc:1105] InUse at 72ac1c845a00 of size 789248 next 24
+I0000 00:00:1772869791.090442   20004 bfc_allocator.cc:1105] InUse at 72ac1c906500 of size 5983488 next 25
+I0000 00:00:1772869791.090444   20004 bfc_allocator.cc:1105] InUse at 72ac1cebb200 of size 5983488 next 26
+I0000 00:00:1772869791.090446   20004 bfc_allocator.cc:1105] InUse at 72ac1d46ff00 of size 256 next 27
+I0000 00:00:1772869791.090448   20004 bfc_allocator.cc:1105] InUse at 72ac1d470000 of size 256 next 28
+I0000 00:00:1772869791.090450   20004 bfc_allocator.cc:1105] InUse at 72ac1d470100 of size 256 next 29
+I0000 00:00:1772869791.090452   20004 bfc_allocator.cc:1105] InUse at 72ac1d470200 of size 256 next 30
+I0000 00:00:1772869791.090457   20004 bfc_allocator.cc:1105] InUse at 72ac1d470300 of size 256 next 31
+I0000 00:00:1772869791.090459   20004 bfc_allocator.cc:1105] InUse at 72ac1d470400 of size 256 next 32
+I0000 00:00:1772869791.090461   20004 bfc_allocator.cc:1105] InUse at 72ac1d470500 of size 256 next 33
+I0000 00:00:1772869791.090463   20004 bfc_allocator.cc:1105] InUse at 72ac1d470600 of size 256 next 34
+I0000 00:00:1772869791.090465   20004 bfc_allocator.cc:1105] InUse at 72ac1d470700 of size 256 next 35
+I0000 00:00:1772869791.090467   20004 bfc_allocator.cc:1105] InUse at 72ac1d470800 of size 256 next 36
+I0000 00:00:1772869791.090472   20004 bfc_allocator.cc:1105] InUse at 72ac1d470900 of size 256 next 37
+I0000 00:00:1772869791.090474   20004 bfc_allocator.cc:1105] InUse at 72ac1d470a00 of size 256 next 38
+I0000 00:00:1772869791.090476   20004 bfc_allocator.cc:1105] InUse at 72ac1d470b00 of size 256 next 39
+I0000 00:00:1772869791.090478   20004 bfc_allocator.cc:1105] InUse at 72ac1d470c00 of size 256 next 40
+I0000 00:00:1772869791.090480   20004 bfc_allocator.cc:1105] InUse at 72ac1d470d00 of size 256 next 41
+I0000 00:00:1772869791.090482   20004 bfc_allocator.cc:1105] InUse at 72ac1d470e00 of size 256 next 42
+I0000 00:00:1772869791.090486   20004 bfc_allocator.cc:1105] InUse at 72ac1d470f00 of size 256 next 43
+I0000 00:00:1772869791.090488   20004 bfc_allocator.cc:1105] InUse at 72ac1d471000 of size 256 next 44
+I0000 00:00:1772869791.090490   20004 bfc_allocator.cc:1105] InUse at 72ac1d471100 of size 256 next 45
+I0000 00:00:1772869791.090492   20004 bfc_allocator.cc:1105] InUse at 72ac1d471200 of size 256 next 46
+I0000 00:00:1772869791.090494   20004 bfc_allocator.cc:1105] InUse at 72ac1d471300 of size 4096 next 47
+I0000 00:00:1772869791.090496   20004 bfc_allocator.cc:1105] InUse at 72ac1d472300 of size 4096 next 48
+I0000 00:00:1772869791.090501   20004 bfc_allocator.cc:1105] InUse at 72ac1d473300 of size 256 next 49
+I0000 00:00:1772869791.090503   20004 bfc_allocator.cc:1105] InUse at 72ac1d473400 of size 256 next 50
+I0000 00:00:1772869791.090505   20004 bfc_allocator.cc:1105] InUse at 72ac1d473500 of size 4096 next 51
+I0000 00:00:1772869791.090507   20004 bfc_allocator.cc:1105] InUse at 72ac1d474500 of size 4096 next 52
+I0000 00:00:1772869791.090509   20004 bfc_allocator.cc:1105] InUse at 72ac1d475500 of size 256 next 53
+I0000 00:00:1772869791.090511   20004 bfc_allocator.cc:1105] InUse at 72ac1d475600 of size 256 next 54
+I0000 00:00:1772869791.090516   20004 bfc_allocator.cc:1105] InUse at 72ac1d475700 of size 4096 next 55
+I0000 00:00:1772869791.090518   20004 bfc_allocator.cc:1105] InUse at 72ac1d476700 of size 4096 next 56
+I0000 00:00:1772869791.090520   20004 bfc_allocator.cc:1105] InUse at 72ac1d477700 of size 256 next 57
+I0000 00:00:1772869791.090522   20004 bfc_allocator.cc:1105] InUse at 72ac1d477800 of size 256 next 58
+I0000 00:00:1772869791.090524   20004 bfc_allocator.cc:1105] InUse at 72ac1d477900 of size 4096 next 59
+I0000 00:00:1772869791.090526   20004 bfc_allocator.cc:1105] InUse at 72ac1d478900 of size 4096 next 60
+I0000 00:00:1772869791.090528   20004 bfc_allocator.cc:1105] InUse at 72ac1d479900 of size 256 next 61
+I0000 00:00:1772869791.090530   20004 bfc_allocator.cc:1105] InUse at 72ac1d479a00 of size 256 next 62
+I0000 00:00:1772869791.090532   20004 bfc_allocator.cc:1105] InUse at 72ac1d479b00 of size 256 next 63
+I0000 00:00:1772869791.090534   20004 bfc_allocator.cc:1105] InUse at 72ac1d479c00 of size 256 next 64
+I0000 00:00:1772869791.090539   20004 bfc_allocator.cc:1105] InUse at 72ac1d479d00 of size 256 next 65
+I0000 00:00:1772869791.090541   20004 bfc_allocator.cc:1105] InUse at 72ac1d479e00 of size 256 next 66
+I0000 00:00:1772869791.090543   20004 bfc_allocator.cc:1105] InUse at 72ac1d479f00 of size 8192 next 67
+I0000 00:00:1772869791.090545   20004 bfc_allocator.cc:1105] InUse at 72ac1d47bf00 of size 8192 next 68
+I0000 00:00:1772869791.090547   20004 bfc_allocator.cc:1105] InUse at 72ac1d47df00 of size 256 next 69
+I0000 00:00:1772869791.090549   20004 bfc_allocator.cc:1105] InUse at 72ac1d47e000 of size 256 next 70
+I0000 00:00:1772869791.090554   20004 bfc_allocator.cc:1105] InUse at 72ac1d47e100 of size 256 next 71
+I0000 00:00:1772869791.090556   20004 bfc_allocator.cc:1105] InUse at 72ac1d47e200 of size 256 next 72
+I0000 00:00:1772869791.090558   20004 bfc_allocator.cc:1105] InUse at 72ac1d47e300 of size 256 next 73
+I0000 00:00:1772869791.090560   20004 bfc_allocator.cc:1105] InUse at 72ac1d47e400 of size 256 next 74
+I0000 00:00:1772869791.090562   20004 bfc_allocator.cc:1105] InUse at 72ac1d47e500 of size 8192 next 75
+I0000 00:00:1772869791.090564   20004 bfc_allocator.cc:1105] InUse at 72ac1d480500 of size 8192 next 76
+I0000 00:00:1772869791.090569   20004 bfc_allocator.cc:1105] InUse at 72ac1d482500 of size 256 next 77
+I0000 00:00:1772869791.090571   20004 bfc_allocator.cc:1105] InUse at 72ac1d482600 of size 256 next 78
+I0000 00:00:1772869791.090573   20004 bfc_allocator.cc:1105] InUse at 72ac1d482700 of size 256 next 79
+I0000 00:00:1772869791.090575   20004 bfc_allocator.cc:1105] InUse at 72ac1d482800 of size 256 next 80
+I0000 00:00:1772869791.090577   20004 bfc_allocator.cc:1105] InUse at 72ac1d482900 of size 256 next 81
+I0000 00:00:1772869791.090579   20004 bfc_allocator.cc:1105] InUse at 72ac1d482a00 of size 256 next 82
+I0000 00:00:1772869791.090584   20004 bfc_allocator.cc:1105] InUse at 72ac1d482b00 of size 256 next 83
+I0000 00:00:1772869791.090586   20004 bfc_allocator.cc:1105] InUse at 72ac1d482c00 of size 256 next 84
+I0000 00:00:1772869791.090588   20004 bfc_allocator.cc:1105] InUse at 72ac1d482d00 of size 256 next 85
+I0000 00:00:1772869791.090590   20004 bfc_allocator.cc:1105] InUse at 72ac1d482e00 of size 256 next 86
+I0000 00:00:1772869791.090592   20004 bfc_allocator.cc:1105] InUse at 72ac1d482f00 of size 256 next 87
+I0000 00:00:1772869791.090594   20004 bfc_allocator.cc:1105] InUse at 72ac1d483000 of size 256 next 88
+I0000 00:00:1772869791.090599   20004 bfc_allocator.cc:1105] InUse at 72ac1d483100 of size 256 next 89
+I0000 00:00:1772869791.090601   20004 bfc_allocator.cc:1105] InUse at 72ac1d483200 of size 256 next 90
+I0000 00:00:1772869791.090603   20004 bfc_allocator.cc:1105] InUse at 72ac1d483300 of size 4096 next 91
+I0000 00:00:1772869791.090605   20004 bfc_allocator.cc:1105] InUse at 72ac1d484300 of size 4096 next 92
+I0000 00:00:1772869791.090607   20004 bfc_allocator.cc:1105] InUse at 72ac1d485300 of size 4096 next 93
+I0000 00:00:1772869791.090609   20004 bfc_allocator.cc:1105] InUse at 72ac1d486300 of size 4096 next 94
+I0000 00:00:1772869791.090614   20004 bfc_allocator.cc:1105] InUse at 72ac1d487300 of size 8192 next 95
+I0000 00:00:1772869791.090616   20004 bfc_allocator.cc:1105] InUse at 72ac1d489300 of size 256 next 96
+I0000 00:00:1772869791.090618   20004 bfc_allocator.cc:1105] InUse at 72ac1d489400 of size 8192 next 97
+I0000 00:00:1772869791.090620   20004 bfc_allocator.cc:1105] InUse at 72ac1d48b400 of size 256 next 98
+I0000 00:00:1772869791.090622   20004 bfc_allocator.cc:1105] InUse at 72ac1d48b500 of size 256 next 99
+I0000 00:00:1772869791.090624   20004 bfc_allocator.cc:1105] InUse at 72ac1d48b600 of size 256 next 100
+I0000 00:00:1772869791.090626   20004 bfc_allocator.cc:1105] InUse at 72ac1d48b700 of size 768 next 115
+I0000 00:00:1772869791.090628   20004 bfc_allocator.cc:1105] InUse at 72ac1d48ba00 of size 256 next 113
+I0000 00:00:1772869791.090630   20004 bfc_allocator.cc:1105] InUse at 72ac1d48bb00 of size 256 next 116
+I0000 00:00:1772869791.090635   20004 bfc_allocator.cc:1105] InUse at 72ac1d48bc00 of size 256 next 112
+I0000 00:00:1772869791.090637   20004 bfc_allocator.cc:1105] InUse at 72ac1d48bd00 of size 256 next 114
+I0000 00:00:1772869791.090639   20004 bfc_allocator.cc:1105] InUse at 72ac1d48be00 of size 256 next 111
+I0000 00:00:1772869791.090641   20004 bfc_allocator.cc:1105] InUse at 72ac1d48bf00 of size 256 next 117
+I0000 00:00:1772869791.090643   20004 bfc_allocator.cc:1105] InUse at 72ac1d48c000 of size 256 next 118
+I0000 00:00:1772869791.090645   20004 bfc_allocator.cc:1105] InUse at 72ac1d48c100 of size 256 next 119
+I0000 00:00:1772869791.090650   20004 bfc_allocator.cc:1105] InUse at 72ac1d48c200 of size 256 next 120
+I0000 00:00:1772869791.090652   20004 bfc_allocator.cc:1105] InUse at 72ac1d48c300 of size 256 next 121
+I0000 00:00:1772869791.090654   20004 bfc_allocator.cc:1105] InUse at 72ac1d48c400 of size 256 next 122
+I0000 00:00:1772869791.090656   20004 bfc_allocator.cc:1105] InUse at 72ac1d48c500 of size 256 next 123
+I0000 00:00:1772869791.090658   20004 bfc_allocator.cc:1105] InUse at 72ac1d48c600 of size 256 next 124
+I0000 00:00:1772869791.090660   20004 bfc_allocator.cc:1105] InUse at 72ac1d48c700 of size 256 next 125
+I0000 00:00:1772869791.090665   20004 bfc_allocator.cc:1105] InUse at 72ac1d48c800 of size 256 next 126
+I0000 00:00:1772869791.090675   20004 bfc_allocator.cc:1105] InUse at 72ac1d48c900 of size 256 next 127
+I0000 00:00:1772869791.090678   20004 bfc_allocator.cc:1105] InUse at 72ac1d48ca00 of size 256 next 128
+I0000 00:00:1772869791.090683   20004 bfc_allocator.cc:1105] InUse at 72ac1d48cb00 of size 256 next 129
+I0000 00:00:1772869791.090685   20004 bfc_allocator.cc:1105] InUse at 72ac1d48cc00 of size 256 next 130
+I0000 00:00:1772869791.090687   20004 bfc_allocator.cc:1105] InUse at 72ac1d48cd00 of size 256 next 131
+I0000 00:00:1772869791.090689   20004 bfc_allocator.cc:1105] InUse at 72ac1d48ce00 of size 256 next 132
+I0000 00:00:1772869791.090691   20004 bfc_allocator.cc:1105] InUse at 72ac1d48cf00 of size 256 next 133
+I0000 00:00:1772869791.090693   20004 bfc_allocator.cc:1105] InUse at 72ac1d48d000 of size 256 next 134
+I0000 00:00:1772869791.090695   20004 bfc_allocator.cc:1105] InUse at 72ac1d48d100 of size 256 next 135
+I0000 00:00:1772869791.090701   20004 bfc_allocator.cc:1105] InUse at 72ac1d48d200 of size 256 next 136
+I0000 00:00:1772869791.090703   20004 bfc_allocator.cc:1105] InUse at 72ac1d48d300 of size 256 next 137
+I0000 00:00:1772869791.090705   20004 bfc_allocator.cc:1105] InUse at 72ac1d48d400 of size 256 next 138
+I0000 00:00:1772869791.090707   20004 bfc_allocator.cc:1105] InUse at 72ac1d48d500 of size 256 next 139
+I0000 00:00:1772869791.090709   20004 bfc_allocator.cc:1105] InUse at 72ac1d48d600 of size 256 next 140
+I0000 00:00:1772869791.090711   20004 bfc_allocator.cc:1105] Free  at 72ac1d48d700 of size 7661332736 next 18446744073709551615
+I0000 00:00:1772869791.090716   20004 bfc_allocator.cc:1110]      Summary of in-use Chunks by size: 
+I0000 00:00:1772869791.090718   20004 bfc_allocator.cc:1113] 94 Chunks of size 256 totalling 23.5KiB
+I0000 00:00:1772869791.090721   20004 bfc_allocator.cc:1113] 1 Chunks of size 768 totalling 768B
+I0000 00:00:1772869791.090724   20004 bfc_allocator.cc:1113] 16 Chunks of size 4096 totalling 64.0KiB
+I0000 00:00:1772869791.090729   20004 bfc_allocator.cc:1113] 8 Chunks of size 8192 totalling 64.0KiB
+I0000 00:00:1772869791.090731   20004 bfc_allocator.cc:1113] 4 Chunks of size 789248 totalling 3.01MiB
+I0000 00:00:1772869791.090734   20004 bfc_allocator.cc:1113] 1 Chunks of size 1578240 totalling 1.50MiB
+I0000 00:00:1772869791.090736   20004 bfc_allocator.cc:1113] 4 Chunks of size 5983488 totalling 22.83MiB
+I0000 00:00:1772869791.090738   20004 bfc_allocator.cc:1113] 1 Chunks of size 23933952 totalling 22.83MiB
+I0000 00:00:1772869791.090741   20004 bfc_allocator.cc:1113] 1 Chunks of size 35900672 totalling 34.24MiB
+I0000 00:00:1772869791.090743   20004 bfc_allocator.cc:1117] Sum Total of in-use chunks: 84.55MiB
+I0000 00:00:1772869791.090745   20004 bfc_allocator.cc:1119] Total size in pool: 7.22GiB memory_limit_: 7.22GiB available size: 0B curr_region_allocation_bytes_: 14.43GiB
+I0000 00:00:1772869791.090751   20004 bfc_allocator.cc:1128] Stats: 
+Limit:                         7.22GiB
+InUse:                        84.55MiB
+MaxInUse:                      1.51GiB
+NumAllocs:                        1348
+MaxAllocSize:                 88.24MiB
+Reserved:                           0B
+PeakReserved:                       0B
+LargestFreeBlock:                   0B
+
+W0000 00:00:1772869791.090755   20004 bfc_allocator.cc:513] **__________________________________________________________________________________________________
+FAIL C=3000000 loss=0.000000 ps_norm=NaN (corrupt result)
+error copying to host: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 8.60GiB. [tf-allocator-allocation-error='']
+error copying to host: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 8.60GiB. [tf-allocator-allocation-error='']
+error copying to host: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 8.60GiB. [tf-allocator-allocation-error='']
+error copying to host: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 8.60GiB. [tf-allocator-allocation-error='']
+error copying to host: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 8.60GiB. [tf-allocator-allocation-error='']
+error copying to host: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 8.60GiB. [tf-allocator-allocation-error='']
+error copying to host: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 8.60GiB. [tf-allocator-allocation-error='']
+error copying to host: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 8.60GiB. [tf-allocator-allocation-error='']
+error copying to host: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 8.60GiB. [tf-allocator-allocation-error='']
+error copying to host: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 8.60GiB. [tf-allocator-allocation-error='']
+error copying to host: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 8.60GiB. [tf-allocator-allocation-error='']
+error copying to host: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 8.60GiB. [tf-allocator-allocation-error='']
+error copying to host: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 8.60GiB. [tf-allocator-allocation-error='']
+error copying to host: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 8.60GiB. [tf-allocator-allocation-error='']
+error copying to host: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 8.60GiB. [tf-allocator-allocation-error='']
+---
