@@ -259,9 +259,6 @@ if abspath(PROGRAM_FILE) == @__FILE__
     # ---- Load model and static designs ----
     ps_cpu, st_cpu, _ = load_checkpoint_cpu(checkpoint)
 
-    cheating_data = deserialize(joinpath(results_dir, "bim_cheat_design.jls"))
-    static_cheating = cheating_data["static_design"]
-
     standard_data = deserialize(joinpath(results_dir, "bim_std_design.jls"))
     static_standard = standard_data["static_design"]
 
@@ -280,7 +277,6 @@ if abspath(PROGRAM_FILE) == @__FILE__
 
     static_designs = Pair{String, Vector{Float32}}[
         "static_std"   => Float32.(static_standard),
-        "static_cheat" => Float32.(static_cheating),
     ]
     if has_spce_opt
         push!(static_designs, "static_spce" => Float32.(static_spce_opt))
@@ -394,51 +390,13 @@ if abspath(PROGRAM_FILE) == @__FILE__
         flush(stdout)
     end
 
-    # ---- Mean adaptive as static baseline ----
-    avg_adaptive = Float32.(vec(mean(all_adaptive_designs; dims=2)))
-    push!(static_designs, "static_avg" => avg_adaptive)
-    all_scores["static_avg"] = Float64[]
-
-    println("\nEvaluating mean adaptive design as static baseline...")
-    flush(stdout)
-    rng_avg = MersenneTwister(seed + 999)
-    for batch_idx in 1:n_batches
-        actual_B = min(B, n_trials - (batch_idx - 1) * B)
-        θ_full = sample_θ_full(rng_avg, n_denom, B)
-        σ_numer, Cx0_numer = sample_θ_N_joint(rng_avg, M, B)
-        ε_avg = randn(rng_avg, Float32, N_STEPS, B)
-
-        θ_full_ra = θ_full |> xdev
-        σ_numer_ra = σ_numer |> xdev
-        Cx0_numer_ra = Cx0_numer |> xdev
-        ε_avg_ra = ε_avg |> xdev
-        ll_denom_a = zeros(Float32, n_denom, B) |> xdev
-        ll_numer_a = zeros(Float32, M, B) |> xdev
-
-        copyto!(ps_static_ra.layer_1.weight, reshape(avg_adaptive, N_STEPS, 1))
-
-        data_avg = (θ_full_ra, σ_numer_ra, Cx0_numer_ra, u0_ra,
-                     ε_avg_ra, ll_denom_a, ll_numer_a, n_substeps)
-
-        scores_a_ra, _, _ = @jit static_spce_eval(static_model, ps_static_ra, st_static_ra, data_avg)
-        scores_a_cpu = Array(scores_a_ra)
-        append!(all_scores["static_avg"], Float64.(scores_a_cpu[1, 1:actual_B]))
-
-        if batch_idx % 5 == 0 || batch_idx == n_batches
-            @printf("  batch %d/%d\n", batch_idx, n_batches)
-            flush(stdout)
-        end
-    end
-
     t_total = time() - t_start
     @printf("\nTotal evaluation time: %.1fs\n", t_total)
 
     # ---- Save ----
     scores_dict = Dict{String, Any}(
         "adaptive_scores"      => all_scores["adaptive"],
-        "static_avg_scores"    => all_scores["static_avg"],
         "static_std_scores"    => all_scores["static_std"],
-        "static_cheat_scores"  => all_scores["static_cheat"],
         "adaptive_designs"     => all_adaptive_designs,
         "n_trials"             => n_trials,
         "L"                    => L,
@@ -478,9 +436,7 @@ if abspath(PROGRAM_FILE) == @__FILE__
         println(io, "seed = $seed")
         @printf(io, "wall_time_s = %.1f\n", t_total)
         println(io)
-        println(io, "static_avg_design   = [", join(round.(avg_adaptive; digits=4), ", "), "]")
         println(io, "static_std_design   = [", join(round.(static_standard; digits=4), ", "), "]")
-        println(io, "static_cheat_design = [", join(round.(static_cheating; digits=4), ", "), "]")
         if has_spce_opt
             println(io, "static_spce_design  = [", join(round.(static_spce_opt; digits=4), ", "), "]")
         end

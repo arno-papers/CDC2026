@@ -20,7 +20,7 @@ examples/
   monod/                 # Monod bioreactor example
     model.jl             # Dynamics, constants, sampling, policy, BIM functions
     train.jl             # Training (GPU)
-    optimize_bim.jl      # Static BIM design optimization (CPU, supports cheating=true)
+    optimize_bim.jl      # Static BIM design optimization (CPU)
     eval_spce.jl         # sPCE evaluation (GPU)
     optimize_static.jl   # Static sPCE design optimization (GPU)
     eval_posterior.jl     # Posterior evaluation (GPU)
@@ -81,7 +81,6 @@ snakemake -n
 ```bash
 julia --project=. examples/monod/train.jl
 julia --project=. examples/monod/optimize_bim.jl
-julia --project=. examples/monod/optimize_bim.jl cheating
 julia --project=. examples/monod/plot_training.jl
 julia --project=. examples/monod/plot_trajectories.jl
 ```

@@ -116,10 +116,6 @@ function draw_prior_samples(rng, n::Int)
     return samples
 end
 
-function sample_cx0(rng, n::Int)
-    return Float32[Cx0_lo + (Cx0_hi - Cx0_lo) * rand(rng, Float32) for _ in 1:n]
-end
-
 # ============================================================================
 #  Initial State
 # ============================================================================
@@ -220,20 +216,6 @@ function bim_logdet(design::AbstractVector, prior_samples;
         score += logdet(Symmetric(schur_complement_2x2(F)))
     end
     return score / length(prior_samples)
-end
-
-function bim_logdet_cheating(design::AbstractVector, theta_T, sigma, cx0_samples;
-                              n_substeps::Int=N_SUBSTEPS)
-    T = promote_type(Float64, eltype(design))
-    score = zero(T)
-    for Cx0 in cx0_samples
-        F = fim_matrix(theta_T, sigma, Cx0, design; n_substeps=n_substeps)
-        for k in 1:3
-            F[k, k] += T(PRIOR_PREC[k])
-        end
-        score += logdet(Symmetric(schur_complement_2x2(F)))
-    end
-    return score / length(cx0_samples)
 end
 
 # ============================================================================

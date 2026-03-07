@@ -35,12 +35,6 @@ rule optimize_bim_std:
     resources: bim_slot=1
     shell: "{JULIA} {input[0]}"
 
-rule optimize_bim_cheat:
-    input: f"{MONOD}/optimize_bim.jl", *DEPS
-    output: f"{RESULTS}/bim_cheat_design.jls"
-    resources: bim_slot=1
-    shell: "{JULIA} {input[0]} cheating"
-
 # ---- Static sPCE optimization (GPU, VSC cluster) ----
 rule optimize_static:
     input: f"{MONOD}/optimize_static.jl", *DEPS
@@ -53,7 +47,6 @@ rule eval_spce:
         script=f"{MONOD}/eval_spce.jl",
         checkpoint=f"{RESULTS}/checkpoint.jls",
         bim_std=f"{RESULTS}/bim_std_design.jls",
-        bim_cheat=f"{RESULTS}/bim_cheat_design.jls",
         spce_static=f"{RESULTS}/spce_static_design.jls",
         deps=DEPS,
     output:
@@ -68,7 +61,6 @@ rule eval_posterior:
         script=f"{MONOD}/eval_posterior.jl",
         checkpoint=f"{RESULTS}/checkpoint.jls",
         bim_std=f"{RESULTS}/bim_std_design.jls",
-        bim_cheat=f"{RESULTS}/bim_cheat_design.jls",
         spce_static=f"{RESULTS}/spce_static_design.jls",
         deps=DEPS,
     output:

@@ -135,9 +135,6 @@ if abspath(PROGRAM_FILE) == @__FILE__
 
     ps_cpu, st_cpu, _ = load_checkpoint_cpu(checkpoint)
 
-    cheating_data = deserialize(joinpath(results_dir, "bim_cheat_design.jls"))
-    static_cheating = cheating_data["static_design"]
-
     standard_data = deserialize(joinpath(results_dir, "bim_std_design.jls"))
     static_standard = standard_data["static_design"]
 
@@ -156,7 +153,6 @@ if abspath(PROGRAM_FILE) == @__FILE__
 
     static_designs = Pair{String, Vector{Float32}}[
         "static_std"   => Float32.(static_standard),
-        "static_cheat" => Float32.(static_cheating),
     ]
     if has_spce_opt
         push!(static_designs, "static_spce" => Float32.(static_spce_opt))
@@ -262,54 +258,6 @@ if abspath(PROGRAM_FILE) == @__FILE__
         flush(stdout)
     end
 
-    # ---- Mean adaptive as static baseline ----
-    avg_adaptive = Float32.(vec(mean(all_adaptive_designs; dims=2)))
-    push!(design_names, "static_avg")
-    all_post_means["static_avg"] = Matrix{Float32}(undef, 2, n_trials)
-    all_ess["static_avg"] = Vector{Float32}(undef, n_trials)
-
-    println("\nEvaluating mean adaptive design as static baseline...")
-    println("Mean adaptive: [", join(round.(avg_adaptive; digits=3), ", "), "]")
-    flush(stdout)
-
-    rng_post_avg = MersenneTwister(seed + 42)
-    for batch_idx in 1:n_batches
-        trial_start = (batch_idx - 1) * B + 1
-        actual_B = min(B, n_trials - trial_start + 1)
-
-        obs_avg = zeros(Float32, N_STEPS, B)
-        design_avg = repeat(reshape(avg_adaptive, N_STEPS, 1), 1, B)
-
-        for b in 1:actual_B
-            trial_idx = trial_start + b - 1
-            obs = generate_observations(MersenneTwister(seed + 5 * n_trials + trial_idx),
-                                         θT, true_σ, true_Cx0, avg_adaptive; n_substeps=n_substeps)
-            obs_avg[:, b] .= obs
-        end
-
-        θ_post = sample_θ_full(rng_post_avg, N_post, B)
-        θ_post_ra = θ_post |> xdev
-        ll_buf = zeros(Float32, N_post, B) |> xdev
-
-        obs_ra = obs_avg |> xdev
-        design_ra = design_avg |> xdev
-
-        data = (θ_post_ra, u0_ra, obs_ra, design_ra, ll_buf, n_substeps)
-        result_ra, _, _ = @jit posterior_mean_eval(dummy_model, ps_dummy_ra, st_dummy_ra, data)
-        result_cpu = Array(result_ra)
-
-        for b in 1:actual_B
-            trial_idx = trial_start + b - 1
-            all_post_means["static_avg"][:, trial_idx] .= result_cpu[1:2, b]
-            all_ess["static_avg"][trial_idx] = result_cpu[3, b]
-        end
-
-        if batch_idx % 5 == 0 || batch_idx == n_batches
-            @printf("  batch %d/%d\n", batch_idx, n_batches)
-            flush(stdout)
-        end
-    end
-
     t_total = time() - t_start
     @printf("\nTotal evaluation time: %.1fs\n", t_total)
 
@@ -355,7 +303,6 @@ if abspath(PROGRAM_FILE) == @__FILE__
         "posterior_means"      => Dict(name => all_post_means[name] for name in keys(all_post_means)),
         "ess"                  => Dict(name => all_ess[name] for name in keys(all_ess)),
         "adaptive_designs"     => all_adaptive_designs,
-        "avg_adaptive_design"  => avg_adaptive,
         "n_trials"             => n_trials,
         "N_post"               => N_post,
         "B"                    => B,
@@ -404,7 +351,6 @@ if abspath(PROGRAM_FILE) == @__FILE__
         @printf(io, "true_Cx0    = %.4f\n", true_Cx0)
         @printf(io, "wall_time_s = %.1f\n", t_total)
         println(io)
-        println(io, "avg_adaptive_design = [", join(round.(avg_adaptive; digits=4), ", "), "]")
         for (name, d) in static_designs
             println(io, "$name = [", join(round.(d; digits=4), ", "), "]")
         end

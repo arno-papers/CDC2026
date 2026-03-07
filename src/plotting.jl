@@ -16,13 +16,11 @@ using Statistics
 
 const DESIGN_STYLES = Dict(
     "adaptive"     => (label = "Adaptive policy",       color = :gray20),
-    "static_avg"   => (label = "Static (mean adaptive)", color = :darkorange),
     "static_std"   => (label = "Static (std BIM)",       color = :dodgerblue),
-    "static_cheat" => (label = "Static (cheat BIM)",     color = :crimson),
     "static_spce"  => (label = "Static (sPCE-opt)",      color = :forestgreen),
 )
 
-const DESIGN_ORDER = ["adaptive", "static_avg", "static_std", "static_cheat", "static_spce"]
+const DESIGN_ORDER = ["adaptive", "static_std", "static_spce"]
 
 # ============================================================================
 #  Extract designs from scores dict → ordered Vector{Pair{String, Vector{Float64}}}
@@ -143,11 +141,6 @@ function plot_design_trajectories(adaptive_designs::AbstractMatrix,
               color = :gray60, alpha = 0.15, lw = 0.8,
               label = (j == 1 ? "Adaptive rollouts" : ""))
     end
-
-    avg_adaptive = vec(mean(adaptive_designs; dims = 2))
-    plot!(p, steps, avg_adaptive;
-          color = :gray20, lw = 3, ls = :dash,
-          label = @sprintf("Mean adaptive"))
 
     for (key, design) in static_designs
         style = get(DESIGN_STYLES, key, (label = key, color = :black))
