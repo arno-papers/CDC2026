@@ -63,7 +63,7 @@ end
 # ============================================================================
 
 _to_cpu(x) = x
-_to_cpu(x::AbstractArray) = collect(x)
+_to_cpu(x::AbstractArray) = Array(x)
 _to_cpu(x::NamedTuple) = map(_to_cpu, x)
 _to_cpu(x::Tuple) = map(_to_cpu, x)
 
