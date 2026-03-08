@@ -257,7 +257,7 @@ function optimize_design_grad(objective;
         warmup::Int=50, results_dir::Union{String,Nothing}=nothing,
         prefix::String="bim")
 
-    design = fill(5.0, N_STEPS)
+    design = fill(0.0, N_STEPS)
     opt_state = Optimisers.setup(Adam(lr_min), design)
 
     best_design = copy(design)
