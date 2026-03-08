@@ -252,12 +252,12 @@ end
 #  Design optimization helpers
 # ============================================================================
 
-function optimize_design_grad(objective;
+function optimize_design_grad(objective, init::AbstractVector{Float64};
         n_iters::Int=250, lr_max::Float64=0.003, lr_min::Float64=1e-5,
         warmup::Int=50, results_dir::Union{String,Nothing}=nothing,
         prefix::String="bim")
 
-    design = fill(0.0, N_STEPS)
+    design = copy(init)
     opt_state = Optimisers.setup(Adam(lr_min), design)
 
     best_design = copy(design)
@@ -268,7 +268,6 @@ function optimize_design_grad(objective;
         g = ForwardDiff.gradient(objective, design)
         lr = cosine_lr(iter, n_iters, lr_max, lr_min, warmup)
         Optimisers.adjust!(opt_state; eta = lr)
-        # Adam minimizes, but we maximize: negate gradient
         opt_state, design = Optimisers.update!(opt_state, design, -g)
         clamp!(design, 0.0, 10.0)
 
@@ -298,13 +297,27 @@ function optimize_design_grad(objective;
     return Float32.(best_design), best_score
 end
 
-function optimize_static_design_grad(prior_samples;
+function optimize_static_design_grad(prior_samples, init::AbstractVector{Float64};
         n_iters::Int=250, lr_max::Float64=0.003, lr_min::Float64=1e-5,
         warmup::Int=50, n_substeps::Int=N_SUBSTEPS,
         results_dir::Union{String,Nothing}=nothing, prefix::String="bim")
     objective = ξ -> bim_logdet(ξ, prior_samples; n_substeps=n_substeps)
-    return optimize_design_grad(objective; n_iters, lr_max, lr_min, warmup,
+    return optimize_design_grad(objective, init; n_iters, lr_max, lr_min, warmup,
                                 results_dir, prefix)
+end
+
+function adaptive_mean_design(model, ps_cpu, st_cpu;
+        n_rollouts::Int=1000, seed::Int=0, n_substeps::Int=N_SUBSTEPS)
+    rng = MersenneTwister(seed)
+    avg = zeros(Float64, N_STEPS)
+    for _ in 1:n_rollouts
+        θ = sample_θ_full(rng, 1)
+        d = rollout_adaptive_design_cpu(model, ps_cpu, st_cpu, rng,
+                Float32[θ[1,1], θ[2,1]], Float32(θ[3,1]);
+                Cx0=Float32(θ[4,1]), n_substeps=n_substeps)
+        avg .+= Float64.(d)
+    end
+    return avg ./ n_rollouts
 end
 
 # ============================================================================

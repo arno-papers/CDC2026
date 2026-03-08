@@ -1,5 +1,6 @@
 #!/usr/bin/env julia
 # Optimize static BIM design (ForwardDiff + gradient).
+# Initialized from the mean of adaptive policy rollouts.
 #
 # Usage:
 #   julia --project=. examples/monod/optimize_bim.jl
@@ -22,10 +23,11 @@ if abspath(PROGRAM_FILE) == @__FILE__
     n_prior_opt    = 512
     n_prior_report = 1024
     n_substeps     = N_SUBSTEPS
-    n_iters        = 250
+    n_iters        = 1000
     lr_max         = 0.003
     lr_min         = 1e-5
     warmup         = 50
+    n_rollouts     = 1000
 
     results_dir = joinpath(@__DIR__, "results")
     mkpath(results_dir)
@@ -37,8 +39,21 @@ if abspath(PROGRAM_FILE) == @__FILE__
     println("n_prior_report    = $n_prior_report")
     println("n_iters           = $n_iters")
     println("lr                = [$lr_min, $lr_max] cosine, warmup=$warmup")
+    println("init              = mean of $n_rollouts adaptive rollouts")
     println("BIM: 3x3 FIM + prior, Schur complement -> 2x2")
     @printf("Prior precision: mu_max=%.1f  K_s=%.1f  Cx0=%.1f\n", PRIOR_PREC...)
+    flush(stdout)
+
+    # ---- Load trained policy and compute init ----
+    println("\n--- Computing initial design from adaptive policy ---")
+    flush(stdout)
+    ps_cpu, st_cpu, _ = load_checkpoint_cpu(results_dir)
+    rng_init = MersenneTwister(42)
+    _, st_cpu = Lux.setup(rng_init, policy)
+
+    init = adaptive_mean_design(policy, ps_cpu, st_cpu;
+                                 n_rollouts=n_rollouts, seed=seed, n_substeps=n_substeps)
+    println("  Init: [", join(round.(init; digits=3), ", "), "]")
     flush(stdout)
 
     # ---- Optimize static design ----
@@ -48,7 +63,7 @@ if abspath(PROGRAM_FILE) == @__FILE__
 
     prior_opt = draw_prior_samples(rng_opt, n_prior_opt)
     static_design, static_obj = optimize_static_design_grad(
-        prior_opt; n_iters=n_iters, lr_max=lr_max, lr_min=lr_min,
+        prior_opt, init; n_iters=n_iters, lr_max=lr_max, lr_min=lr_min,
         warmup=warmup, n_substeps=n_substeps,
         results_dir=results_dir, prefix="bim_std")
 
