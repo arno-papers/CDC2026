@@ -44,10 +44,8 @@ if abspath(PROGRAM_FILE) == @__FILE__
         println(io, "DT = $DT")
         println(io, "seed = $seed")
         println(io, "ode_budget = $ode_budget")
-        println(io, "SPIKE_PROB = $SPIKE_PROB")
-        println(io, "SPIKE_STD = $SPIKE_STD")
-        println(io, "SLAB_MEAN = $SLAB_MEAN")
-        println(io, "SLAB_STD = $SLAB_STD")
+        println(io, "alpha_lo = $α_lo")
+        println(io, "alpha_hi = $α_hi")
     end
 
     println("\n=== Targeted DADS Training — Haldane (Reactant + Enzyme) ===")

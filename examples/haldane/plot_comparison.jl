@@ -35,8 +35,8 @@ function plot_comparison(model, ps_cpu, st_cpu;
     mu_max_mid = 0.5f0 * (mu_max_lo + mu_max_hi)
     K_s_mid = 0.5f0 * (K_s_lo + K_s_hi)
 
-    alpha_no_inhib = 0.001f0
-    alpha_inhib = 0.10f0
+    alpha_no_inhib = α_lo + 0.1f0 * (α_hi - α_lo)   # low α (near no inhibition)
+    alpha_inhib = α_lo + 0.9f0 * (α_hi - α_lo)      # high α (strong inhibition)
 
     theta_no = Float32[mu_max_mid, K_s_mid, alpha_no_inhib]
     theta_yes = Float32[mu_max_mid, K_s_mid, alpha_inhib]
