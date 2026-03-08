@@ -18,6 +18,7 @@
 \usepackage{graphicx}
 \usepackage{textcomp}
 \usepackage{xcolor}
+\usepackage{url}
 \def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
     T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
 
@@ -46,7 +47,7 @@ contact@arnostrouwen.com}
 \maketitle
 
 \begin{abstract}
-Model-based design of experiments (MBDOE) is essential for efficient parameter estimation in nonlinear dynamical systems. However, conventional adaptive MBDOE requires costly posterior inference and design optimization between each experimental step, precluding real-time applications. We address this limitation by combining Deep Adaptive Design (DAD), which amortizes sequential design decisions using neural networks, with differentiable mechanistic models. Specifically, we consider dynamical systems with known governing equations but uncertain parameters. We derive tractable training objectives based on sequential contrastive bounds and propose a transformer-based policy architecture that respects the temporal structure of dynamical systems. We demonstrate the approach on a fed-batch bioreactor where the goal is to precisely estimate the parameters of the Monod growth kinetics.
+Model-based design of experiments (MBDOE) is essential for efficient parameter estimation in nonlinear dynamical systems. However, conventional adaptive MBDOE requires costly posterior inference and design optimization between each experimental step, precluding real-time applications. We address this limitation by combining Deep Adaptive Design (DAD), which amortizes sequential design decisions using neural networks, with differentiable mechanistic models. Specifically, we consider dynamical systems with known governing equations but uncertain parameters. We derive tractable training objectives based on sequential contrastive bounds and propose a transformer-based policy architecture that respects the temporal structure of dynamical systems. We demonstrate the approach on four systems of increasing complexity: a fed-batch bioreactor with Monod kinetics, a Haldane bioreactor with spike-and-slab uncertainty over substrate inhibition, a two-compartment pharmacokinetic model with nuisance clearance parameters, and a DC motor for real-time deployment.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -61,14 +62,14 @@ Bayesian optimal experimental design (BOED) provides a principled framework for 
 Deep Adaptive Design (DAD)~\citep{foster2021} addresses this bottleneck by amortizing sequential design into a neural network policy trained offline. This was extended to implicit (likelihood-free) models by iDAD~\citep{ivanova2021implicit}.
 However, for the mechanistic models central to MBDOE, explicit likelihoods \emph{are} available via differentiable simulation~\citep{rackauckas}. This enables the original DAD framework with its tighter sequential Prior Contrastive Estimation (sPCE) bounds and efficient gradient-based training.
 
-In this paper, we combine DAD with differentiable mechanistic models to enable real-time adaptive MBDOE for dynamical systems with known governing equations and uncertain parameters.
+In this paper, we combine DAD with differentiable mechanistic models to enable real-time adaptive MBDOE for dynamical systems with known governing equations and uncertain parameters.\footnote{Code: \url{https://github.com/arno-papers/CDC2026}}
 
 Our contributions are:
 \begin{itemize}
 \item We formulate adaptive MBDOE for dynamical systems where the model structure is known, training the policy end-to-end by differentiating through the ODE solver and observation model.
 \item We extend the sPCE bound to handle nuisance parameters, enabling targeted inference about parameters of interest while marginalizing over nuisance parameters such as measurement noise.
 \item We introduce a transformer-based policy architecture that respects temporal ordering in dynamical systems, replacing the permutation-invariant deep set architecture of the original DAD framework.
-\item We demonstrate the methodology on a fed-batch bioreactor with uncertain Monod kinetic parameters.
+\item We demonstrate the methodology on four examples: a Monod bioreactor, a Haldane bioreactor with model selection, a pharmacokinetic model with nuisance adaptation, and a DC motor for real-time deployment.
 \end{itemize}
 
 \section{Model}
@@ -86,8 +87,8 @@ Some components of the initial state $x_0$ may depend on $\theta_N$, and $\Sigma
 We assume a fixed experimental schedule with known measurement times $0 < t_1 < \cdots < t_K$ and piecewise-constant inputs, $u(t)=u_k$ for $t \in [t_{k-1}, t_k)$.
 The design goal is to choose the input profile $u(t)$ (equivalently, the sequence $u_{1:K}$) to maximize the information gained about $\theta_T$.
 
-\subsection{Bioreactor Example}
-We focus on a well-mixed fed-batch bioreactor~\citep{versyck}, with state $x = (C_s, C_x, V)$, input $u = Q_{in}$, and kinetic parameters $\theta_T = (\mu_{\max}, K_s)$.
+\label{sec:monod}
+We instantiate this framework on a well-mixed fed-batch bioreactor~\citep{versyck}, with state $x = (C_s, C_x, V)$, input $u = Q_{in}$, and kinetic parameters $\theta_T = (\mu_{\max}, K_s)$.
 We consider a $14$-hour experiment with measurements collected every hour, so $K=14$ and $t_k = k\,\mathrm{h}$ for $k=1,\ldots,K$ (with $t_0=0 \mathrm{h}$).
 We choose a feed rate $Q_{in,k}$ that is held constant on $[(k-1)\,\mathrm{h}, k\,\mathrm{h})$.
 The dynamics are:
@@ -109,16 +110,6 @@ We measure substrate concentration (so $q=1$ and $g(x)=C_s$), with observations 
 The nuisance parameters are $\theta_N = (\sigma, C_{x,0})$: the initial substrate and volume are fixed at $C_{s,0} = 3.0$ and $V_0 = 7.0$, while $C_{x,0} \sim \text{Uniform}(0.10, 0.50)$ varies between batches due to different inocula.
 The noise scale $\sigma$ is a fixed system property shared across experiments; the targeted sPCE framework marginalizes over both $\sigma$ and $C_{x,0}$.
 The goal is to design a sequence of feed rates $Q_{in,1}, \ldots, Q_{in,K}$ that maximizes information about $\mu_{\max}$ and $K_s$ from noisy $C_s$ measurements.
-
-\subsection{Haldane Substrate Inhibition}
-\label{sec:haldane}
-To illustrate how the adaptive policy handles model uncertainty, we extend the bioreactor to Haldane kinetics, which include substrate inhibition:
-\begin{equation}\label{eq:haldane}
-\mu(C_s; \theta_T) = \frac{\mu_{\max} C_s}{K_s + C_s + C_s^2/K_i},
-\end{equation}
-where $K_i$ is the inhibition constant. We reparameterize as $\alpha = 1/K_i$, so that $\alpha = 0$ recovers Monod kinetics. We set $\theta_T = \alpha$ as the sole target parameter, with $\theta_N = (\mu_{\max}, K_s, \sigma, C_{x,0})$ treated as nuisance. This focuses the sPCE objective entirely on learning whether substrate inhibition is present, rather than letting the EIG from $\mu_{\max}$ and $K_s$ dominate.
-
-To express uncertainty about whether inhibition is present, we place a spike-and-slab prior on $\alpha$: with probability $0.5$, $\alpha \sim |{\mathcal{N}(0, 0.003^2)}|$ (a half-normal spike near zero, effectively no inhibition), and with probability $0.5$, $\alpha \sim \mathcal{N}(0.10, 0.03^2)$ clamped to $\alpha \geq 0$ (meaningful inhibition). The remaining prior distributions are unchanged from the Monod case.
 
 \section{Information-Theoretic Criterion}
 \label{sec:criterion}
@@ -182,7 +173,7 @@ p(h_K|\theta^{(\ell)}, \pi_\phi)\Big)
 \Bigg)\Bigg],
 \end{aligned}
 \end{equation}
-where the expectation is over $\theta^{(0:L)} \sim p(\theta)$, $\theta_N^{(1:M)} \sim p(\theta_N|\theta_T^{(0)})$, and $y_{1:K}$ sampled from the observation model via the reparameterization trick under the policy $\pi_\phi$. We implement training in Julia~\citep{bezanson2017julia} using Enzyme~\citep{moses2020enzyme} for automatic differentiation through the ODE solver and Reactant~\citep{reactant2025} for GPU-accelerated compilation. The overall training procedure is summarized in Algorithm~\ref{algo:DAD}.
+where the expectation is over $\theta^{(0:L)} \sim p(\theta)$, $\theta_N^{(1:M)} \sim p(\theta_N|\theta_T^{(0)})$, and $y_{1:K}$ sampled from the observation model via the reparameterization trick under the policy $\pi_\phi$. The overall training procedure is summarized in Algorithm~\ref{algo:DAD}.
 In practice, we approximate this expectation with a minibatch of $B$ independently simulated trajectories and average the resulting log-ratios.
 
 \begin{algorithm}[t]
@@ -232,42 +223,106 @@ This architecture captures temporal dependencies while enabling efficient parall
 
 \section{Results}
 
-\begin{figure}[t]
-\centering
-\includegraphics[width=\columnwidth]{figures/monod_training_loss.png}
-\caption{Training loss curve (targeted sPCE objective) over iterations.}
-\label{fig:training_loss}
-\end{figure}
+We apply the framework to four systems of increasing complexity, summarized in Table~\ref{tab:examples}.
 
-\begin{figure}[t]
+\begin{table}[t]
 \centering
-\includegraphics[width=\columnwidth]{figures/monod_spce_trajectories.png}
-\caption{Design trajectories: adaptive policy rollouts compared to static baselines.}
-\label{fig:trajectories}
-\end{figure}
+\caption{Summary of example systems.}
+\label{tab:examples}
+\small
+\begin{tabular}{@{}lcccc@{}}
+\hline
+Example & States & Target $\theta_T$ & Design & Obs \\
+\hline
+Monod & $C_s, C_x, V$ & $\mu_{\max}, K_s$ & $Q_{in}$ & $C_s$ \\
+Haldane & $C_s, C_x, V$ & $\alpha\!=\!1/K_i$ & $Q_{in}$ & $C_s$ \\
+PK & $A_{t_{1\text{-}3}}, A_c, A_p$ & $k_a, k_{tr}$ & $R_\text{inf}$ & $C_c$ \\
+Motor & $\omega, i$ & TBD & $V_{in}$ & $\omega$ \\
+\hline
+\end{tabular}
+\end{table}
 
-\begin{figure}[t]
+\begin{figure*}[t]
 \centering
-\includegraphics[width=\columnwidth]{figures/monod_spce_histograms.png}
-\caption{sPCE score distributions across design strategies.}
-\label{fig:spce}
-\end{figure}
+\includegraphics[width=\textwidth]{figures/monod_dynamics.png}
+\caption{Adaptive policy rollouts for the Monod bioreactor: substrate $C_s$, biomass $C_x$, volume $V$, and feed rate $Q_{in}$ over 14~hours (20 rollouts with varied prior samples). The policy keeps the feed rate near zero during the initial growth phase to observe substrate depletion, then ramps up the feed.}
+\label{fig:dynamics}
+\end{figure*}
+
+\begin{table}[t]
+\centering
+\caption{Targeted sPCE scores for the Monod bioreactor (mean $\pm$ SEM, $n=500$). Higher scores indicate more informative designs.\ifextended{} The BIM baseline is detailed in Appendix~\ref{sec:bim}.\fi}
+\label{tab:spce}
+\begin{tabular}{@{}lc@{}}
+\hline
+Design strategy & sPCE score \\
+\hline
+Adaptive policy & $\mathbf{1.64 \pm 0.07}$ \\
+Static (sPCE-opt) & $1.41 \pm 0.07$ \\
+Static (mean-adaptive) & $1.12 \pm 0.10$ \\
+Static (BIM) & $-2.44 \pm 0.31$ \\
+\hline
+\end{tabular}
+\end{table}
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=\columnwidth]{figures/monod_posterior.png}
-\caption{Posterior mean estimates across design strategies.}
+\caption{Posterior mean estimates ($\hat{\mu}_{\max}$, $\hat{K}_s$) across 200 trials for three design strategies. Convex hulls indicate the spread of posterior means; the adaptive policy yields the most concentrated estimates around the true values.}
 \label{fig:posterior}
 \end{figure}
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=\columnwidth]{figures/haldane_comparison.png}
-\caption{Adaptive policy rollouts for the Haldane bioreactor under two ground-truth parameter settings: no inhibition ($\alpha \approx 0$, left) and substrate inhibition ($\alpha = 0.10$, right). The policy adapts its feed rate strategy based on early observations to probe whether substrate inhibition is present.}
+\caption{Haldane bioreactor: substrate $C_s$ and feed rate under no inhibition ($\alpha \approx 0$, left) and substrate inhibition ($\alpha = 0.10$, right). The policy adapts its feed strategy to probe the regime where inhibition effects are visible.}
 \label{fig:haldane}
 \end{figure}
 
-Figure~\ref{fig:haldane} shows adaptive policy rollouts for the Haldane bioreactor (Section~\ref{sec:haldane}) under two ground-truth scenarios. With $\alpha$ as the sole target parameter and $\mu_{\max}$, $K_s$ treated as nuisance, the policy is trained to focus on discriminating inhibition. When no substrate inhibition is present (left panels), the policy behaves similarly to the Monod case. When inhibition is present (right panels), the policy adapts its feed rate strategy based on early observations, probing the substrate concentration range where inhibition effects are most pronounced.
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{figures/pharma_nuisance.png}
+\caption{PK model: central concentration $C_c$ and dosing under low clearance ($CL = 1.5$~L/hr, left) and high clearance ($CL = 4.5$~L/hr, right) with fixed absorption parameters. The policy adapts its dosing schedule to the patient's clearance rate, a nuisance parameter.}
+\label{fig:pharma}
+\end{figure}
+
+\paragraph{Monod bioreactor.}
+The adaptive policy is trained on the Monod bioreactor (Section~\ref{sec:monod}) in approximately 1000 iterations\ifextended{} (Appendix~\ref{sec:training_details})\fi.
+Fig.~\ref{fig:dynamics} shows representative rollouts under the learned policy.
+Table~\ref{tab:spce} compares the adaptive policy against three static baselines; the adaptive policy significantly outperforms all baselines ($p < 0.002$, paired $t$-tests\ifextended; see Appendix Fig.~\ref{fig:spce} for full distributions\fi).
+Fig.~\ref{fig:posterior} confirms that the adaptive policy yields the most concentrated posterior estimates around the true parameter values.
+
+\paragraph{Haldane substrate inhibition.}
+To test model selection, we replace Monod with Haldane kinetics: $\mu = \mu_{\max} C_s / (K_s + C_s + C_s^2/K_i)$, adding substrate inhibition. We set $\alpha = 1/K_i$ as the sole target and treat $\mu_{\max}$, $K_s$, $\sigma$, $C_{x,0}$ as nuisance, so the sPCE objective focuses on discriminating whether inhibition is present ($\alpha = 0$ recovers Monod). We use a spike-and-slab prior: $\alpha \approx 0$ or $\alpha \sim \mathcal{N}(0.10, 0.03^2)$, each with probability $0.5$.
+Fig.~\ref{fig:haldane} shows that when no inhibition is present, the policy behaves similarly to the Monod case, while under inhibition ($\alpha = 0.10$) it adapts its feed strategy to probe the high-substrate regime where inhibition effects are most pronounced.
+
+\paragraph{Pharmacokinetic model.}
+A two-compartment PK model with transit absorption has state $(A_{t_1}, A_{t_2}, A_{t_3}, A_c, A_p)$, with target parameters $\theta_T = (k_a, k_{tr})$ (absorption rates) and nuisance $\theta_N = (CL, Q_d, \sigma_{\text{prop}}, \sigma_{\text{add}})$ including patient-specific clearance. The observation is central concentration $C_c = A_c/V_C$.
+Fig.~\ref{fig:pharma} shows the policy adapts its dosing schedule based on the patient's clearance rate, even though it was trained to estimate absorption parameters---a consequence of the targeted sPCE objective marginalizing over nuisance.
+
+\paragraph{DC motor.}
+A DC motor with state $(\omega, i)$ (angular velocity, current) and voltage input demonstrates applicability to electromechanical systems where control loops operate at kHz frequencies.
+Table~\ref{tab:timing} compares the per-step computational requirements across examples. For slow processes (bioreactor, PK), conventional adaptive BOED---requiring posterior MCMC and design optimization at each step---is expensive but feasible. For the motor, the required control frequency makes conventional approaches infeasible, while the amortized policy evaluates in $\mathcal{O}(\mathrm{ms})$ regardless of the system.
+
+\begin{table}[t]
+\centering
+\caption{Computational comparison across examples. Policy evaluation time is for a single forward pass of the transformer network.}
+\label{tab:timing}
+\small
+\begin{tabular}{@{}lccc@{}}
+\hline
+Example & Steps & Control freq. & Conventional \\
+\hline
+Monod & 14 & $1\,\mathrm{hr}^{-1}$ & $\sim$min/step \\
+Haldane & 14 & $1\,\mathrm{hr}^{-1}$ & $\sim$min/step \\
+PK & 24 & $1\,\mathrm{hr}^{-1}$ & $\sim$min/step \\
+Motor & ${\sim}10^3$ & ${\sim}1\,\mathrm{kHz}$ & infeasible \\
+\hline
+\end{tabular}
+\end{table}
+
+\section*{Acknowledgment}
+The resources and services used in this work were provided by the VSC (Flemish Supercomputer Center), funded by the Research Foundation -- Flanders (FWO) and the Flemish Government.
 
 \bibliographystyle{plainnat}
 \bibliography{references}
@@ -275,7 +330,7 @@ Figure~\ref{fig:haldane} shows adaptive policy rollouts for the Haldane bioreact
 \ifextended
 \newpage
 \onecolumn
-\appendix
+\appendices
 \input{appendix_nuisance}
 \fi
 

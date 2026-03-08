@@ -83,11 +83,29 @@ rule haldane_plot:
     output: f"{HALDANE_RESULTS}/plot_comparison.png"
     shell: "{JULIA} {input.script}"
 
+# ---- Monod dynamics plot (CPU, local) ----
+rule monod_dynamics_plot:
+    input:
+        script=f"{MONOD}/plot_dynamics.jl",
+        checkpoint=f"{RESULTS}/checkpoint.jls",
+        deps=DEPS,
+    output: f"{RESULTS}/plot_dynamics.png"
+    shell: "{JULIA} {input.script}"
+
 # ---- Weibull PK training (VSC cluster) ----
 rule weibull_train:
     input: f"{WEIBULL}/train.jl", *WEIBULL_DEPS
     output: f"{WEIBULL_RESULTS}/checkpoint.jls"
     shell: "EXAMPLE=weibull WALLTIME=8:00:00 ./vsc/train_remote.sh"
+
+# ---- Weibull nuisance adaptation plot (CPU, local) ----
+rule weibull_nuisance_plot:
+    input:
+        script=f"{WEIBULL}/plot_nuisance.jl",
+        checkpoint=f"{WEIBULL_RESULTS}/checkpoint.jls",
+        deps=WEIBULL_DEPS,
+    output: f"{WEIBULL_RESULTS}/plot_nuisance.png"
+    shell: "{JULIA} {input.script}"
 
 # ---- Figures: copy to paper/figures/ ----
 rule figures:
@@ -96,13 +114,17 @@ rule figures:
         f"{RESULTS}/plot_spce_trajectories.png",
         f"{RESULTS}/plot_spce_histograms.png",
         f"{RESULTS}/plot_posterior.png",
+        f"{RESULTS}/plot_dynamics.png",
         f"{HALDANE_RESULTS}/plot_comparison.png",
+        f"{WEIBULL_RESULTS}/plot_nuisance.png",
     output:
         "paper/figures/monod_training_loss.png",
         "paper/figures/monod_spce_trajectories.png",
         "paper/figures/monod_spce_histograms.png",
         "paper/figures/monod_posterior.png",
+        "paper/figures/monod_dynamics.png",
         "paper/figures/haldane_comparison.png",
+        "paper/figures/pharma_nuisance.png",
     run:
         import shutil, os
         os.makedirs("paper/figures", exist_ok=True)
