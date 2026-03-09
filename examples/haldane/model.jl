@@ -49,10 +49,10 @@ const ACTION_HI = 10.0f0
 #  Prior Bounds
 # ============================================================================
 
-const μ_max_lo, μ_max_hi = 0.35f0, 0.45f0
-const K_s_lo, K_s_hi = 0.40f0, 0.50f0
-const σ_lo, σ_hi = 0.05f0, 0.15f0       # Nuisance: measurement noise std
-const Cx0_lo, Cx0_hi = 0.10f0, 0.50f0    # Nuisance: initial biomass
+const μ_max_lo, μ_max_hi = 0.39f0, 0.41f0    # Nuisance: max growth rate (tight)
+const K_s_lo, K_s_hi = 0.44f0, 0.46f0        # Nuisance: Monod constant (tight)
+const σ_lo, σ_hi = 0.05f0, 0.15f0             # Nuisance: measurement noise std
+const Cx0_lo, Cx0_hi = 0.22f0, 0.28f0         # Nuisance: initial biomass (tight)
 
 # ASCII aliases
 const mu_max_lo, mu_max_hi = μ_max_lo, μ_max_hi
