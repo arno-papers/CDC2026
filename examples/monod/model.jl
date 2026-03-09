@@ -70,7 +70,7 @@ const N_NOISE_CHANNELS = 1  # single additive Gaussian noise
 
 include(joinpath(@__DIR__, "..", "..", "src", "utils.jl"))
 
-const ODE_BUDGET_TRAJ = 1250000
+const ODE_BUDGET_TRAJ = 2500000
 const (L_CONTRASTIVE, M_NUISANCE, GRAD_BATCH) = allocate_budget(ODE_BUDGET_TRAJ)
 const GRAD_ACCUM_STEPS = 1
 
