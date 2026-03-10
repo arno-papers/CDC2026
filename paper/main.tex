@@ -279,12 +279,12 @@ Static (BIM) & $-2.44 \pm 0.31$ \\
 \label{fig:haldane}
 \end{figure}
 
-\begin{figure}[t]
+\begin{figure*}[t]
 \centering
-\includegraphics[width=\columnwidth]{figures/pharma_nuisance.png}
-\caption{PK model: central concentration $C_c$ and dosing under low clearance ($CL = 1.5$~L/hr, left) and high clearance ($CL = 4.5$~L/hr, right) with fixed absorption parameters. The policy adapts its dosing schedule to the patient's clearance rate, a nuisance parameter.}
+\includegraphics[width=\textwidth]{figures/pharma_nuisance.png}
+\caption{PK model rollouts under slow elimination ($CL = 1.0$~L/hr, $Q_d = 0.5$~L/hr, left) and fast elimination ($CL = 5.0$~L/hr, $Q_d = 3.0$~L/hr, right) with fixed absorption parameters ($k_a, k_{tr}$ at midrange). Top: central concentration $C_c = A_c/V_C$. Middle: peripheral concentration $C_p = A_p/V_P$. Bottom: infusion rate $R_\text{inf}$ (design). The policy adapts its dosing schedule to the patient's elimination profile, a nuisance parameter: slow elimination leads to later, more spaced-out dosing as drug accumulates, while fast elimination triggers earlier and more frequent pulses.}
 \label{fig:pharma}
-\end{figure}
+\end{figure*}
 
 \paragraph{Monod bioreactor.}
 The adaptive policy is trained on the Monod bioreactor (Section~\ref{sec:monod}) in approximately 1000 iterations\ifextended{} (Appendix~\ref{sec:training_details})\fi.
@@ -297,8 +297,18 @@ To test model selection, we replace Monod with Haldane kinetics: $\mu = \mu_{\ma
 Fig.~\ref{fig:haldane} shows that when no inhibition is present, the policy behaves similarly to the Monod case, while under inhibition ($\alpha = 0.10$) it adapts its feed strategy to probe the high-substrate regime where inhibition effects are most pronounced.
 
 \paragraph{Pharmacokinetic model.}
-A two-compartment PK model with transit absorption has state $(A_{t_1}, A_{t_2}, A_{t_3}, A_c, A_p)$, with target parameters $\theta_T = (k_a, k_{tr})$ (absorption rates) and nuisance $\theta_N = (CL, Q_d, \sigma_{\text{prop}}, \sigma_{\text{add}})$ including patient-specific clearance. The observation is central concentration $C_c = A_c/V_C$.
-Fig.~\ref{fig:pharma} shows the policy adapts its dosing schedule based on the patient's clearance rate, even though it was trained to estimate absorption parameters---a consequence of the targeted sPCE objective marginalizing over nuisance.
+A two-compartment PK model with transit absorption describes drug distribution between a central compartment (volume $V_C$) and a peripheral compartment (volume $V_P$), fed by a three-stage transit chain:
+\begin{equation}\label{eq:pk}
+\begin{aligned}
+\dot{A}_{t_1} &= R_\text{inf} - k_{tr} A_{t_1}, \\
+\dot{A}_{t_2} &= k_{tr} A_{t_1} - k_{tr} A_{t_2}, \\
+\dot{A}_{t_3} &= k_{tr} A_{t_2} - k_a A_{t_3}, \\
+\dot{A}_c &= k_a A_{t_3} - \tfrac{CL + Q_d}{V_C} A_c + \tfrac{Q_d}{V_P} A_p, \\
+\dot{A}_p &= \tfrac{Q_d}{V_C} A_c - \tfrac{Q_d}{V_P} A_p,
+\end{aligned}
+\end{equation}
+where $R_\text{inf}$ is the controllable infusion rate (design input). The target parameters are the absorption rates $\theta_T = (k_a, k_{tr})$, while $\theta_N = (CL, Q_d, \sigma_{\text{prop}}, \sigma_{\text{add}})$ are nuisance, including patient-specific clearance. The observation is central concentration $C_c = A_c/V_C$ with combined proportional and additive noise: $y_k \sim \mathcal{N}(C_c, (\sigma_{\text{prop}} C_c)^2 + \sigma_{\text{add}}^2)$.
+Fig.~\ref{fig:pharma} shows the policy adapts its dosing schedule based on the patient's elimination profile, even though it was trained to estimate absorption parameters---a consequence of the targeted sPCE objective marginalizing over nuisance.
 
 \paragraph{DC motor.}
 A DC motor with state $(\omega, i)$ (angular velocity, current) and voltage input demonstrates applicability to electromechanical systems where control loops operate at kHz frequencies.
