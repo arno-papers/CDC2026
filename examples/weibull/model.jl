@@ -153,7 +153,7 @@ end
 #  Observation Model Callbacks
 # ============================================================================
 
-function make_initial_state(u0, θ_obs, B)
+function make_initial_state(u0, _θ_dyn, θ_obs, B)
     n_samples = size(θ_obs, 2)
     return repeat(u0, 1, n_samples, B)
 end
