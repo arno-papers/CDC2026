@@ -2,6 +2,7 @@ include(joinpath(@__DIR__, "model.jl"))
 include(joinpath(@__DIR__, "..", "..", "src", "common_core.jl"))
 
 using Plots
+include(joinpath(@__DIR__, "..", "..", "src", "plotting.jl"))
 
 function rollout_trajectory_cpu(model, ps_cpu, st_cpu, rng,
         theta_dyn::Vector{Float32}, sigma::Float32;
@@ -15,13 +16,13 @@ function rollout_trajectory_cpu(model, ps_cpu, st_cpu, rng,
     theta_mat = reshape(theta_dyn, N_PARAMS_DYN, 1)
     @inbounds for step in 1:N_STEPS
         action, st_local = model(input_buffer, ps_cpu, st_local)
-        q_in = clamp(Float32(action[1]), ACTION_LO, ACTION_HI)
-        designs[step] = q_in
-        u = integrate_cpu(u, theta_mat, q_in, DT, n_substeps)
+        d = clamp(Float32(action[1]), ACTION_LO, ACTION_HI)
+        designs[step] = d
+        u = integrate_cpu(u, theta_mat, d, DT, n_substeps)
         y_obs = u[1, 1] + sigma * randn(rng, Float32)
         cs_traj[step + 1] = u[1, 1]
         input_buffer[1, step, 1] = y_obs
-        input_buffer[2, step, 1] = q_in
+        input_buffer[2, step, 1] = d
     end
     return cs_traj, designs
 end
@@ -45,8 +46,8 @@ function plot_comparison(model, ps_cpu, st_cpu;
 
     p1 = plot(title = "No inhibition (\u03b1 \u2248 0)", xlabel = "Time (h)", ylabel = "C_s (g/L)")
     p2 = plot(title = "Substrate inhibition (\u03b1 = 0.10)", xlabel = "Time (h)", ylabel = "C_s (g/L)")
-    p3 = plot(title = "No inhibition (\u03b1 \u2248 0)", xlabel = "Time (h)", ylabel = "Q_in (L/h)", ylims = (-0.5, 10.5))
-    p4 = plot(title = "Substrate inhibition (\u03b1 = 0.10)", xlabel = "Time (h)", ylabel = "Q_in (L/h)", ylims = (-0.5, 10.5))
+    p3 = plot(title = "No inhibition (\u03b1 \u2248 0)", xlabel = "Time (h)", ylabel = "d (L/h)", ylims = (-0.5, 10.5))
+    p4 = plot(title = "Substrate inhibition (\u03b1 = 0.10)", xlabel = "Time (h)", ylabel = "d (L/h)", ylims = (-0.5, 10.5))
 
     for i in 1:n_samples
         sigma = σ_lo + (σ_hi - σ_lo) * rand(rng, Float32)
@@ -64,9 +65,7 @@ function plot_comparison(model, ps_cpu, st_cpu;
     end
 
     plt = plot(p1, p2, p3, p4; layout=(2, 2), size=(900, 700))
-    mkpath(dirname(outfile))
-    savefig(plt, outfile)
-    println("Saved comparison plot: $outfile")
+    save_plot(plt, outfile)
     return plt
 end
 

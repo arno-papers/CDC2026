@@ -1,3 +1,6 @@
+# Small standalone utilities (no model or Reactant dependencies).
+# Included by model.jl before common_core.jl / common.jl.
+
 """
     allocate_budget(C; lambda_L=1.0, lambda_M=1.0) -> (L, M, B)
 

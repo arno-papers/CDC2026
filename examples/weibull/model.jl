@@ -21,7 +21,7 @@ using Serialization
 const V_C = 10.0f0   # Central volume (L)
 const V_P = 30.0f0   # Peripheral volume (L)
 
-function dynamics(u, θ, Q_in)
+function dynamics(u, θ, R_inf)
     A_t1 = selectdim(u, 1, 1)
     A_t2 = selectdim(u, 1, 2)
     A_t3 = selectdim(u, 1, 3)
@@ -33,7 +33,7 @@ function dynamics(u, θ, Q_in)
     CL   = selectdim(θ, 1, 3)
     Q_d  = selectdim(θ, 1, 4)
 
-    du1 = @. Q_in - k_tr * A_t1
+    du1 = @. R_inf - k_tr * A_t1
     du2 = @. k_tr * A_t1 - k_tr * A_t2
     du3 = @. k_tr * A_t2 - k_a * A_t3
     du4 = @. k_a * A_t3 - (CL + Q_d) / V_C * A_c + Q_d / V_P * A_p
@@ -77,14 +77,16 @@ const SIGMA_ADD_LO, SIGMA_ADD_HI = 0.01f0, 0.10f0      # additive (mg/L)
 
 const N_TARGET = 2       # k_a, k_tr
 const N_PARAMS_DYN = 4   # k_a, k_tr, CL, Q_d
+const N_PARAMS_OBS = 2   # sigma_prop, sigma_add
+const N_NOISE_CHANNELS = 2  # proportional + additive noise
 
 # ============================================================================
 #  Training Budget Allocation
 # ============================================================================
 
-include(joinpath(@__DIR__, "..", "..", "src", "budget.jl"))
+include(joinpath(@__DIR__, "..", "..", "src", "utils.jl"))
 
-const ODE_BUDGET_TRAJ = 24_000_000
+const ODE_BUDGET_TRAJ = 12_000_000
 const (L_CONTRASTIVE, M_NUISANCE, GRAD_BATCH) = allocate_budget(ODE_BUDGET_TRAJ)
 const GRAD_ACCUM_STEPS = 1
 
@@ -119,11 +121,12 @@ function sample_θ_full(rng, n_denom::Int, B::Int)
 end
 
 function sample_θ_N_joint(rng, M::Int, B::Int)
-    σ_prop = rand(rng, Float32, M, B)
-    σ_prop .= SIGMA_PROP_LO .+ (SIGMA_PROP_HI - SIGMA_PROP_LO) .* σ_prop
-    σ_add = rand(rng, Float32, M, B)
-    σ_add .= SIGMA_ADD_LO .+ (SIGMA_ADD_HI - SIGMA_ADD_LO) .* σ_add
-    return σ_prop, σ_add
+    θ_obs = rand(rng, Float32, N_PARAMS_OBS, M, B)
+    @views begin
+        θ_obs[1, :, :] .= SIGMA_PROP_LO .+ (SIGMA_PROP_HI - SIGMA_PROP_LO) .* θ_obs[1, :, :]
+        θ_obs[2, :, :] .= SIGMA_ADD_LO .+ (SIGMA_ADD_HI - SIGMA_ADD_LO) .* θ_obs[2, :, :]
+    end
+    return θ_obs
 end
 
 function sample_θ_dyn_numer(rng, θ_dyn_true, M, B)
@@ -147,6 +150,28 @@ function make_u0()
 end
 
 # ============================================================================
+#  Observation Model Callbacks
+# ============================================================================
+
+function make_initial_state(u0, _θ_dyn, θ_obs, B)
+    n_samples = size(θ_obs, 2)
+    return repeat(u0, 1, n_samples, B)
+end
+
+function observe_noisy(u, θ_obs_true, ε, step)
+    obs = u[4, 1, :] ./ V_C
+    return obs .+ θ_obs_true[1, :] .* obs .* ε[1, step, :] .+ θ_obs_true[2, :] .* ε[2, step, :]
+end
+
+function log_likelihood_step!(ll, y_broadcast, u_pred, θ_obs)
+    pred = u_pred[4, :, :] ./ V_C
+    σ²_total = (θ_obs[1, :, :] .* pred) .^ 2 .+ θ_obs[2, :, :] .^ 2
+    residual = y_broadcast .- pred
+    ll .-= 0.5f0 .* (residual .^ 2 ./ σ²_total .+ log.(σ²_total))
+    return nothing
+end
+
+# ============================================================================
 #  Policy Network
 # ============================================================================
 
@@ -166,114 +191,4 @@ const policy = @compact(
     x = x + attn
     x = x + ff(rms2(x))
     @return ACTION_HI .* sigmoid.(output_head(x[:, end, :]))
-end
-
-# ============================================================================
-#  Targeted sPCE Loss — PK (proportional + additive noise)
-# ============================================================================
-
-function targeted_spce_loss_pk(model, ps, st, data)
-    θ_full, σ_prop_numer, σ_add_numer, θ_dyn_numer, u0,
-        input_buffer, observations, designs, ε_prop, ε_add,
-        ll_denom, ll_numer = data
-
-    B = size(ε_prop, 2)
-
-    ll_denom .= 0.0f0
-    ll_numer .= 0.0f0
-
-    θ_dyn_true = θ_full[1:N_PARAMS_DYN, 1:1, :]
-    σ_prop_true = θ_full[N_PARAMS_DYN+1, 1, :]
-    σ_add_true  = θ_full[N_PARAMS_DYN+2, 1, :]
-
-    u = repeat(u0, 1, 1, B)
-
-    for step in 1:N_STEPS
-        action, st = model(input_buffer, ps, st)
-        Q_in = action
-        designs[step, :] .= Q_in[1, :]
-
-        u = integrate(u, θ_dyn_true, Q_in, DT, N_SUBSTEPS)
-
-        obs = u[4, 1, :] ./ V_C
-        y_noisy = obs .+ σ_prop_true .* obs .* ε_prop[step, :] .+ σ_add_true .* ε_add[step, :]
-
-        observations[step, :] .= y_noisy
-        input_buffer[1, step, :] .= y_noisy
-        input_buffer[2, step, :] .= Q_in[1, :]
-    end
-
-    # DENOMINATOR
-    n_denom = size(θ_full, 2)
-    θ_dyn_denom  = θ_full[1:N_PARAMS_DYN, :, :]
-    σ_prop_denom = θ_full[N_PARAMS_DYN+1, :, :]
-    σ_add_denom  = θ_full[N_PARAMS_DYN+2, :, :]
-
-    u_denom = repeat(u0, 1, n_denom, B)
-
-    for step in 1:N_STEPS
-        Q_step = designs[step:step, :]
-        u_denom = integrate(u_denom, θ_dyn_denom, Q_step, DT, N_SUBSTEPS)
-
-        pred = u_denom[4, :, :] ./ V_C
-        actual_obs = observations[step:step, :]
-        residual = actual_obs .- pred
-        σ²_total = (σ_prop_denom .* pred) .^ 2 .+ σ_add_denom .^ 2
-        ll_denom .-= 0.5f0 .* (residual .^ 2 ./ σ²_total .+ log.(σ²_total))
-    end
-
-    # NUMERATOR
-    M_N = size(ll_numer, 1)
-
-    u_numer = repeat(u0, 1, M_N, B)
-
-    for step in 1:N_STEPS
-        Q_step = designs[step:step, :]
-        u_numer = integrate(u_numer, θ_dyn_numer, Q_step, DT, N_SUBSTEPS)
-
-        pred = u_numer[4, :, :] ./ V_C
-        actual_obs = observations[step:step, :]
-        residual = actual_obs .- pred
-        σ²_total = (σ_prop_numer .* pred) .^ 2 .+ σ_add_numer .^ 2
-        ll_numer .-= 0.5f0 .* (residual .^ 2 ./ σ²_total .+ log.(σ²_total))
-    end
-
-    ll_max_num = maximum(ll_numer; dims=1)
-    lse_num = ll_max_num .+ log.(sum(exp.(ll_numer .- ll_max_num); dims=1))
-    log_numerator = lse_num .- log(Float32(M_N))
-
-    ll_max_den = maximum(ll_denom; dims=1)
-    lse_den = ll_max_den .+ log.(sum(exp.(ll_denom .- ll_max_den); dims=1))
-    log_denominator = lse_den .- log(Float32(n_denom))
-
-    loss_per_episode = -(log_numerator .- log_denominator)
-    loss = sum(loss_per_episode) / Float32(B)
-
-    return loss, st, (;)
-end
-
-# ============================================================================
-#  Batch Preparation — PK
-# ============================================================================
-
-function prepare_batch_pk(rng, n_denom, M, B_micro, u0, xdev)
-    θ_full_cpu = sample_θ_full(rng, n_denom, B_micro)
-    θ_dyn_numer_cpu = sample_θ_dyn_numer(rng, θ_full_cpu[1:N_PARAMS_DYN, 1:1, :], M, B_micro)
-    θ_full = θ_full_cpu |> xdev
-    θ_dyn_numer = θ_dyn_numer_cpu |> xdev
-    σ_prop_numer, σ_add_numer = sample_θ_N_joint(rng, M, B_micro)
-    σ_prop_numer = σ_prop_numer |> xdev
-    σ_add_numer = σ_add_numer |> xdev
-
-    input_buffer = zeros(Float32, 2, N_STEPS, B_micro) |> xdev
-    observations = zeros(Float32, N_STEPS, B_micro) |> xdev
-    designs = zeros(Float32, N_STEPS, B_micro) |> xdev
-    ε_prop = randn(rng, Float32, N_STEPS, B_micro) |> xdev
-    ε_add  = randn(rng, Float32, N_STEPS, B_micro) |> xdev
-    ll_denom = zeros(Float32, n_denom, B_micro) |> xdev
-    ll_numer = zeros(Float32, M, B_micro) |> xdev
-
-    return (θ_full, σ_prop_numer, σ_add_numer, θ_dyn_numer, u0,
-            input_buffer, observations, designs, ε_prop, ε_add,
-            ll_denom, ll_numer)
 end

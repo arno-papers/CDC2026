@@ -4,20 +4,6 @@
 \label{sec:nuisance}
 
 We extend the sequential contrastive estimation framework to handle nuisance parameters—parameters that must be modeled but are not the focus of inference.
-
-\subsection{Notation}
-
-Partition parameters as $\theta = (\theta_T, \theta_N)$ where $\theta_T$ are targets of interest and $\theta_N$ are nuisance parameters. The prior is $p(\theta) = p(\theta_T, \theta_N)$ with conditional $p(\theta_N|\theta_T)$.
-We use subscripts $T,N$ to denote target and nuisance blocks, and superscripts $(\cdot)$ to index Monte Carlo samples.
-
-The \emph{targeted expected information gain} is:
-\begin{equation}
-\mathcal{I}_K^{\text{tgt}}(\pi) = I(\theta_T; h_K | \pi) = \E_{p(\theta)p(h_K|\theta,\pi)}\left[\log \frac{p(h_K|\theta_T,\pi)}{p(h_K|\pi)}\right]
-\end{equation}
-where the marginal likelihood is $p(h_K|\theta_T,\pi) = \int p(h_K|\theta_T, \theta_N, \pi) p(\theta_N|\theta_T) \, d\theta_N$.
-
-\subsection{Practical Nested Monte Carlo Objective}
-
 Since $p(h_K|\theta_T,\pi)$ is intractable, we use Monte Carlo estimation with:
 \begin{itemize}
     \item \textbf{Numerator}: $M$ samples $\theta_N^{(1:M)} \sim p(\theta_N|\theta_T^{(0)})$ to estimate $p(h_K|\theta_T^{(0)},\pi)$
@@ -76,7 +62,7 @@ as in the standard sPCE analysis~\cite{foster2021}. Then the log-ratios in Term 
 The practical objective requires evaluating $p(h_K|\theta, \pi)$ for $(1+L) + M$ parameter settings per training iteration: $L+1$ full samples for the denominator, plus $M$ nuisance samples for the numerator (all sharing the same $\theta_T^{(0)}$).
 \end{remark}
 
-\subsection{Computational Budget Trade-offs}
+\section{Computational Budget Trade-offs}
 \label{sec:budget_stub}
 
 We briefly summarize how to allocate a fixed simulation budget across the outer minibatch size $B$, the number of contrastive samples $L$, and the number of nuisance samples $M$.
@@ -170,3 +156,53 @@ Fix any $\pi$. At stage $K$, $\pi_K(h_{K-1})$ is one feasible action, so its exp
 \emph{Part 2: $V \leq \max_\pi J(\pi)$.}
 Construct $\pi^\star$ by choosing argmax actions at each history: $\pi_k^\star(h_{k-1}) = \argmax_{a_k} \E[G_{k+1}(h_{k-1},a_k,Y_k) \mid h_{k-1},a_k]$. By iterated expectation, $J(\pi^\star) = G_1 = V$.
 \end{proof}
+
+\section{Bayesian Information Matrix Baseline}
+\label{sec:bim}
+
+The BIM baseline in Table~\ref{tab:spce} uses a Bayesian D-optimal design criterion based on the Fisher information matrix (FIM). For a static design $d_{1:K}$ and parameter vector $\theta = (\mu_{\max}, K_s, C_{x,0})$, the FIM is
+\begin{equation}
+F(\theta, d_{1:K}) = \frac{1}{\sigma^2} J(\theta, d_{1:K})^\top J(\theta, d_{1:K}),
+\end{equation}
+where $J \in \mathbb{R}^{K \times 3}$ is the sensitivity matrix with entries $J_{k,j} = \partial C_s(t_k) / \partial \theta_j$, computed by differentiating the ODE solution with respect to $(\mu_{\max}, K_s, C_{x,0})$.
+
+Since $C_{x,0}$ is a nuisance parameter, we project the information onto the target parameters $(\mu_{\max}, K_s)$ via the Schur complement. Partitioning the posterior precision $B = F + \Lambda$ (where $\Lambda = \mathrm{diag}(\lambda_1, \lambda_2, \lambda_3)$ is the prior precision from the uniform priors, with $\lambda_j = 12/(\theta_j^{\max} - \theta_j^{\min})^2$) as
+\begin{equation}
+B = \begin{pmatrix} B_{TT} & B_{TN} \\ B_{NT} & B_{NN} \end{pmatrix},
+\end{equation}
+the marginal posterior precision for $\theta_T = (\mu_{\max}, K_s)$ is
+\begin{equation}
+B_T = B_{TT} - B_{TN} B_{NN}^{-1} B_{NT}.
+\end{equation}
+
+The Bayesian D-optimal design maximizes the expected log-determinant:
+\begin{equation}
+d^\star_{\text{BIM}} = \argmax_{d_{1:K}} \; \E_{p(\theta)}\!\left[\log\det B_T(\theta, d_{1:K})\right],
+\end{equation}
+where the expectation is approximated by averaging over prior samples. This is a standard criterion~\citep{chaloner1995} that assumes Gaussian posteriors (via the Laplace approximation) and does not account for sequential adaptation.
+
+\section{Training and Evaluation Details}
+\label{sec:training_details}
+
+Training is implemented in Julia~\citep{bezanson2017julia} using Lux.jl~\citep{pal2023lux} for the neural network, Enzyme~\citep{moses2020enzyme} for automatic differentiation through the ODE solver, and Reactant~\citep{reactant2025} for GPU-accelerated compilation via MLIR/XLA. Training was performed on the VSC (Flemish Supercomputer Center) using NVIDIA A100 GPUs.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{figures/monod_training_loss.png}
+\caption{Training loss curve (targeted sPCE objective) over iterations for the Monod bioreactor. The objective converges within approximately 1000 iterations.}
+\label{fig:training_loss}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{figures/monod_spce_trajectories.png}
+\caption{Design trajectories for the Monod bioreactor: adaptive policy rollouts (gray) compared to static baselines. The adaptive policy varies its feed rate across rollouts in response to different observations, while static designs remain fixed.}
+\label{fig:trajectories}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{figures/monod_spce_histograms.png}
+\caption{Targeted sPCE score distributions across design strategies for the Monod bioreactor ($n=500$ trials). The adaptive policy achieves higher scores on average and with lower variance than the static baselines.}
+\label{fig:spce}
+\end{figure}

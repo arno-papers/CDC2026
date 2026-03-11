@@ -1,4 +1,5 @@
 using Plots, Serialization
+include(joinpath(@__DIR__, "..", "..", "src", "plotting.jl"))
 
 function rollout_policy_cpu(model, ps_cpu, st_cpu; theta, u0)
     u = reshape(u0, 3, 1)
@@ -10,25 +11,21 @@ function rollout_policy_cpu(model, ps_cpu, st_cpu; theta, u0)
     st_local = st_cpu
     for step in 1:N_STEPS
         action, st_local = model(input_buffer, ps_cpu, st_local)
-        Q_in = Float32(action[1])
-        designs[step] = Q_in
+        d = Float32(action[1])
+        designs[step] = d
 
-        u = integrate_cpu(u, reshape(theta, 2, 1), Q_in, DT, N_SUBSTEPS)
+        u = integrate_cpu(u, reshape(theta, 2, 1), d, DT, N_SUBSTEPS)
         traj[step + 1, :] .= vec(u)
 
         y_obs = u[1, 1]
         input_buffer[1, step, 1] = y_obs
-        input_buffer[2, step, 1] = Q_in
+        input_buffer[2, step, 1] = d
     end
 
     return traj, designs
 end
 
 function plot_trajectories(model, train_state; rng, n_samples=20, outfile=joinpath(@__DIR__, "results", "plot_trajectories.png"))
-    _to_cpu(x) = x
-    _to_cpu(x::AbstractArray) = collect(x)
-    _to_cpu(x::NamedTuple) = map(_to_cpu, x)
-    _to_cpu(x::Tuple) = map(_to_cpu, x)
     plot_trajectories(model, _to_cpu(train_state.parameters), _to_cpu(train_state.states); rng, n_samples, outfile)
 end
 
@@ -59,8 +56,7 @@ function plot_trajectories(model, ps_cpu::NamedTuple, st_cpu::NamedTuple; rng, n
     end
 
     plt = plot(p1, p2, p3, p4; layout = (2, 2), size = (900, 700))
-    savefig(plt, outfile)
-    println("Saved trajectories plot: $outfile")
+    save_plot(plt, outfile)
 
     return plt
 end
