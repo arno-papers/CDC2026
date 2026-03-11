@@ -68,7 +68,7 @@ const ACTION_HI = 10.0f0
 const k_lo, k_hi = 0.3f0, 0.7f0          # Motor constant
 const J_lo, J_hi = 0.01f0, 0.04f0        # Moment of inertia
 const f_lo, f_hi = 0.005f0, 0.02f0       # Friction coefficient (nuisance, enters dynamics)
-const σ_lo, σ_hi = 0.01f0, 0.05f0        # Measurement noise std (nuisance, observation only)
+const σ_lo, σ_hi = 0.5f0, 2.0f0           # Measurement noise std (nuisance, observation only)
 
 # ASCII aliases
 const sigma_lo, sigma_hi = σ_lo, σ_hi
@@ -151,8 +151,11 @@ end
 #  Initial State
 # ============================================================================
 
+# Pre-experiment voltage: motor is running at steady state before experiment begins.
+const V_PRE = 5.0f0
+
 function make_u0()
-    # Motor at rest: i₀ = 0, ω₀ = 0, dummy = 0
+    # Placeholder — actual initial state is computed in make_initial_state from θ_dyn
     return zeros(Float32, 3, 1, 1)
 end
 
@@ -160,10 +163,18 @@ end
 #  Observation Model Callbacks
 # ============================================================================
 
-function make_initial_state(u0, θ_obs, B)
-    # No observation params affect initial state — motor always starts at rest
-    n_samples = size(θ_obs, 2)
-    return repeat(u0, 1, n_samples, B)
+function make_initial_state(u0, θ_dyn, θ_obs, B)
+    # Steady-state at V_PRE: depends on k and f (J drops out at equilibrium)
+    #   ω_ss = k·V / (R·f + k²)
+    #   i_ss = f·V / (R·f + k²)
+    n_samples = size(θ_dyn, 2)
+    k = θ_dyn[1:1, :, :]    # (1, n_samples, B)
+    f = θ_dyn[3:3, :, :]    # (1, n_samples, B)
+    denom = R_CONST .* f .+ k .^ 2
+    i_ss = f .* V_PRE ./ denom
+    ω_ss = k .* V_PRE ./ denom
+    dummy = zero(ω_ss)
+    return cat(i_ss, ω_ss, dummy; dims=1)   # (3, n_samples, B)
 end
 
 function observe_noisy(u, θ_obs_true, ε, step)
@@ -191,7 +202,7 @@ const policy = @compact(
     mha = MultiHeadAttention(32; nheads = 4),
     rms2 = RMSNorm((32,)),
     ff = Chain(Dense(32 => 64, gelu), Dense(64 => 32)),
-    output_head = Dense(32 => 1; init_bias=(rng, dims...) -> fill(-4.0f0, dims...)),
+    output_head = Dense(32 => 1; init_bias=(rng, dims...) -> fill(0.0f0, dims...)),
 ) do x
     seq_len = size(x, 2)
     x = input_proj(x)
@@ -210,7 +221,11 @@ end
 function omega_trajectory_diff(params::AbstractVector, design::AbstractVector;
                                 n_substeps::Int=N_SUBSTEPS)
     T = promote_type(eltype(params), eltype(design))
-    u = zeros(T, 3, 1)      # [i₀=0, ω₀=0, dummy=0]
+    k, _, f_val = params[1], params[2], params[3]
+    denom = T(R_CONST) * f_val + k^2
+    i_ss = f_val * T(V_PRE) / denom
+    ω_ss = k * T(V_PRE) / denom
+    u = reshape(T[i_ss, ω_ss, zero(T)], 3, 1)
     θ_mat = reshape(T[params[1], params[2], params[3]], 3, 1)   # [k, J, f]
     ω_traj = Vector{T}(undef, N_STEPS)
     for step in 1:N_STEPS
@@ -351,11 +366,13 @@ end
 function rollout_adaptive_design_cpu(model, ps_cpu, st_cpu, rng,
         theta_T::Vector{Float32}, sigma::Float32, f_val::Float32;
         n_substeps::Int=N_SUBSTEPS)
-    u = zeros(Float32, 3, 1)    # [i=0, ω=0, dummy=0]
+    theta_dyn = reshape(Float32[theta_T[1], theta_T[2], f_val], 3, 1)
+    k = theta_T[1]; f = f_val
+    d = Float32(R_CONST) * f + k^2
+    u = reshape(Float32[f * Float32(V_PRE) / d, k * Float32(V_PRE) / d, 0.0f0], 3, 1)
     input_buffer = zeros(Float32, 2, N_STEPS, 1)
     designs = zeros(Float32, N_STEPS)
     st_local = st_cpu
-    theta_dyn = reshape(Float32[theta_T[1], theta_T[2], f_val], 3, 1)
     @inbounds for step in 1:N_STEPS
         action, st_local = model(input_buffer, ps_cpu, st_local)
         v_in = clamp(Float32(action[1]), ACTION_LO, ACTION_HI)
