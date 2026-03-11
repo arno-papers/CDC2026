@@ -1,0 +1,15 @@
+job_id=66157044
+job_name=cdc2026
+partition=gpu_a100
+host=k28g27
+start_time=2026-03-06T17:49:26+01:00
+repo_dir=/data/leuven/325/vsc32553/CDC2026
+source_branch=haldane
+source_commit=unknown
+julia_version=1.12.5
+example=weibull
+task=train
+script_path=examples/weibull/train.jl
+script_args=
+results_dir=/data/leuven/325/vsc32553/CDC2026/examples/weibull/results
+archive_dir=/data/leuven/325/vsc32553/CDC2026-runs/weibull-train-20260306-161856

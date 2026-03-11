@@ -5,13 +5,18 @@
 #   1. src/common_core.jl (CPU-safe infrastructure)
 #   2. Reactant-dependent pieces: integrate(), targeted_spce_loss(), train_policy()
 #
-# model.jl must define: dynamics(), N_STEPS, DT, N_SUBSTEPS, N_PARAMS_DYN,
-# sampling functions (incl. sample_θ_dyn_numer), policy network,
-# budget constants (L_CONTRASTIVE, M_NUISANCE, GRAD_BATCH, GRAD_ACCUM_STEPS)
+# model.jl must define:
+#   Constants: dynamics(), N_STEPS, DT, N_SUBSTEPS, N_PARAMS_DYN,
+#     N_PARAMS_OBS, N_NOISE_CHANNELS, policy network,
+#     budget constants (L_CONTRASTIVE, M_NUISANCE, GRAD_BATCH, GRAD_ACCUM_STEPS)
+#   Sampling: sample_θ_full(), sample_θ_dyn_numer(), sample_θ_N_joint()
+#   Observation model: make_initial_state(), observe_noisy(), log_likelihood_step!()
+#   Initial state: make_u0()
 # ============================================================================
 
 include(joinpath(@__DIR__, "common_core.jl"))
 
+using Lux, Optimisers, Printf
 using Reactant
 using Reactant: @trace
 
@@ -19,10 +24,10 @@ using Reactant: @trace
 #  Reactant-compiled ODE integrator
 # ============================================================================
 
-function integrate(u, θ, Q_in, dt, n_substeps)
+function integrate(u, θ, d, dt, n_substeps)
     dt_sub = dt / n_substeps
     @trace mincut=true for _ in 1:n_substeps
-        u = rk4_step(u, θ, Q_in, dt_sub)
+        u = rk4_step(u, θ, d, dt_sub)
     end
     return u
 end
@@ -32,79 +37,55 @@ end
 # ============================================================================
 
 function targeted_spce_loss(model, ps, st, data)
-    θ_full, σ_numer, Cx0_numer, θ_dyn_numer, u0, input_buffer, observations, designs, ε, ll_denom, ll_numer = data
+    θ_full, θ_obs_numer, θ_dyn_numer, u0, input_buffer, observations, designs, ε, ll_denom, ll_numer = data
 
-    B = size(ε, 2)
+    B = size(ε, 3)
 
     ll_denom .= 0.0f0
     ll_numer .= 0.0f0
 
     θ_dyn_true = θ_full[1:N_PARAMS_DYN, 1:1, :]
-    σ_true = θ_full[N_PARAMS_DYN+1, 1, :]
-    Cx0_true = θ_full[N_PARAMS_DYN+2, 1, :]
+    θ_obs_true_3d = θ_full[N_PARAMS_DYN+1:N_PARAMS_DYN+N_PARAMS_OBS, 1:1, :]
+    θ_obs_true = θ_full[N_PARAMS_DYN+1:N_PARAMS_DYN+N_PARAMS_OBS, 1, :]
 
-    u = vcat(
-        repeat(u0[1:1, :, :], 1, 1, B),
-        reshape(Cx0_true, 1, 1, B),
-        repeat(u0[3:3, :, :], 1, 1, B),
-    )
+    u = make_initial_state(u0, θ_dyn_true, θ_obs_true_3d, B)
 
     for step in 1:N_STEPS
         action, st = model(input_buffer, ps, st)
-        Q_in = action
-        designs[step, :] .= Q_in[1, :]
+        d = action
+        designs[step, :] .= d[1, :]
 
-        u = integrate(u, θ_dyn_true, Q_in, DT, N_SUBSTEPS)
+        u = integrate(u, θ_dyn_true, d, DT, N_SUBSTEPS)
 
-        obs = u[1, 1, :]
-        noise = ε[step, :]
-        y_noisy = obs .+ σ_true .* noise
+        y_noisy = observe_noisy(u, θ_obs_true, ε, step)
 
         observations[step, :] .= y_noisy
         input_buffer[1, step, :] .= y_noisy
-        input_buffer[2, step, :] .= Q_in[1, :]
+        input_buffer[2, step, :] .= d[1, :]
     end
 
     # DENOMINATOR
     n_denom = size(θ_full, 2)
     θ_dyn_denom = θ_full[1:N_PARAMS_DYN, :, :]
-    σ²_denom = (θ_full[N_PARAMS_DYN+1, :, :]) .^ 2
-    Cx0_denom = θ_full[N_PARAMS_DYN+2:N_PARAMS_DYN+2, :, :]
+    θ_obs_denom = θ_full[N_PARAMS_DYN+1:N_PARAMS_DYN+N_PARAMS_OBS, :, :]
 
-    u_denom = vcat(
-        repeat(u0[1:1, :, :], 1, n_denom, B),
-        Cx0_denom,
-        repeat(u0[3:3, :, :], 1, n_denom, B),
-    )
+    u_denom = make_initial_state(u0, θ_dyn_denom, θ_obs_denom, B)
 
     for step in 1:N_STEPS
-        Q_step = designs[step:step, :]
-        u_denom = integrate(u_denom, θ_dyn_denom, Q_step, DT, N_SUBSTEPS)
-
-        pred_obs = u_denom[1, :, :]
-        actual_obs = observations[step:step, :]
-        residual = actual_obs .- pred_obs
-        ll_denom .-= 0.5f0 .* (residual.^2 ./ σ²_denom .+ log.(σ²_denom))
+        d_step = designs[step:step, :]
+        u_denom = integrate(u_denom, θ_dyn_denom, d_step, DT, N_SUBSTEPS)
+        log_likelihood_step!(ll_denom, observations[step:step, :], u_denom, θ_obs_denom)
     end
 
     # NUMERATOR
-    σ²_numer = σ_numer .^ 2
     M_N = size(ll_numer, 1)
 
-    u_numer = vcat(
-        repeat(u0[1:1, :, :], 1, M_N, B),
-        reshape(Cx0_numer, 1, M_N, B),
-        repeat(u0[3:3, :, :], 1, M_N, B),
-    )
+    u_numer = make_initial_state(u0, θ_dyn_numer, θ_obs_numer, B)
 
     for step in 1:N_STEPS
-        Q_step = designs[step:step, :]
-        u_numer = integrate(u_numer, θ_dyn_numer, Q_step, DT, N_SUBSTEPS)
-
-        pred_obs = u_numer[1, :, :]
-        actual_obs = observations[step:step, :]
-        residual = actual_obs .- pred_obs
-        ll_numer .-= 0.5f0 .* (residual.^2 ./ σ²_numer .+ log.(σ²_numer))
+        d_step = designs[step:step, :]
+        u_numer = integrate(u_numer, θ_dyn_numer, d_step, DT, N_SUBSTEPS)
+        log_likelihood_step!(ll_numer, observations[step:step, :], u_numer, θ_obs_numer)
     end
 
     ll_max_num = maximum(ll_numer; dims=1)
@@ -130,18 +111,16 @@ function _prepare_batch_default(rng, n_denom, M, B_micro, u0, xdev)
     θ_dyn_numer_cpu = sample_θ_dyn_numer(rng, θ_full_cpu[1:N_PARAMS_DYN, 1:1, :], M, B_micro)
     θ_full = θ_full_cpu |> xdev
     θ_dyn_numer = θ_dyn_numer_cpu |> xdev
-    σ_numer, Cx0_numer = sample_θ_N_joint(rng, M, B_micro)
-    σ_numer = σ_numer |> xdev
-    Cx0_numer = Cx0_numer |> xdev
+    θ_obs_numer = sample_θ_N_joint(rng, M, B_micro) |> xdev
 
     input_buffer = zeros(Float32, 2, N_STEPS, B_micro) |> xdev
     observations = zeros(Float32, N_STEPS, B_micro) |> xdev
     designs = zeros(Float32, N_STEPS, B_micro) |> xdev
-    ε = randn(rng, Float32, N_STEPS, B_micro) |> xdev
+    ε = randn(rng, Float32, N_NOISE_CHANNELS, N_STEPS, B_micro) |> xdev
     ll_denom = zeros(Float32, n_denom, B_micro) |> xdev
     ll_numer = zeros(Float32, M, B_micro) |> xdev
 
-    return (θ_full, σ_numer, Cx0_numer, θ_dyn_numer, u0, input_buffer, observations, designs, ε, ll_denom, ll_numer)
+    return (θ_full, θ_obs_numer, θ_dyn_numer, u0, input_buffer, observations, designs, ε, ll_denom, ll_numer)
 end
 
 function train_policy(model, ps, st, rng;
@@ -157,7 +136,6 @@ function train_policy(model, ps, st, rng;
     grad_batch = GRAD_BATCH,
     L = L_CONTRASTIVE,
     M = M_NUISANCE,
-    clip_norm = 1.0f0,
     save_dir = ".",
 )
     B_micro = grad_batch ÷ grad_accum
@@ -166,12 +144,10 @@ function train_policy(model, ps, st, rng;
     opt = Adam(lr_min)
     train_state = Lux.Training.TrainState(model, ps, st, opt)
     loss_history = Float32[]
-    diagnostics = Dict{String, Vector{Float32}}()
 
     u0 = make_u0()
     u0 = u0 |> xdev
 
-    grads_last = nothing
     for iteration in 1:n_iters
         ga = grad_accum + (iteration - 1) ÷ 10
         lr_t = cosine_lr(iteration, n_iters, lr_max, lr_min, warmup)
@@ -182,14 +158,10 @@ function train_policy(model, ps, st, rng;
         for _k in 1:ga
             data = prepare_batch(rng, n_denom, M, B_micro, u0, xdev)
 
-            grads_last, loss_k, _, train_state = Lux.Training.single_train_step!(
+            _, loss_k, _, train_state = Lux.Training.single_train_step!(
                 AutoEnzyme(), loss_fn, data, train_state
             )
             total_loss += loss_k
-        end
-
-        if iteration % 10 == 0 || iteration == 1
-            collect_diagnostics!(diagnostics, train_state, grads_last)
         end
 
         avg_loss = total_loss / Float32(ga)
@@ -204,7 +176,7 @@ function train_policy(model, ps, st, rng;
         end
     end
 
-    save_results(save_dir, train_state, loss_history, diagnostics)
+    save_results(save_dir, train_state, loss_history)
 
-    return train_state, loss_history, diagnostics
+    return train_state, loss_history
 end

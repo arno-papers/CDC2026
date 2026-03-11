@@ -14,13 +14,13 @@ rng = MersenneTwister(42)
 const N_SUBSTEPS_REF = 500
 const N_SUBSTEPS_TEST = N_SUBSTEPS  # 50, from model.jl
 
-function rollout_static(Q_in_val::Float32, theta, u0; n_substeps)
+function rollout_static(d_val::Float32, theta, u0; n_substeps)
     u = reshape(u0, 3, 1)
     traj = zeros(Float32, N_STEPS + 1, 3)
     traj[1, :] .= vec(u)
     theta_mat = reshape(theta, 2, 1)
     for step in 1:N_STEPS
-        u = integrate_cpu(u, theta_mat, Q_in_val, DT, n_substeps)
+        u = integrate_cpu(u, theta_mat, d_val, DT, n_substeps)
         traj[step + 1, :] .= vec(u)
     end
     return traj
@@ -36,12 +36,12 @@ function rollout_adaptive(model, ps, st, theta, u0; n_substeps)
     theta_mat = reshape(theta, 2, 1)
     for step in 1:N_STEPS
         action, st_local = model(input_buffer, ps, st_local)
-        Q_in = Float32(action[1])
-        designs[step] = Q_in
-        u = integrate_cpu(u, theta_mat, Q_in, DT, n_substeps)
+        d = Float32(action[1])
+        designs[step] = d
+        u = integrate_cpu(u, theta_mat, d, DT, n_substeps)
         traj[step + 1, :] .= vec(u)
         input_buffer[1, step, 1] = u[1, 1]
-        input_buffer[2, step, 1] = Q_in
+        input_buffer[2, step, 1] = d
     end
     return traj, designs
 end
@@ -89,17 +89,17 @@ end
 #  2. Static profiles: always-on and always-off
 # =========================================================================
 println("\n=== Accuracy: static profiles ===")
-for (label, Q_val) in [("Always ON", ACTION_HI), ("Always OFF", ACTION_LO)]
+for (label, d_val) in [("Always ON", ACTION_HI), ("Always OFF", ACTION_LO)]
     errs = [Float32[] for _ in 1:3]
     for i in 1:N_SAMPLES
         u0 = Float32[3.0, Cx0s[i], 7.0]
-        traj_ref = rollout_static(Q_val, thetas[i], u0; n_substeps=N_SUBSTEPS_REF)
-        traj_test = rollout_static(Q_val, thetas[i], u0; n_substeps=N_SUBSTEPS_TEST)
+        traj_ref = rollout_static(d_val, thetas[i], u0; n_substeps=N_SUBSTEPS_REF)
+        traj_test = rollout_static(d_val, thetas[i], u0; n_substeps=N_SUBSTEPS_TEST)
         for s in 1:3
             push!(errs[s], maximum(abs.(traj_test[:, s] .- traj_ref[:, s])))
         end
     end
-    println("  $label (Q_in=$Q_val):")
+    println("  $label (d=$d_val):")
     for s in 1:3
         sorted = sort(errs[s])
         @printf("    %s: max=%.2e  median=%.2e  p95=%.2e\n",
@@ -118,7 +118,7 @@ t = 0:N_STEPS
 p1 = plot(title="Substrate C_s", xlabel="Step", ylabel="g/L")
 p2 = plot(title="Biomass C_x", xlabel="Step", ylabel="g/L")
 p3 = plot(title="Volume V", xlabel="Step", ylabel="L")
-p4 = plot(title="Design Q_in", xlabel="Step", ylabel="L/hr")
+p4 = plot(title="Design d", xlabel="Step", ylabel="L/hr")
 
 for i in 1:N_PLOT
     u0 = Float32[3.0, Cx0s[i], 7.0]
