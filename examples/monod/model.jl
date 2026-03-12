@@ -8,6 +8,7 @@
 using Lux, Random
 using ForwardDiff
 using LinearAlgebra
+using Optimisers
 using Printf
 using Serialization
 
@@ -40,7 +41,7 @@ end
 
 const N_STEPS = 14
 const DT = 1.0f0
-const N_SUBSTEPS = 500
+const N_SUBSTEPS = 50
 
 const ACTION_LO = 0.0f0
 const ACTION_HI = 10.0f0
@@ -60,31 +61,18 @@ const sigma_lo, sigma_hi = σ_lo, σ_hi
 
 const N_TARGET = 2
 const N_PARAMS_DYN = N_TARGET
+const N_PARAMS_OBS = 2      # σ, Cx0
+const N_NOISE_CHANNELS = 1  # single additive Gaussian noise
 
 # ============================================================================
 #  Training Budget Allocation
 # ============================================================================
 
-const ODE_BUDGET_TRAJ = 2121728
-const M_NUISANCE = 128
+include(joinpath(@__DIR__, "..", "..", "src", "utils.jl"))
 
-const (L_CONTRASTIVE, GRAD_BATCH) = let
-    C = ODE_BUDGET_TRAJ
-    λ = 1.0
-    best_L, best_B, best_obj = 1, fld(C, 3 + M_NUISANCE), Inf
-    for L in 1:(C - 2 - M_NUISANCE)
-        B = fld(C, L + 2 + M_NUISANCE)
-        B < 1 && break
-        obj = 1.0/B + λ/(L+1)^2
-        if obj < best_obj
-            best_obj, best_L, best_B = obj, L, B
-        end
-    end
-    (best_L, best_B)
-end
-
-const GRAD_ACCUM_STEPS = 16
-const GRAD_BATCH_MICRO = GRAD_BATCH ÷ GRAD_ACCUM_STEPS
+const ODE_BUDGET_TRAJ = 2500000
+const (L_CONTRASTIVE, M_NUISANCE, GRAD_BATCH) = allocate_budget(ODE_BUDGET_TRAJ)
+const GRAD_ACCUM_STEPS = 1
 
 # ============================================================================
 #  Sampling
@@ -111,11 +99,12 @@ function sample_θ_full(rng, n_denom::Int, B::Int)
 end
 
 function sample_θ_N_joint(rng, M::Int, B::Int)
-    σ = rand(rng, Float32, M, B)
-    σ .= σ_lo .+ (σ_hi - σ_lo) .* σ
-    Cx0 = rand(rng, Float32, M, B)
-    Cx0 .= Cx0_lo .+ (Cx0_hi - Cx0_lo) .* Cx0
-    return σ, Cx0
+    θ_obs = rand(rng, Float32, N_PARAMS_OBS, M, B)
+    @views begin
+        θ_obs[1, :, :] .= σ_lo .+ (σ_hi - σ_lo) .* θ_obs[1, :, :]
+        θ_obs[2, :, :] .= Cx0_lo .+ (Cx0_hi - Cx0_lo) .* θ_obs[2, :, :]
+    end
+    return θ_obs
 end
 
 function sample_θ_dyn_numer(rng, θ_dyn_true, M, B)
@@ -131,10 +120,6 @@ function draw_prior_samples(rng, n::Int)
     return samples
 end
 
-function sample_cx0(rng, n::Int)
-    return Float32[Cx0_lo + (Cx0_hi - Cx0_lo) * rand(rng, Float32) for _ in 1:n]
-end
-
 # ============================================================================
 #  Initial State
 # ============================================================================
@@ -145,6 +130,32 @@ function make_u0()
     u0[2, 1, 1] = 0.25f0
     u0[3, 1, 1] = 7.0f0
     return u0
+end
+
+# ============================================================================
+#  Observation Model Callbacks
+# ============================================================================
+
+function make_initial_state(u0, _θ_dyn, θ_obs, B)
+    n_samples = size(θ_obs, 2)
+    return vcat(
+        repeat(u0[1:1, :, :], 1, n_samples, B),
+        θ_obs[2:2, :, :],
+        repeat(u0[3:3, :, :], 1, n_samples, B),
+    )
+end
+
+function observe_noisy(u, θ_obs_true, ε, step)
+    obs = u[1, 1, :]
+    return obs .+ θ_obs_true[1, :] .* ε[1, step, :]
+end
+
+function log_likelihood_step!(ll, y_broadcast, u_pred, θ_obs)
+    pred_obs = u_pred[1, :, :]
+    σ² = θ_obs[1, :, :] .^ 2
+    residual = y_broadcast .- pred_obs
+    ll .-= 0.5f0 .* (residual .^ 2 ./ σ² .+ log.(σ²))
+    return nothing
 end
 
 # ============================================================================
@@ -237,104 +248,76 @@ function bim_logdet(design::AbstractVector, prior_samples;
     return score / length(prior_samples)
 end
 
-function bim_logdet_cheating(design::AbstractVector, theta_T, sigma, cx0_samples;
-                              n_substeps::Int=N_SUBSTEPS)
-    T = promote_type(Float64, eltype(design))
-    score = zero(T)
-    for Cx0 in cx0_samples
-        F = fim_matrix(theta_T, sigma, Cx0, design; n_substeps=n_substeps)
-        for k in 1:3
-            F[k, k] += T(PRIOR_PREC[k])
-        end
-        score += logdet(Symmetric(schur_complement_2x2(F)))
-    end
-    return score / length(cx0_samples)
-end
-
 # ============================================================================
 #  Design optimization helpers
 # ============================================================================
 
-function init_design(restart::Int)
-    designs = [
-        fill(0.1, N_STEPS),
-        vcat(fill(0.1, N_STEPS - 3), [4.0, 7.0, 10.0]),
-        fill(5.0, N_STEPS),
-        collect(range(10.0, 0.0; length=N_STEPS)),
-    ]
-    return restart <= length(designs) ? copy(designs[restart]) : 10.0 .* rand(N_STEPS)
-end
-
-function optimize_design_grad(objective;
-        n_iters::Int=300, lr_max::Float64=1.0, lr_min::Float64=0.01,
-        n_restarts::Int=4, results_dir::Union{String,Nothing}=nothing,
+function optimize_design_grad(objective, init::AbstractVector{Float64};
+        n_iters::Int=250, lr_max::Float64=0.003, lr_min::Float64=1e-5,
+        warmup::Int=50, results_dir::Union{String,Nothing}=nothing,
         prefix::String="bim")
 
-    best_design = zeros(Float64, N_STEPS)
+    design = copy(init)
+    opt_state = Optimisers.setup(Adam(lr_min), design)
+
+    best_design = copy(design)
     best_score = -Inf
-    best_restart = 0
-    all_histories = Vector{Vector{Float64}}()
+    score_history = Float64[]
 
-    for r in 1:n_restarts
-        design = init_design(r)
-        velocity = zeros(Float64, N_STEPS)
-        local_best = copy(design)
-        local_best_score = -Inf
-        score_history = Float64[]
+    for iter in 1:n_iters
+        g = ForwardDiff.gradient(objective, design)
+        lr = cosine_lr(iter, n_iters, lr_max, lr_min, warmup)
+        Optimisers.adjust!(opt_state; eta = lr)
+        opt_state, design = Optimisers.update!(opt_state, design, -g)
+        clamp!(design, 0.0, 10.0)
 
-        for iter in 1:n_iters
-            g = ForwardDiff.gradient(objective, design)
-            lr = cosine_lr(iter, n_iters, lr_max, lr_min, 10)
-            velocity .= 0.5 .* velocity .+ g
-            design .+= lr .* velocity
-            clamp!(design, 0.0, 10.0)
-
-            score = objective(design)
-            push!(score_history, score)
-            if score > local_best_score
-                local_best_score = score
-                local_best .= design
-            end
-
-            if iter % 25 == 0 || iter == 1 || iter == n_iters
-                @printf("[GRAD r%d] iter %3d/%3d | lr=%.4f | score=%.5f | best=%.5f\n",
-                        r, iter, n_iters, lr, score, local_best_score)
-                flush(stdout)
-
-                if results_dir !== nothing && isdefined(Main, :Plots)
-                    p = Plots.plot(; xlabel="Iteration", ylabel="BIM logdet",
-                                     title="BIM Optimization ($prefix)", legend=:bottomright)
-                    for (ri, hist) in enumerate(all_histories)
-                        Plots.plot!(p, hist; label="restart $ri", lw=1.5)
-                    end
-                    Plots.plot!(p, score_history; label="restart $r", lw=1.5)
-                    Plots.savefig(p, joinpath(results_dir, "plot_$(prefix)_loss.png"))
-                end
-            end
+        score = objective(design)
+        push!(score_history, score)
+        if score > best_score
+            best_score = score
+            best_design .= design
         end
 
-        push!(all_histories, score_history)
-        @printf("[GRAD] restart %d/%d -> best = %.5f\n", r, n_restarts, local_best_score)
-        flush(stdout)
-        if local_best_score > best_score
-            best_score = local_best_score
-            best_design .= local_best
-            best_restart = r
+        if iter % 25 == 0 || iter == 1 || iter == n_iters
+            @printf("[GRAD] iter %3d/%3d | lr=%.6f | score=%.5f | best=%.5f\n",
+                    iter, n_iters, lr, score, best_score)
+            flush(stdout)
+
+            if results_dir !== nothing && isdefined(Main, :Plots)
+                p = Plots.plot(; xlabel="Iteration", ylabel="BIM logdet",
+                                 title="BIM Optimization ($prefix)", legend=:bottomright)
+                Plots.plot!(p, score_history; label="score", lw=1.5)
+                Plots.savefig(p, joinpath(results_dir, "plot_$(prefix)_loss.png"))
+            end
         end
     end
 
-    @printf("[GRAD] selected restart %d with score = %.5f\n", best_restart, best_score)
+    @printf("[GRAD] best score = %.5f\n", best_score)
     flush(stdout)
     return Float32.(best_design), best_score
 end
 
-function optimize_static_design_grad(prior_samples;
-        n_iters::Int=300, lr_max::Float64=1.0, lr_min::Float64=0.01,
-        n_restarts::Int=4, n_substeps::Int=N_SUBSTEPS,
+function optimize_static_design_grad(prior_samples, init::AbstractVector{Float64};
+        n_iters::Int=250, lr_max::Float64=0.003, lr_min::Float64=1e-5,
+        warmup::Int=50, n_substeps::Int=N_SUBSTEPS,
         results_dir::Union{String,Nothing}=nothing, prefix::String="bim")
     objective = ξ -> bim_logdet(ξ, prior_samples; n_substeps=n_substeps)
-    return optimize_design_grad(objective; n_iters, lr_max, lr_min, n_restarts,
+    return optimize_design_grad(objective, init; n_iters, lr_max, lr_min, warmup,
                                 results_dir, prefix)
+end
+
+function adaptive_mean_design(model, ps_cpu, st_cpu;
+        n_rollouts::Int=1000, seed::Int=0, n_substeps::Int=N_SUBSTEPS)
+    rng = MersenneTwister(seed)
+    avg = zeros(Float64, N_STEPS)
+    for _ in 1:n_rollouts
+        θ = sample_θ_full(rng, 1)
+        d = rollout_adaptive_design_cpu(model, ps_cpu, st_cpu, rng,
+                Float32[θ[1,1], θ[2,1]], Float32(θ[3,1]);
+                Cx0=Float32(θ[4,1]), n_substeps=n_substeps)
+        avg .+= Float64.(d)
+    end
+    return avg ./ n_rollouts
 end
 
 # ============================================================================
@@ -351,26 +334,12 @@ function rollout_adaptive_design_cpu(model, ps_cpu, st_cpu, rng,
     theta_mat = reshape(theta_T, 2, 1)
     @inbounds for step in 1:N_STEPS
         action, st_local = model(input_buffer, ps_cpu, st_local)
-        q_in = clamp(Float32(action[1]), ACTION_LO, ACTION_HI)
-        designs[step] = q_in
-        u = integrate_cpu(u, theta_mat, q_in, DT, n_substeps)
+        d = clamp(Float32(action[1]), ACTION_LO, ACTION_HI)
+        designs[step] = d
+        u = integrate_cpu(u, theta_mat, d, DT, n_substeps)
         y_obs = u[1, 1] + sigma * randn(rng, Float32)
         input_buffer[1, step, 1] = y_obs
-        input_buffer[2, step, 1] = q_in
+        input_buffer[2, step, 1] = d
     end
     return designs
-end
-
-# ============================================================================
-#  Checkpoint loading
-# ============================================================================
-
-function load_checkpoint_cpu(path::AbstractString)
-    if isdir(path)
-        r = load_results(path)
-        return r.parameters, r.states, path
-    end
-    @assert isfile(path) "Checkpoint not found: $path"
-    ckpt = deserialize(path)
-    return ckpt["parameters"], ckpt["states"], dirname(path)
 end

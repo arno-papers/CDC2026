@@ -40,7 +40,7 @@ end
 
 const N_STEPS = 14
 const DT = 1.0f0
-const N_SUBSTEPS = 500
+const N_SUBSTEPS = 50
 
 const ACTION_LO = 0.0f0
 const ACTION_HI = 10.0f0
@@ -49,8 +49,8 @@ const ACTION_HI = 10.0f0
 #  Prior Bounds
 # ============================================================================
 
-const μ_max_lo, μ_max_hi = 0.3f0, 0.5f0
-const K_s_lo, K_s_hi = 0.3f0, 0.6f0
+const μ_max_lo, μ_max_hi = 0.35f0, 0.45f0
+const K_s_lo, K_s_hi = 0.40f0, 0.50f0
 const σ_lo, σ_hi = 0.05f0, 0.15f0       # Nuisance: measurement noise std
 const Cx0_lo, Cx0_hi = 0.10f0, 0.50f0    # Nuisance: initial biomass
 
@@ -60,6 +60,8 @@ const sigma_lo, sigma_hi = σ_lo, σ_hi
 
 const N_TARGET = 1
 const N_PARAMS_DYN = 3
+const N_PARAMS_OBS = 2      # σ, Cx0
+const N_NOISE_CHANNELS = 1  # single additive Gaussian noise
 
 # Spike-and-slab prior on α = 1/K_i
 const SPIKE_PROB = 0.5f0
@@ -71,26 +73,11 @@ const SLAB_STD = 0.03f0
 #  Training Budget Allocation
 # ============================================================================
 
+include(joinpath(@__DIR__, "..", "..", "src", "utils.jl"))
+
 const ODE_BUDGET_TRAJ = 2121728
-const M_NUISANCE = 512
-
-const (L_CONTRASTIVE, GRAD_BATCH) = let
-    C = ODE_BUDGET_TRAJ
-    λ = 1.0
-    best_L, best_B, best_obj = 1, fld(C, 3 + M_NUISANCE), Inf
-    for L in 1:(C - 2 - M_NUISANCE)
-        B = fld(C, L + 2 + M_NUISANCE)
-        B < 1 && break
-        obj = 1.0/B + λ/(L+1)^2
-        if obj < best_obj
-            best_obj, best_L, best_B = obj, L, B
-        end
-    end
-    (best_L, best_B)
-end
-
+const (L_CONTRASTIVE, M_NUISANCE, GRAD_BATCH) = allocate_budget(ODE_BUDGET_TRAJ)
 const GRAD_ACCUM_STEPS = 16
-const GRAD_BATCH_MICRO = GRAD_BATCH ÷ GRAD_ACCUM_STEPS
 
 # ============================================================================
 #  Sampling
@@ -140,11 +127,12 @@ function sample_θ_full(rng, n_denom::Int, B::Int)
 end
 
 function sample_θ_N_joint(rng, M::Int, B::Int)
-    σ = rand(rng, Float32, M, B)
-    σ .= σ_lo .+ (σ_hi - σ_lo) .* σ
-    Cx0 = rand(rng, Float32, M, B)
-    Cx0 .= Cx0_lo .+ (Cx0_hi - Cx0_lo) .* Cx0
-    return σ, Cx0
+    θ_obs = rand(rng, Float32, N_PARAMS_OBS, M, B)
+    @views begin
+        θ_obs[1, :, :] .= σ_lo .+ (σ_hi - σ_lo) .* θ_obs[1, :, :]
+        θ_obs[2, :, :] .= Cx0_lo .+ (Cx0_hi - Cx0_lo) .* θ_obs[2, :, :]
+    end
+    return θ_obs
 end
 
 function sample_θ_dyn_numer(rng, θ_dyn_true, M, B)
@@ -178,6 +166,32 @@ function make_u0()
     u0[2, 1, 1] = 0.25f0
     u0[3, 1, 1] = 7.0f0
     return u0
+end
+
+# ============================================================================
+#  Observation Model Callbacks
+# ============================================================================
+
+function make_initial_state(u0, _θ_dyn, θ_obs, B)
+    n_samples = size(θ_obs, 2)
+    return vcat(
+        repeat(u0[1:1, :, :], 1, n_samples, B),
+        θ_obs[2:2, :, :],
+        repeat(u0[3:3, :, :], 1, n_samples, B),
+    )
+end
+
+function observe_noisy(u, θ_obs_true, ε, step)
+    obs = u[1, 1, :]
+    return obs .+ θ_obs_true[1, :] .* ε[1, step, :]
+end
+
+function log_likelihood_step!(ll, y_broadcast, u_pred, θ_obs)
+    pred_obs = u_pred[1, :, :]
+    σ² = θ_obs[1, :, :] .^ 2
+    residual = y_broadcast .- pred_obs
+    ll .-= 0.5f0 .* (residual .^ 2 ./ σ² .+ log.(σ²))
+    return nothing
 end
 
 # ============================================================================
@@ -216,26 +230,12 @@ function rollout_adaptive_design_cpu(model, ps_cpu, st_cpu, rng,
     theta_mat = reshape(theta_dyn, N_PARAMS_DYN, 1)
     @inbounds for step in 1:N_STEPS
         action, st_local = model(input_buffer, ps_cpu, st_local)
-        q_in = clamp(Float32(action[1]), ACTION_LO, ACTION_HI)
-        designs[step] = q_in
-        u = integrate_cpu(u, theta_mat, q_in, DT, n_substeps)
+        d = clamp(Float32(action[1]), ACTION_LO, ACTION_HI)
+        designs[step] = d
+        u = integrate_cpu(u, theta_mat, d, DT, n_substeps)
         y_obs = u[1, 1] + sigma * randn(rng, Float32)
         input_buffer[1, step, 1] = y_obs
-        input_buffer[2, step, 1] = q_in
+        input_buffer[2, step, 1] = d
     end
     return designs
-end
-
-# ============================================================================
-#  Checkpoint loading
-# ============================================================================
-
-function load_checkpoint_cpu(path::AbstractString)
-    if isdir(path)
-        r = load_results(path)
-        return r.parameters, r.states, path
-    end
-    @assert isfile(path) "Checkpoint not found: $path"
-    ckpt = deserialize(path)
-    return ckpt["parameters"], ckpt["states"], dirname(path)
 end

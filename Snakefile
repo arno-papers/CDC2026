@@ -1,5 +1,5 @@
 JULIA = "julia --project=."
-SRC = ["src/common_core.jl", "src/common.jl", "src/args.jl", "src/plotting.jl"]
+SRC = ["src/utils.jl", "src/common_core.jl", "src/common.jl", "src/plotting.jl"]
 
 MONOD = "examples/monod"
 RESULTS = f"{MONOD}/results"
@@ -11,6 +11,11 @@ HALDANE_RESULTS = f"{HALDANE}/results"
 HALDANE_MODEL = f"{HALDANE}/model.jl"
 HALDANE_DEPS = [HALDANE_MODEL] + SRC
 
+WEIBULL = "examples/weibull"
+WEIBULL_RESULTS = f"{WEIBULL}/results"
+WEIBULL_MODEL = f"{WEIBULL}/model.jl"
+WEIBULL_DEPS = [WEIBULL_MODEL] + SRC
+
 # ---- Default target ----
 rule all:
     input:
@@ -20,7 +25,7 @@ rule all:
 # ---- Training (VSC cluster) ----
 rule train:
     input: f"{MONOD}/train.jl", *DEPS
-    output: f"{RESULTS}/checkpoint.jls"
+    output: f"{RESULTS}/checkpoint.jls", f"{RESULTS}/plot_training_loss.png"
     shell: "./vsc/train_remote.sh"
 
 # ---- BIM design optimization (CPU, local, sequential via resource lock) ----
@@ -29,12 +34,6 @@ rule optimize_bim_std:
     output: f"{RESULTS}/bim_std_design.jls"
     resources: bim_slot=1
     shell: "{JULIA} {input[0]}"
-
-rule optimize_bim_cheat:
-    input: f"{MONOD}/optimize_bim.jl", *DEPS
-    output: f"{RESULTS}/bim_cheat_design.jls"
-    resources: bim_slot=1
-    shell: "{JULIA} {input[0]} cheating=true"
 
 # ---- Static sPCE optimization (GPU, VSC cluster) ----
 rule optimize_static:
@@ -48,7 +47,6 @@ rule eval_spce:
         script=f"{MONOD}/eval_spce.jl",
         checkpoint=f"{RESULTS}/checkpoint.jls",
         bim_std=f"{RESULTS}/bim_std_design.jls",
-        bim_cheat=f"{RESULTS}/bim_cheat_design.jls",
         spce_static=f"{RESULTS}/spce_static_design.jls",
         deps=DEPS,
     output:
@@ -63,21 +61,11 @@ rule eval_posterior:
         script=f"{MONOD}/eval_posterior.jl",
         checkpoint=f"{RESULTS}/checkpoint.jls",
         bim_std=f"{RESULTS}/bim_std_design.jls",
-        bim_cheat=f"{RESULTS}/bim_cheat_design.jls",
         spce_static=f"{RESULTS}/spce_static_design.jls",
         deps=DEPS,
     output:
         results=f"{RESULTS}/posterior_results.jls",
         plot=f"{RESULTS}/plot_posterior.png",
-    shell: "{JULIA} {input.script}"
-
-# ---- Training loss plot (CPU, local) ----
-rule plot_training:
-    input:
-        script=f"{MONOD}/plot_training.jl",
-        checkpoint=f"{RESULTS}/checkpoint.jls",
-        deps=DEPS,
-    output: f"{RESULTS}/plot_training_loss.png"
     shell: "{JULIA} {input.script}"
 
 # ---- Haldane training (VSC cluster) ----
@@ -95,6 +83,30 @@ rule haldane_plot:
     output: f"{HALDANE_RESULTS}/plot_comparison.png"
     shell: "{JULIA} {input.script}"
 
+# ---- Monod dynamics plot (CPU, local) ----
+rule monod_dynamics_plot:
+    input:
+        script=f"{MONOD}/plot_dynamics.jl",
+        checkpoint=f"{RESULTS}/checkpoint.jls",
+        deps=DEPS,
+    output: f"{RESULTS}/plot_dynamics.png"
+    shell: "{JULIA} {input.script}"
+
+# ---- Weibull PK training (VSC cluster) ----
+rule weibull_train:
+    input: f"{WEIBULL}/train.jl", *WEIBULL_DEPS
+    output: f"{WEIBULL_RESULTS}/checkpoint.jls"
+    shell: "EXAMPLE=weibull WALLTIME=8:00:00 ./vsc/train_remote.sh"
+
+# ---- Weibull nuisance adaptation plot (CPU, local) ----
+rule weibull_nuisance_plot:
+    input:
+        script=f"{WEIBULL}/plot_nuisance.jl",
+        checkpoint=f"{WEIBULL_RESULTS}/checkpoint.jls",
+        deps=WEIBULL_DEPS,
+    output: f"{WEIBULL_RESULTS}/plot_nuisance.png"
+    shell: "{JULIA} {input.script}"
+
 # ---- Figures: copy to paper/figures/ ----
 rule figures:
     input:
@@ -102,13 +114,17 @@ rule figures:
         f"{RESULTS}/plot_spce_trajectories.png",
         f"{RESULTS}/plot_spce_histograms.png",
         f"{RESULTS}/plot_posterior.png",
+        f"{RESULTS}/plot_dynamics.png",
         f"{HALDANE_RESULTS}/plot_comparison.png",
+        f"{WEIBULL_RESULTS}/plot_nuisance.png",
     output:
         "paper/figures/monod_training_loss.png",
         "paper/figures/monod_spce_trajectories.png",
         "paper/figures/monod_spce_histograms.png",
         "paper/figures/monod_posterior.png",
+        "paper/figures/monod_dynamics.png",
         "paper/figures/haldane_comparison.png",
+        "paper/figures/pharma_nuisance.png",
     run:
         import shutil, os
         os.makedirs("paper/figures", exist_ok=True)

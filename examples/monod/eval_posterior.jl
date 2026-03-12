@@ -6,7 +6,6 @@
 
 include(joinpath(@__DIR__, "model.jl"))
 include(joinpath(@__DIR__, "..", "..", "src", "common.jl"))
-include(joinpath(@__DIR__, "..", "..", "src", "args.jl"))
 include(joinpath(@__DIR__, "..", "..", "src", "plotting.jl"))
 
 using Dates
@@ -79,24 +78,15 @@ function posterior_mean_eval(model, ps, st, data)
 
     ll_buf .= 0.0f0
 
-    θ_T = θ_post[1:2, :, :]
-    σ² = θ_post[3, :, :] .^ 2
-    Cx0 = θ_post[4:4, :, :]
+    θ_dyn = θ_post[1:N_PARAMS_DYN, :, :]
+    θ_obs = θ_post[N_PARAMS_DYN+1:N_PARAMS_DYN+N_PARAMS_OBS, :, :]
 
-    u = vcat(
-        repeat(u0[1:1, :, :], 1, N_p, B),
-        Cx0,
-        repeat(u0[3:3, :, :], 1, N_p, B),
-    )
+    u = make_initial_state(u0, θ_obs, B)
 
     for step in 1:N_STEPS
-        Q_step = design_mat[step:step, :]
-        u = integrate(u, θ_T, Q_step, DT, n_substeps_val)
-
-        pred_obs = u[1, :, :]
-        actual_obs = observations[step:step, :]
-        residual = actual_obs .- pred_obs
-        ll_buf .-= 0.5f0 .* (residual .^ 2 ./ σ² .+ log.(σ²))
+        d_step = design_mat[step:step, :]
+        u = integrate(u, θ_dyn, d_step, DT, n_substeps_val)
+        log_likelihood_step!(ll_buf, observations[step:step, :], u, θ_obs)
     end
 
     ll_max = maximum(ll_buf; dims=1)
@@ -118,18 +108,17 @@ end
 # ============================================================================
 
 if abspath(PROGRAM_FILE) == @__FILE__
-    checkpoint       = parse_kwarg(ARGS, "checkpoint"; default=joinpath(@__DIR__, "results"))
-    spce_design_path = parse_kwarg(ARGS, "spce_design"; default=nothing)
-    n_trials         = parse_int(ARGS, "n_trials"; default=200)
-    N_post           = parse_int(ARGS, "N_post"; default=5000)
-    B                = parse_int(ARGS, "B"; default=32)
-    n_substeps       = parse_int(ARGS, "n_substeps"; default=N_SUBSTEPS)
-    seed             = parse_int(ARGS, "seed"; default=0)
+    checkpoint       = joinpath(@__DIR__, "results")
+    n_trials         = 200
+    N_post           = 5000
+    B                = 32
+    n_substeps       = N_SUBSTEPS
+    seed             = 0
 
-    true_μ = Float32(parse_float64(ARGS, "true_mu_max"; default=Float64(μ_max_lo + μ_max_hi) / 2))
-    true_K = Float32(parse_float64(ARGS, "true_K_s";    default=Float64(K_s_lo + K_s_hi) / 2))
-    true_σ = Float32(parse_float64(ARGS, "true_sigma";  default=Float64(σ_lo + σ_hi) / 2))
-    true_Cx0 = Float32(parse_float64(ARGS, "true_Cx0";  default=Float64(Cx0_lo + Cx0_hi) / 2))
+    true_μ = Float32(Float64(μ_max_lo + μ_max_hi) / 2)
+    true_K = Float32(Float64(K_s_lo + K_s_hi) / 2)
+    true_σ = Float32(Float64(σ_lo + σ_hi) / 2)
+    true_Cx0 = Float32(Float64(Cx0_lo + Cx0_hi) / 2)
     θT = Float32[true_μ, true_K]
 
     results_dir = joinpath(@__DIR__, "results")
@@ -137,19 +126,12 @@ if abspath(PROGRAM_FILE) == @__FILE__
 
     ps_cpu, st_cpu, _ = load_checkpoint_cpu(checkpoint)
 
-    cheating_data = deserialize(joinpath(results_dir, "bim_cheat_design.jls"))
-    static_cheating = cheating_data["static_design"]
-
     standard_data = deserialize(joinpath(results_dir, "bim_std_design.jls"))
     static_standard = standard_data["static_design"]
 
     has_spce_opt = false
     local static_spce_opt
-    if spce_design_path !== nothing
-        spce_file = spce_design_path
-    else
-        spce_file = joinpath(results_dir, "spce_static_design.jls")
-    end
+    spce_file = joinpath(results_dir, "spce_static_design.jls")
     if isfile(spce_file)
         spce_data = deserialize(spce_file)
         static_spce_opt = spce_data["design"]
@@ -162,7 +144,6 @@ if abspath(PROGRAM_FILE) == @__FILE__
 
     static_designs = Pair{String, Vector{Float32}}[
         "static_std"   => Float32.(static_standard),
-        "static_cheat" => Float32.(static_cheating),
     ]
     if has_spce_opt
         push!(static_designs, "static_spce" => Float32.(static_spce_opt))
@@ -268,54 +249,6 @@ if abspath(PROGRAM_FILE) == @__FILE__
         flush(stdout)
     end
 
-    # ---- Mean adaptive as static baseline ----
-    avg_adaptive = Float32.(vec(mean(all_adaptive_designs; dims=2)))
-    push!(design_names, "static_avg")
-    all_post_means["static_avg"] = Matrix{Float32}(undef, 2, n_trials)
-    all_ess["static_avg"] = Vector{Float32}(undef, n_trials)
-
-    println("\nEvaluating mean adaptive design as static baseline...")
-    println("Mean adaptive: [", join(round.(avg_adaptive; digits=3), ", "), "]")
-    flush(stdout)
-
-    rng_post_avg = MersenneTwister(seed + 42)
-    for batch_idx in 1:n_batches
-        trial_start = (batch_idx - 1) * B + 1
-        actual_B = min(B, n_trials - trial_start + 1)
-
-        obs_avg = zeros(Float32, N_STEPS, B)
-        design_avg = repeat(reshape(avg_adaptive, N_STEPS, 1), 1, B)
-
-        for b in 1:actual_B
-            trial_idx = trial_start + b - 1
-            obs = generate_observations(MersenneTwister(seed + 5 * n_trials + trial_idx),
-                                         θT, true_σ, true_Cx0, avg_adaptive; n_substeps=n_substeps)
-            obs_avg[:, b] .= obs
-        end
-
-        θ_post = sample_θ_full(rng_post_avg, N_post, B)
-        θ_post_ra = θ_post |> xdev
-        ll_buf = zeros(Float32, N_post, B) |> xdev
-
-        obs_ra = obs_avg |> xdev
-        design_ra = design_avg |> xdev
-
-        data = (θ_post_ra, u0_ra, obs_ra, design_ra, ll_buf, n_substeps)
-        result_ra, _, _ = @jit posterior_mean_eval(dummy_model, ps_dummy_ra, st_dummy_ra, data)
-        result_cpu = Array(result_ra)
-
-        for b in 1:actual_B
-            trial_idx = trial_start + b - 1
-            all_post_means["static_avg"][:, trial_idx] .= result_cpu[1:2, b]
-            all_ess["static_avg"][trial_idx] = result_cpu[3, b]
-        end
-
-        if batch_idx % 5 == 0 || batch_idx == n_batches
-            @printf("  batch %d/%d\n", batch_idx, n_batches)
-            flush(stdout)
-        end
-    end
-
     t_total = time() - t_start
     @printf("\nTotal evaluation time: %.1fs\n", t_total)
 
@@ -361,7 +294,6 @@ if abspath(PROGRAM_FILE) == @__FILE__
         "posterior_means"      => Dict(name => all_post_means[name] for name in keys(all_post_means)),
         "ess"                  => Dict(name => all_ess[name] for name in keys(all_ess)),
         "adaptive_designs"     => all_adaptive_designs,
-        "avg_adaptive_design"  => avg_adaptive,
         "n_trials"             => n_trials,
         "N_post"               => N_post,
         "B"                    => B,
@@ -410,7 +342,6 @@ if abspath(PROGRAM_FILE) == @__FILE__
         @printf(io, "true_Cx0    = %.4f\n", true_Cx0)
         @printf(io, "wall_time_s = %.1f\n", t_total)
         println(io)
-        println(io, "avg_adaptive_design = [", join(round.(avg_adaptive; digits=4), ", "), "]")
         for (name, d) in static_designs
             println(io, "$name = [", join(round.(d; digits=4), ", "), "]")
         end

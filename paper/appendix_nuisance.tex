@@ -4,20 +4,6 @@
 \label{sec:nuisance}
 
 We extend the sequential contrastive estimation framework to handle nuisance parameters—parameters that must be modeled but are not the focus of inference.
-
-\subsection{Notation}
-
-Partition parameters as $\theta = (\theta_T, \theta_N)$ where $\theta_T$ are targets of interest and $\theta_N$ are nuisance parameters. The prior is $p(\theta) = p(\theta_T, \theta_N)$ with conditional $p(\theta_N|\theta_T)$.
-We use subscripts $T,N$ to denote target and nuisance blocks, and superscripts $(\cdot)$ to index Monte Carlo samples.
-
-The \emph{targeted expected information gain} is:
-\begin{equation}
-\mathcal{I}_K^{\text{tgt}}(\pi) = I(\theta_T; h_K | \pi) = \E_{p(\theta)p(h_K|\theta,\pi)}\left[\log \frac{p(h_K|\theta_T,\pi)}{p(h_K|\pi)}\right]
-\end{equation}
-where the marginal likelihood is $p(h_K|\theta_T,\pi) = \int p(h_K|\theta_T, \theta_N, \pi) p(\theta_N|\theta_T) \, d\theta_N$.
-
-\subsection{Practical Nested Monte Carlo Objective}
-
 Since $p(h_K|\theta_T,\pi)$ is intractable, we use Monte Carlo estimation with:
 \begin{itemize}
     \item \textbf{Numerator}: $M$ samples $\theta_N^{(1:M)} \sim p(\theta_N|\theta_T^{(0)})$ to estimate $p(h_K|\theta_T^{(0)},\pi)$
@@ -76,7 +62,7 @@ as in the standard sPCE analysis~\cite{foster2021}. Then the log-ratios in Term 
 The practical objective requires evaluating $p(h_K|\theta, \pi)$ for $(1+L) + M$ parameter settings per training iteration: $L+1$ full samples for the denominator, plus $M$ nuisance samples for the numerator (all sharing the same $\theta_T^{(0)}$).
 \end{remark}
 
-\subsection{Computational Budget Trade-offs}
+\section{Computational Budget Trade-offs}
 \label{sec:budget_stub}
 
 We briefly summarize how to allocate a fixed simulation budget across the outer minibatch size $B$, the number of contrastive samples $L$, and the number of nuisance samples $M$.
@@ -84,16 +70,17 @@ The goal is to approximate the gradient of the targeted expected information gai
 
 \paragraph{Simulation budget (ODE rollouts).}
 For mechanistic models, the dominant cost of evaluating $p(h_K|\theta,\pi)$ is simulating the system forward for $K$ design steps.
-In our implementation (Algorithm~\ref{algo:DAD}), per episode we perform
-one rollout to generate $h_K$ under $\theta^{(0)}$, $(L+1)$ rollouts for the denominator likelihoods under $\theta^{(0:L)}$, and one rollout for the numerator likelihood under $\theta_T^{(0)}$.
-Thus, a convenient compute budget is the number of full-trajectory ODE rollouts per update,
+In our implementation (Algorithm~\ref{algo:DAD}), per episode we perform:
+one rollout to generate $h_K$ under $\theta^{(0)}$,
+$(L+1)$ rollouts for the denominator likelihoods under $\theta^{(0:L)}$, and
+$M$ rollouts for the numerator likelihoods under $(\theta_T^{(0)}, \theta_N^{(m)})$ for $m=1,\ldots,M$.
+The nuisance samples require separate ODE solves whenever nuisance parameters enter as initial conditions (e.g., initial biomass $C_{x,0}$) or appear in the dynamics (e.g., $\mu_{\max}$, $K_s$ in Haldane).
+Thus, the compute budget is the total number of full-trajectory ODE rollouts per gradient update,
 \begin{equation}
 \label{eq:budget_rollouts}
-\mathcal{C}_{\text{traj}} \;:=\; B\,(L+3),
+\mathcal{C}_{\text{traj}} \;:=\; B\,(L+2+M),
 \end{equation}
-which is proportional to the number of ODE solver steps (or RHS evaluations) per update.
-Crucially, in the common case where nuisance parameters only affect the observation model (e.g., a measurement noise scale), they do not appear inside the ODE solve.
-Then increasing $M$ does not increase $\mathcal{C}_{\text{traj}}$.
+which is proportional to the number of ODE solver steps per update.
 
 \paragraph{Asymptotic MSE of the gradient estimator.}
 Let $g(\phi)=\nabla_\phi\,\mathcal{I}_K^{\text{tgt}}(\pi_\phi)$ denote the true targeted EIG gradient.
@@ -116,26 +103,30 @@ and therefore the mean-squared error scales as
 The $B^{-1}$ term is the usual outer Monte Carlo variance reduction from averaging $B$ independent episodes, while the $(L+1)^{-2}$ and $M^{-2}$ terms arise from the squared bias induced by the concavity of $\log$ (i.e., the finite-sample Jensen gaps in the nested estimators).
 
 \paragraph{Optimal scaling under fixed ODE budget.}
-Assume nuisance parameters do not enter the ODE solve so that $M$ is effectively ``ODE-free''.
-Then we can take $M$ as large as practical so that the $\mathcal{O}(M^{-1})$ and $\mathcal{O}(M^{-2})$ terms in \eqref{eq:grad_mse_scaling} are negligible.
-Under a fixed rollout budget $\mathcal{C}_{\text{traj}}$ in \eqref{eq:budget_rollouts}, we have $B \approx \mathcal{C}_{\text{traj}}/(L+3)$.
-Keeping only the leading outer-variance and inner-bias terms gives the proxy
+Since all three variables $L$, $M$, $B$ consume ODE rollouts, we jointly optimize them under the budget constraint~\eqref{eq:budget_rollouts}.
+Substituting $B = \mathcal{C}_{\text{traj}}/(L+2+M)$ into the leading terms of~\eqref{eq:grad_mse_scaling} gives the proxy
 \begin{equation}
-\mathrm{MSE}(\hat g_{B,L,\infty}) \approx a\,B^{-1} + c\,(L+1)^{-2},
+\mathrm{MSE}(L,M) \;\approx\; \frac{a\,(L+2+M)}{\mathcal{C}_{\text{traj}}} + \frac{c}{(L+1)^2} + \frac{d}{M^2},
 \end{equation}
-for problem-dependent constants $a,c>0$.
-Substituting $B\approx \mathcal{C}_{\text{traj}}/(L+3)$ and minimizing over $L$ yields
+for problem-dependent constants $a,c,d>0$.
+Setting $\partial\,\mathrm{MSE}/\partial L = 0$ and $\partial\,\mathrm{MSE}/\partial M = 0$ yields
 \begin{equation}
-L^\star + 1 \;\asymp\; \mathcal{C}_{\text{traj}}^{1/3},
-\qquad
-B^\star \;\asymp\; \mathcal{C}_{\text{traj}}^{2/3},
+L^\star + 1 = \left(\frac{2c\,\mathcal{C}_{\text{traj}}}{a}\right)^{1/3}, \qquad
+M^\star = \left(\frac{2d\,\mathcal{C}_{\text{traj}}}{a}\right)^{1/3}, \qquad
+B^\star = \frac{\mathcal{C}_{\text{traj}}}{L^\star + 2 + M^\star}.
 \end{equation}
-and hence the optimal ratio obeys
-\begin{equation}
-\label{eq:bl_quadratic_scaling}
-B^\star \propto (L^\star+1)^2.
-\end{equation}
-In words: for a fixed ODE integration budget, it is asymptotically optimal to allocate substantially more samples to the outer minibatch than to the contrastive inner loop.
+All three scale with $\mathcal{C}_{\text{traj}}$: $L^\star, M^\star \propto \mathcal{C}_{\text{traj}}^{1/3}$ and $B^\star \propto \mathcal{C}_{\text{traj}}^{2/3}$.
+The ratio $L^\star/M^\star = (c/d)^{1/3}$ depends on the relative magnitudes of the Jensen gaps.
+The quadratic relations $B^\star \propto (L^\star+1)^2$ and $B^\star \propto (M^\star)^2$ both hold.
+When the constants $c,d$ are unknown, we default to $c=d$ so that $L^\star \approx M^\star$.
+
+\paragraph{Gradient accumulation.}
+In practice, GPU memory limits the number of concurrent ODE rollouts.
+Gradient accumulation splits the $B$ episodes into $G$ micro-batches of size $B_{\text{micro}} = B/G$, each requiring $(L + M) \times B_{\text{micro}}$ concurrent trajectories.
+The memory constraint is $(L + M) \times B_{\text{micro}} \le \texttt{GPU\_MEM}$, so the maximum achievable budget satisfies $\mathcal{C}_{\text{max}} \propto G \times \texttt{GPU\_MEM}$.
+Crucially, accumulation preserves $L$ and $M$ (and thus the bias) while only splitting the variance across $G$ passes.
+Increasing $G$ reduces the irreducible Jensen-gap bias as $\mathcal{C}_{\text{traj}}^{-2/3}$---a qualitative improvement that cannot be achieved by running more training iterations at a smaller $\mathcal{C}_{\text{traj}}$, since bias is systematic and does not average away.
+The cost is $G\times$ wall time per gradient update.
 
 \section{Policy Equivalence}
 \label{sec:policy_equiv}
@@ -165,3 +156,53 @@ Fix any $\pi$. At stage $K$, $\pi_K(h_{K-1})$ is one feasible action, so its exp
 \emph{Part 2: $V \leq \max_\pi J(\pi)$.}
 Construct $\pi^\star$ by choosing argmax actions at each history: $\pi_k^\star(h_{k-1}) = \argmax_{a_k} \E[G_{k+1}(h_{k-1},a_k,Y_k) \mid h_{k-1},a_k]$. By iterated expectation, $J(\pi^\star) = G_1 = V$.
 \end{proof}
+
+\section{Bayesian Information Matrix Baseline}
+\label{sec:bim}
+
+The BIM baseline in Table~\ref{tab:spce} uses a Bayesian D-optimal design criterion based on the Fisher information matrix (FIM). For a static design $d_{1:K}$ and parameter vector $\theta = (\mu_{\max}, K_s, C_{x,0})$, the FIM is
+\begin{equation}
+F(\theta, d_{1:K}) = \frac{1}{\sigma^2} J(\theta, d_{1:K})^\top J(\theta, d_{1:K}),
+\end{equation}
+where $J \in \mathbb{R}^{K \times 3}$ is the sensitivity matrix with entries $J_{k,j} = \partial C_s(t_k) / \partial \theta_j$, computed by differentiating the ODE solution with respect to $(\mu_{\max}, K_s, C_{x,0})$.
+
+Since $C_{x,0}$ is a nuisance parameter, we project the information onto the target parameters $(\mu_{\max}, K_s)$ via the Schur complement. Partitioning the posterior precision $B = F + \Lambda$ (where $\Lambda = \mathrm{diag}(\lambda_1, \lambda_2, \lambda_3)$ is the prior precision from the uniform priors, with $\lambda_j = 12/(\theta_j^{\max} - \theta_j^{\min})^2$) as
+\begin{equation}
+B = \begin{pmatrix} B_{TT} & B_{TN} \\ B_{NT} & B_{NN} \end{pmatrix},
+\end{equation}
+the marginal posterior precision for $\theta_T = (\mu_{\max}, K_s)$ is
+\begin{equation}
+B_T = B_{TT} - B_{TN} B_{NN}^{-1} B_{NT}.
+\end{equation}
+
+The Bayesian D-optimal design maximizes the expected log-determinant:
+\begin{equation}
+d^\star_{\text{BIM}} = \argmax_{d_{1:K}} \; \E_{p(\theta)}\!\left[\log\det B_T(\theta, d_{1:K})\right],
+\end{equation}
+where the expectation is approximated by averaging over prior samples. This is a standard criterion~\citep{chaloner1995} that assumes Gaussian posteriors (via the Laplace approximation) and does not account for sequential adaptation.
+
+\section{Training and Evaluation Details}
+\label{sec:training_details}
+
+Training is implemented in Julia~\citep{bezanson2017julia} using Lux.jl~\citep{pal2023lux} for the neural network, Enzyme~\citep{moses2020enzyme} for automatic differentiation through the ODE solver, and Reactant~\citep{reactant2025} for GPU-accelerated compilation via MLIR/XLA. Training was performed on the VSC (Flemish Supercomputer Center) using NVIDIA A100 GPUs.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{figures/monod_training_loss.png}
+\caption{Training loss curve (targeted sPCE objective) over iterations for the Monod bioreactor. The objective converges within approximately 1000 iterations.}
+\label{fig:training_loss}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{figures/monod_spce_trajectories.png}
+\caption{Design trajectories for the Monod bioreactor: adaptive policy rollouts (gray) compared to static baselines. The adaptive policy varies its feed rate across rollouts in response to different observations, while static designs remain fixed.}
+\label{fig:trajectories}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{figures/monod_spce_histograms.png}
+\caption{Targeted sPCE score distributions across design strategies for the Monod bioreactor ($n=500$ trials). The adaptive policy achieves higher scores on average and with lower variance than the static baselines.}
+\label{fig:spce}
+\end{figure}

@@ -1,0 +1,14 @@
+probe C=1250000 L=136 M=136 B=4562 B_micro=4562
+OK C=1250000 loss=1.618778 ps_norm=337.667725 time=620.8s
+
+---
+probe C=2500000 L=170 M=171 B=7288 B_micro=7288
+OK C=2500000 loss=0.827949 ps_norm=337.668427 time=609.6s
+
+---
+probe C=5000000 L=214 M=216 B=11574 B_micro=11574
+OK C=5000000 loss=0.345439 ps_norm=337.668488 time=612.3s
+
+---
+FAIL C=10000000
+---

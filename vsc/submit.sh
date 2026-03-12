@@ -115,8 +115,8 @@ fi
 job_submit_output="$(ssh "${SSH_OPTS[@]}" "${REMOTE_HOST}" bash -s -- \
   "${remote_repo_dir}" "${PARTITION}" "${WALLTIME}" "${ACCOUNT}" "${JULIA_VERSION}" \
   "${RUN_ROOT}" "${PERSIST_ROOT}" "${RESULTS_BASENAME}" \
-  "${EXAMPLE}" "${TASK}" "${SCRIPT_ARGS}" \
-  "${source_branch}" "${source_commit}" <<'EOF'
+  "${EXAMPLE}" "${TASK}" "${source_branch}" "${source_commit}" \
+  "${SCRIPT_ARGS}" <<'EOF'
 set -euo pipefail
 remote_repo_dir="$1"
 partition="$2"
@@ -128,9 +128,10 @@ persist_root="$7"
 results_basename="$8"
 example="$9"
 task="${10}"
-script_args="${11}"
-source_branch="${12}"
-source_commit="${13}"
+source_branch="${11}"
+source_commit="${12}"
+shift 12
+script_args="$*"
 
 cd "${remote_repo_dir}"
 if [[ -z "${VSC_DATA:-}" ]]; then
