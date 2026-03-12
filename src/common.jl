@@ -149,7 +149,7 @@ function train_policy(model, ps, st, rng;
     u0 = u0 |> xdev
 
     for iteration in 1:n_iters
-        ga = grad_accum + (iteration - 1) ÷ 10
+        ga = grad_accum
         lr_t = cosine_lr(iteration, n_iters, lr_max, lr_min, warmup)
         Optimisers.adjust!(train_state.optimizer_state; eta = Float32(lr_t / ga))
 

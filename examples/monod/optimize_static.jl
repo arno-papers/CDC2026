@@ -124,7 +124,7 @@ function optimize_static_spce(design_init, xdev;
     t_start = time()
 
     for iter in 1:n_iters
-        ga = grad_accum + (iter - 1) ÷ 10
+        ga = grad_accum
         lr_t = cosine_lr(iter, n_iters, Float64(lr_max), Float64(lr_min), warmup)
         Optimisers.adjust!(train_state.optimizer_state;
                            eta = Float32(lr_t / ga))
@@ -183,7 +183,7 @@ if abspath(PROGRAM_FILE) == @__FILE__
     seed        = 0
     n_iters     = 1000
     n_rollouts  = 1000
-    ode_budget  = ODE_BUDGET_TRAJ ÷ 2
+    ode_budget  = ODE_BUDGET_TRAJ
     n_substeps  = N_SUBSTEPS
     lr_max      = 0.003f0
     lr_min      = 1f-5

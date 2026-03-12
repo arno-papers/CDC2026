@@ -244,8 +244,8 @@ Motor & $\omega, i$ & TBD & $V_{in}$ & $\omega$ \\
 
 \begin{figure*}[t]
 \centering
-\includegraphics[width=\textwidth]{figures/monod_dynamics.png}
-\caption{Adaptive policy rollouts for the Monod bioreactor: substrate $C_s$, biomass $C_x$, volume $V$, and feed rate $Q_{in}$ over 14~hours (20 rollouts with varied prior samples). The policy keeps the feed rate near zero during the initial growth phase to observe substrate depletion, then ramps up the feed.}
+\includegraphics[width=\textwidth]{figures/monod_comparison.png}
+\caption{Design comparison for the Monod bioreactor (20 rollouts per strategy, shared prior samples). Left to right: substrate $C_s$, biomass $C_x$, and feed rate $Q_{in}$ over 14~hours. The adaptive policy varies its design per rollout, keeping the feed near zero during initial growth before ramping up. All three strategies concentrate feeding towards the end; the adaptive policy adapts the timing and magnitude to each realization.}
 \label{fig:dynamics}
 \end{figure*}
 
@@ -257,10 +257,9 @@ Motor & $\omega, i$ & TBD & $V_{in}$ & $\omega$ \\
 \hline
 Design strategy & sPCE score \\
 \hline
-Adaptive policy & $\mathbf{1.64 \pm 0.07}$ \\
-Static (sPCE-opt) & $1.41 \pm 0.07$ \\
-Static (mean-adaptive) & $1.12 \pm 0.10$ \\
-Static (BIM) & $-2.44 \pm 0.31$ \\
+Adaptive policy & $\mathbf{1.61 \pm 0.06}$ \\
+Static (sPCE-opt) & $1.47 \pm 0.07$ \\
+Static (BIM) & $0.07 \pm 0.24$ \\
 \hline
 \end{tabular}
 \end{table}
@@ -268,7 +267,7 @@ Static (BIM) & $-2.44 \pm 0.31$ \\
 \begin{figure}[t]
 \centering
 \includegraphics[width=\columnwidth]{figures/monod_posterior.png}
-\caption{Posterior mean estimates ($\hat{\mu}_{\max}$, $\hat{K}_s$) across 200 trials for three design strategies. Convex hulls indicate the spread of posterior means; the adaptive policy yields the most concentrated estimates around the true values.}
+\caption{Posterior mean estimates ($\hat{\mu}_{\max}$, $\hat{K}_s$) across 2000 trials for three design strategies. Convex hulls indicate the spread of posterior means; the adaptive policy yields the most concentrated estimates around the true values.}
 \label{fig:posterior}
 \end{figure}
 
@@ -289,7 +288,7 @@ Static (BIM) & $-2.44 \pm 0.31$ \\
 \paragraph{Monod bioreactor.}
 The adaptive policy is trained on the Monod bioreactor (Section~\ref{sec:monod}) in approximately 1000 iterations\ifextended{} (Appendix~\ref{sec:training_details})\fi.
 Fig.~\ref{fig:dynamics} shows representative rollouts under the learned policy.
-Table~\ref{tab:spce} compares the adaptive policy against three static baselines; the adaptive policy significantly outperforms all baselines ($p < 0.002$, paired $t$-tests\ifextended; see Appendix Fig.~\ref{fig:spce} for full distributions\fi).
+Table~\ref{tab:spce} compares the adaptive policy against two static baselines; the adaptive policy significantly outperforms both ($p < 0.04$, paired $t$-tests\ifextended; see Appendix Fig.~\ref{fig:spce} for full distributions\fi).
 Fig.~\ref{fig:posterior} confirms that the adaptive policy yields the most concentrated posterior estimates around the true parameter values.
 
 \paragraph{Haldane substrate inhibition.}

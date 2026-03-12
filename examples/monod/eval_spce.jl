@@ -200,10 +200,15 @@ if abspath(PROGRAM_FILE) == @__FILE__
     checkpoint       = joinpath(@__DIR__, "results")
     n_trials         = 500
     n_substeps       = N_SUBSTEPS
-    L                = L_CONTRASTIVE
-    M                = M_NUISANCE
-    B                = 32
     seed             = 0
+
+    # Forward-only eval budget (no Enzyme backward tape).
+    # Update EVAL_ODE_BUDGET after: EXAMPLE=monod MODE=eval ./scripts/submit_profile_budget.sh
+    EVAL_ODE_BUDGET  = 44_000   # profiled on H100: 360M OK, 720M FAIL
+    B                = 2        # small batch: maximize L for tight sPCE bound
+    n_per_ep         = EVAL_ODE_BUDGET ÷ B
+    L                = (n_per_ep - 2) ÷ 2
+    M                = L
 
     results_dir = joinpath(@__DIR__, "results")
     mkpath(results_dir)
@@ -373,6 +378,39 @@ if abspath(PROGRAM_FILE) == @__FILE__
         output_path = joinpath(results_dir, "plot_spce_trajectories.png"),
         design_ylabel = "Q_in (L/h)")
 
+    # ---- Print and save score statistics ----
+    adaptive_scores = all_scores["adaptive"]
+    println("\n=== Results (targeted sPCE, higher = more informative) ===\n")
+    summary_lines = String[]
+
+    for name in DESIGN_ORDER
+        haskey(all_scores, name) || continue
+        scores = all_scores[name]
+        style = get(DESIGN_STYLES, name, (label = name, color = :black))
+        m = mean(scores)
+        s = std(scores)
+        sem = s / sqrt(length(scores))
+        line = @sprintf("  %-30s  mean = %8.4f  std = %8.4f  SEM = %6.4f  (n=%d)",
+                         style.label, m, s, sem, length(scores))
+        println(line)
+        push!(summary_lines, line)
+    end
+    println()
+
+    for name in DESIGN_ORDER
+        name == "adaptive" && continue
+        haskey(all_scores, name) || continue
+        scores = all_scores[name]
+        style = get(DESIGN_STYLES, name, (label = name, color = :black))
+        delta = adaptive_scores .- scores
+        t_stat = mean(delta) / (std(delta) / sqrt(length(delta)))
+        line = @sprintf("  Paired: Adaptive - %-20s  delta = %+.4f ± %.4f (SEM)  t=%6.2f",
+                         style.label, mean(delta), std(delta) / sqrt(length(delta)), t_stat)
+        println(line)
+        push!(summary_lines, line)
+    end
+    flush(stdout)
+
     open(joinpath(results_dir, "spce_summary.txt"), "w") do io
         println(io, "# Targeted sPCE Evaluation (GPU)")
         println(io, "# Date: $(Dates.format(Dates.now(), "yyyy-mm-dd HH:MM:SS"))")
@@ -388,6 +426,12 @@ if abspath(PROGRAM_FILE) == @__FILE__
         println(io, "static_std_design   = [", join(round.(static_standard; digits=4), ", "), "]")
         if has_spce_opt
             println(io, "static_spce_design  = [", join(round.(static_spce_opt; digits=4), ", "), "]")
+        end
+        println(io)
+        println(io, "=== Results (targeted sPCE, higher = more informative) ===")
+        println(io)
+        for line in summary_lines
+            println(io, line)
         end
     end
 
