@@ -71,7 +71,7 @@ const N_NOISE_CHANNELS = 1  # single additive Gaussian noise
 include(joinpath(@__DIR__, "..", "..", "src", "utils.jl"))
 
 const ODE_BUDGET_TRAJ = 6_250_000
-const GRAD_ACCUM_STEPS = 2
+const GRAD_ACCUM_STEPS = 8
 const (L_CONTRASTIVE, M_NUISANCE, _B_MICRO) = allocate_budget(ODE_BUDGET_TRAJ; B_multiplier=GRAD_ACCUM_STEPS)
 const GRAD_BATCH = _B_MICRO * GRAD_ACCUM_STEPS
 
