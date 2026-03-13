@@ -99,7 +99,7 @@ function posterior_mean_eval(model, ps, st, data)
     θ_dyn = θ_post[1:N_PARAMS_DYN, :, :]
     θ_obs = θ_post[N_PARAMS_DYN+1:N_PARAMS_DYN+N_PARAMS_OBS, :, :]
 
-    u = make_initial_state(u0, θ_obs, B)
+    u = make_initial_state(u0, θ_dyn, θ_obs, B)
 
     for step in 1:N_STEPS
         d_step = design_mat[step:step, :]

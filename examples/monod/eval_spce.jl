@@ -86,7 +86,7 @@ function adaptive_spce_eval(model, ps, st, data)
     θ_obs_true_3d = θ_full[N_PARAMS_DYN+1:N_PARAMS_DYN+N_PARAMS_OBS, 1:1, :]
     θ_obs_true = θ_full[N_PARAMS_DYN+1:N_PARAMS_DYN+N_PARAMS_OBS, 1, :]
 
-    u = make_initial_state(u0, θ_obs_true_3d, B)
+    u = make_initial_state(u0, θ_dyn_true, θ_obs_true_3d, B)
 
     for step in 1:N_STEPS
         action, st = model(input_buffer, ps, st)
@@ -106,7 +106,7 @@ function adaptive_spce_eval(model, ps, st, data)
     θ_dyn_denom = θ_full[1:N_PARAMS_DYN, :, :]
     θ_obs_denom = θ_full[N_PARAMS_DYN+1:N_PARAMS_DYN+N_PARAMS_OBS, :, :]
 
-    u_denom = make_initial_state(u0, θ_obs_denom, B)
+    u_denom = make_initial_state(u0, θ_dyn_denom, θ_obs_denom, B)
 
     for step in 1:N_STEPS
         d_step = designs[step:step, :]
@@ -116,7 +116,7 @@ function adaptive_spce_eval(model, ps, st, data)
 
     M_N = size(ll_numer, 1)
 
-    u_numer = make_initial_state(u0, θ_obs_numer, B)
+    u_numer = make_initial_state(u0, θ_dyn_true, θ_obs_numer, B)
 
     for step in 1:N_STEPS
         d_step = designs[step:step, :]
@@ -149,7 +149,7 @@ function static_spce_eval(model, ps, st, data)
     θ_obs_true_3d = θ_full[N_PARAMS_DYN+1:N_PARAMS_DYN+N_PARAMS_OBS, 1:1, :]
     θ_obs_true = θ_full[N_PARAMS_DYN+1:N_PARAMS_DYN+N_PARAMS_OBS, 1, :]
 
-    u = make_initial_state(u0, θ_obs_true_3d, B)
+    u = make_initial_state(u0, θ_dyn_true, θ_obs_true_3d, B)
 
     for step in 1:N_STEPS
         d_step = design[step:step, :]
@@ -162,7 +162,7 @@ function static_spce_eval(model, ps, st, data)
     θ_dyn_denom = θ_full[1:N_PARAMS_DYN, :, :]
     θ_obs_denom = θ_full[N_PARAMS_DYN+1:N_PARAMS_DYN+N_PARAMS_OBS, :, :]
 
-    u_denom = make_initial_state(u0, θ_obs_denom, B)
+    u_denom = make_initial_state(u0, θ_dyn_denom, θ_obs_denom, B)
 
     for step in 1:N_STEPS
         d_step = design[step:step, :]
@@ -172,7 +172,7 @@ function static_spce_eval(model, ps, st, data)
 
     M_N = size(ll_numer, 1)
 
-    u_numer = make_initial_state(u0, θ_obs_numer, B)
+    u_numer = make_initial_state(u0, θ_dyn_true, θ_obs_numer, B)
 
     for step in 1:N_STEPS
         d_step = design[step:step, :]
