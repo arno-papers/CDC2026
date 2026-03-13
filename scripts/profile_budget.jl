@@ -92,10 +92,10 @@ if budget_str !== nothing
         train_state = Lux.Training.TrainState(policy, ps_ra, st_ra, opt)
 
         t0 = time()
-        train_state_out = train_state
-        loss_val = 0.0
+        local train_state_out = train_state
+        local loss_val = 0.0
         for _step in 1:GRAD_ACCUM_STEPS
-            data = batch_fn(rng, n_denom, M, B_micro, u0, xdev)
+            local data = batch_fn(rng, n_denom, M, B_micro, u0, xdev)
             _, loss_val, _, train_state_out = Lux.Training.single_train_step!(
                 AutoEnzyme(), loss_fn, data, train_state_out
             )
