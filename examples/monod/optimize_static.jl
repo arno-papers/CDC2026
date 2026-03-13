@@ -192,8 +192,8 @@ if abspath(PROGRAM_FILE) == @__FILE__
     loss_png_every = 10
     results_dir = joinpath(@__DIR__, "results")
 
-    L, M, B_total = allocate_budget(ode_budget)
-    B_micro = B_total ÷ grad_accum
+    L, M, B_micro = allocate_budget(ode_budget; B_multiplier=grad_accum)
+    B_total = B_micro * grad_accum
 
     Reactant.set_default_backend("gpu")
     xdev = reactant_device()

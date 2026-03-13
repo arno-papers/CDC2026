@@ -45,8 +45,8 @@ if budget_str !== nothing
         M = L
         B_micro = B
     else
-        L, M, B = allocate_budget(budget)
-        B_micro = B ÷ GRAD_ACCUM_STEPS
+        L, M, B_micro = allocate_budget(budget; B_multiplier=GRAD_ACCUM_STEPS)
+        B = B_micro * GRAD_ACCUM_STEPS
     end
     n_denom = L + 1
 
@@ -92,9 +92,14 @@ if budget_str !== nothing
         train_state = Lux.Training.TrainState(policy, ps_ra, st_ra, opt)
 
         t0 = time()
-        _, loss_val, _, train_state_out = Lux.Training.single_train_step!(
-            AutoEnzyme(), loss_fn, data, train_state
-        )
+        train_state_out = train_state
+        loss_val = 0.0
+        for _step in 1:GRAD_ACCUM_STEPS
+            data = batch_fn(rng, n_denom, M, B_micro, u0, xdev)
+            _, loss_val, _, train_state_out = Lux.Training.single_train_step!(
+                AutoEnzyme(), loss_fn, data, train_state_out
+            )
+        end
         t_elapsed = time() - t0
 
         # Force copy-back to CPU to verify no deferred OOM
@@ -152,8 +157,20 @@ else
                     break
                 end
             end
+            first_fail = C
+            # Phase 2: Binary search refinement (2 steps)
+            for _ in 1:2
+                mid = (last_ok + first_fail) ÷ 2
+                mid == last_ok && break
+                if probe(mid)
+                    last_ok = mid
+                else
+                    first_fail = mid
+                end
+            end
             best = last_ok
         else
+            first_fail = C
             best = 0
             while C >= 1000
                 C ÷= 2
@@ -166,6 +183,18 @@ else
                 println("\nNo budget fits. The example may be too large for this GPU.")
                 exit(1)
             end
+            # Phase 2: Binary search refinement (2 steps)
+            last_ok = best
+            for _ in 1:2
+                mid = (last_ok + first_fail) ÷ 2
+                mid == last_ok && break
+                if probe(mid)
+                    last_ok = mid
+                else
+                    first_fail = mid
+                end
+            end
+            best = last_ok
         end
 
         if mode == "eval"
@@ -175,8 +204,8 @@ else
             M = L
             B_micro = B
         else
-            L, M, B = allocate_budget(best)
-            B_micro = B ÷ GRAD_ACCUM_STEPS
+            L, M, B_micro = allocate_budget(best; B_multiplier=GRAD_ACCUM_STEPS)
+            B = B_micro * GRAD_ACCUM_STEPS
         end
         println()
         println("============================================================")

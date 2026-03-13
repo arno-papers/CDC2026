@@ -2,16 +2,21 @@
 # Included by model.jl before common_core.jl / common.jl.
 
 """
-    allocate_budget(C; lambda_L=1.0, lambda_M=1.0) -> (L, M, B)
+    allocate_budget(C; lambda_L=1.0, lambda_M=1.0, B_multiplier=1) -> (L, M, B)
 
 Jointly optimize L (contrastive), M (nuisance), B (batch) for budget C.
-Minimizes `1/B + λ_L/(L+1)² + λ_M/M²` subject to `B = C÷(L+2+M)`.
+Minimizes `1/(B*B_multiplier) + λ_L/(L+1)² + λ_M/M²` subject to `B = C÷(L+2+M)`.
 Uses analytical C^{1/3} scaling to seed a fast local search.
+
+When `B_multiplier > 1` (gradient accumulation), the effective batch size is
+`B * B_multiplier`, so the returned B is the per-microbatch size and the
+optimizer shifts budget toward larger L, M.
 """
-function allocate_budget(C::Int; lambda_L::Float64=1.0, lambda_M::Float64=1.0)
-    # Analytical seeds: L*+1 ≈ (2λ_L C)^{1/3}, M* ≈ (2λ_M C)^{1/3}
-    L_seed = max(1, round(Int, (2*lambda_L*C)^(1/3)) - 1)
-    M_seed = max(1, round(Int, (2*lambda_M*C)^(1/3)))
+function allocate_budget(C::Int; lambda_L::Float64=1.0, lambda_M::Float64=1.0,
+                         B_multiplier::Int=1)
+    # Analytical seeds: L*+1 ≈ (2λ_L C B_multiplier)^{1/3}, M* ≈ (2λ_M C B_multiplier)^{1/3}
+    L_seed = max(1, round(Int, (2*lambda_L*C*B_multiplier)^(1/3)) - 1)
+    M_seed = max(1, round(Int, (2*lambda_M*C*B_multiplier)^(1/3)))
 
     # Local grid search around analytical solution
     w = max(20, L_seed ÷ 3)
@@ -20,7 +25,7 @@ function allocate_budget(C::Int; lambda_L::Float64=1.0, lambda_M::Float64=1.0)
         for M in max(1, M_seed-w):(M_seed+w)
             B = fld(C, L + 2 + M)
             B < 1 && break
-            obj = 1.0/B + lambda_L/(L+1)^2 + lambda_M/M^2
+            obj = 1.0/(B * B_multiplier) + lambda_L/(L+1)^2 + lambda_M/M^2
             if obj < best_obj
                 best_obj, best_L, best_M, best_B = obj, L, M, B
             end
