@@ -9,7 +9,7 @@ include(joinpath(@__DIR__, "..", "..", "src", "common.jl"))
 include(joinpath(@__DIR__, "..", "..", "src", "plotting.jl"))
 
 using Dates
-using LinearAlgebra: norm
+using LinearAlgebra: norm, det, inv
 using Plots
 using StatsPlots
 using Printf
@@ -77,10 +77,15 @@ function convex_hull_2d(px::Vector{T}, py::Vector{T}) where T
     return (hx, hy)
 end
 
-function confidence_hull_95(px::AbstractVector, py::AbstractVector)
-    cx, cy = mean(px), mean(py)
-    dists = [norm((px[i] - cx, py[i] - cy)) for i in eachindex(px)]
-    keep = sortperm(dists)[1:round(Int, 0.95 * length(px))]
+function confidence_hull(px::AbstractVector, py::AbstractVector; frac::Float64=0.95)
+    # Robust center: median (not pulled by outliers)
+    cx, cy = median(px), median(py)
+    # Robust covariance via MAD-scaled coordinates
+    mad_x = max(median(abs.(px .- cx)), 1e-12)
+    mad_y = max(median(abs.(py .- cy)), 1e-12)
+    # Mahalanobis-like distance using MAD scales
+    dists = [sqrt(((px[i] - cx)/mad_x)^2 + ((py[i] - cy)/mad_y)^2) for i in eachindex(px)]
+    keep = sortperm(dists)[1:round(Int, frac * length(px))]
     return convex_hull_2d(Float64.(px[keep]), Float64.(py[keep]))
 end
 
@@ -359,18 +364,30 @@ if abspath(PROGRAM_FILE) == @__FILE__
                title = @sprintf("Posterior means (%d trials, N=%d)", n_trials, N_post),
                legend = :outertopright, size = (750, 600))
 
+    # Legend entries in canonical order (invisible dummy points)
     for name in DESIGN_ORDER
         haskey(all_post_means, name) || continue
         style = get(DESIGN_STYLES, name, (label = name, color = :black))
+        scatter!(p, [NaN], [NaN]; color = style.color, ms = 3, msw = 0,
+                 label = style.label)
+    end
+    # Scatter points: widest spread first (back) → tightest last
+    for name in reverse(DESIGN_ORDER)
+        haskey(all_post_means, name) || continue
+        style = get(DESIGN_STYLES, name, (label = name, color = :black))
         pm = all_post_means[name]
-
         scatter!(p, pm[1, :], pm[2, :];
                  color = style.color, alpha = 0.4, ms = 3, msw = 0,
-                 label = style.label)
-
-        hx, hy = confidence_hull_95(pm[1, :], pm[2, :])
-        plot!(p, Shape(hx, hy); color = style.color, fillalpha = 0.1,
-              lw = 2, linealpha = 0.8, label = "")
+                 label = "")
+    end
+    # Hulls on top: widest first → tightest last (front)
+    for name in reverse(DESIGN_ORDER)
+        haskey(all_post_means, name) || continue
+        style = get(DESIGN_STYLES, name, (label = name, color = :black))
+        pm = all_post_means[name]
+        hx, hy = confidence_hull(pm[1, :], pm[2, :])
+        plot!(p, Shape(hx, hy); fillcolor = style.color, fillalpha = 0.1,
+              linecolor = style.color, lw = 2, linealpha = 1.0, label = "")
     end
 
     scatter!(p, [true_μ], [true_K];

@@ -202,13 +202,9 @@ if abspath(PROGRAM_FILE) == @__FILE__
     n_substeps       = N_SUBSTEPS
     seed             = 0
 
-    # Forward-only eval budget (no Enzyme backward tape).
-    # Update EVAL_ODE_BUDGET after: EXAMPLE=monod MODE=eval ./scripts/submit_profile_budget.sh
-    EVAL_ODE_BUDGET  = 44_000   # profiled on H100: 360M OK, 720M FAIL
-    B                = 2        # small batch: maximize L for tight sPCE bound
-    n_per_ep         = EVAL_ODE_BUDGET ÷ B
-    L                = (n_per_ep - 2) ÷ 2
-    M                = L
+    L                = 1000
+    M                = 1000
+    B                = 10
 
     results_dir = joinpath(@__DIR__, "results")
     mkpath(results_dir)

@@ -1,21 +1,16 @@
 # Static sPCE-optimal design (GPU + Enzyme)
-date = 2026-03-09 17:59:14
+date = 2026-03-12 02:38:46
 
 # Configuration
 n_iters = 1000
-B_micro = 4562
-L = 136
-M = 136
+B_micro = 11574
+L = 214
+M = 216
 n_substeps = 50
 grad_accum = 1 (ramps)
 lr_max = 0.003
 lr_min = 1.0e-5
 warmup = 50
-ode_budget = 1250000
+ode_budget = 5000000
 seed = 0
 init = adaptive_mean (1000 rollouts)
-
-# Result
-best_loss = -1.3583037
-design = [0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.141236, 0.254383, 3.416944, 1.255227, 0.000000]
-wall_time_s = 16580.0
