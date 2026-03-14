@@ -20,6 +20,7 @@ using Serialization
 
 if abspath(PROGRAM_FILE) == @__FILE__
     seed           = 0
+    Random.seed!(seed)
     n_prior_opt    = 512
     n_prior_report = 1024
     n_substeps     = N_SUBSTEPS

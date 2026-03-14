@@ -200,6 +200,7 @@ if abspath(PROGRAM_FILE) == @__FILE__
     n_trials         = 1000
     n_substeps       = N_SUBSTEPS
     seed             = 0
+    Random.seed!(seed)
 
     # Paper-quality defaults: 5× training L,M to reduce NMC bias to O(1e-4).
     # The paired t-test cancels common bias, but absolute sPCE values benefit

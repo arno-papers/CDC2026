@@ -173,6 +173,7 @@ if abspath(PROGRAM_FILE) == @__FILE__
     B                = 32
     n_substeps       = N_SUBSTEPS
     seed             = 0
+    Random.seed!(seed)
 
     # True parameters: high μ, low K — adaptive's strength
     true_μ   = 0.47f0

@@ -181,6 +181,7 @@ end
 
 if abspath(PROGRAM_FILE) == @__FILE__
     seed        = 0
+    Random.seed!(seed)
     n_iters     = 1000
     n_rollouts  = 1000
     ode_budget  = ODE_BUDGET_TRAJ
