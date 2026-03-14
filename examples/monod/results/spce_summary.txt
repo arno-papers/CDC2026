@@ -1,28 +1,21 @@
 # Targeted sPCE Evaluation (GPU)
-# Date: 2026-03-01 23:57:07
+# Date: 2026-03-13 21:08:59
 
 n_trials = 500
-L = 161
-M = 128
-B = 32
-n_substeps = 500
+L = 1000
+M = 1000
+B = 10
+n_substeps = 50
 seed = 0
-wall_time_s = 2017.9
+wall_time_s = 3761.8
 
-static_avg_design   = [0.0, 0.0, 0.0, 0.0, 0.0034, 0.0215, 0.045, 0.0957, 0.1674, 0.1954, 0.3606, 1.7568, 1.7502, 1.6615]
-static_std_design   = [0.9352, 0.3293, 0.067, 0.0, 0.0, 0.1314, 0.4341, 0.7526, 1.1061, 1.7598, 2.2405, 2.2231, 1.9044, 1.4462]
-static_cheat_design = [1.0553, 0.4356, 0.1742, 0.0393, 0.0163, 0.1191, 0.3464, 0.6396, 0.8518, 0.8052, 0.5952, 1.6584, 2.797, 3.0662]
-static_spce_design  = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0627, 0.3747, 0.6977, 0.6806, 0.4181]
+static_std_design   = [0.39, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.3433, 0.6108, 0.8703, 4.2927, 2.29, 0.9436]
+static_spce_design  = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.2039, 0.2613, 3.1193, 1.0114, 0.0]
 
 === Results (targeted sPCE, higher = more informative) ===
 
-  Adaptive policy                 mean =   1.6420  std =   1.4655  (n=500)  (baseline)
-  Static (mean adaptive)          mean =   1.1202  std =   2.1953  (n=500)
-  Static (std BIM)                mean =  -2.4447  std =   6.8364  (n=500)
-  Static (cheat BIM)              mean =  -2.3185  std =   5.9713  (n=500)
-  Static (sPCE-opt)               mean =   1.4071  std =   1.6348  (n=500)
-
-  Paired: Adaptive - Static (mean adaptive)  delta = +0.5217 ± 0.1211 (SEM)  t=  4.31  p=2.00e-05
-  Paired: Adaptive - Static (std BIM)   delta = +4.0866 ± 0.3016 (SEM)  t= 13.55  p=7.86e-36
-  Paired: Adaptive - Static (cheat BIM)  delta = +3.9605 ± 0.2605 (SEM)  t= 15.20  p=3.58e-43
-  Paired: Adaptive - Static (sPCE-opt)  delta = +0.2349 ± 0.0740 (SEM)  t=  3.17  p=1.59e-03
+  Adaptive policy                 mean =   3.0980  std =   1.2270  SEM = 0.0549  (n=500)
+  Static (BIM)                    mean =   2.4692  std =   1.3936  SEM = 0.0623  (n=500)
+  Static (sPCE-opt)               mean =   2.6085  std =   1.1406  SEM = 0.0510  (n=500)
+  Paired: Adaptive - Static (BIM)          delta = +0.6288 ± 0.0654 (SEM)  t=  9.62
+  Paired: Adaptive - Static (sPCE-opt)     delta = +0.4895 ± 0.0604 (SEM)  t=  8.11

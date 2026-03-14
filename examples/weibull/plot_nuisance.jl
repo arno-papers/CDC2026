@@ -55,39 +55,32 @@ if abspath(PROGRAM_FILE) == @__FILE__
     theta_low  = Float32[k_a_mid, k_tr_mid, CL_LO, Q_D_LO]   # slow elimination + low redistribution
     theta_high = Float32[k_a_mid, k_tr_mid, CL_HI, Q_D_HI]   # fast elimination + high redistribution
 
-    # Row 1: Central concentration C_c
-    p_cc_lo = plot(title="Slow elimination (CL=$(CL_LO), Q_d=$(Q_D_LO))",
-                   ylabel="C_c (mg/L)")
-    p_cc_hi = plot(title="Fast elimination (CL=$(CL_HI), Q_d=$(Q_D_HI))")
-
-    # Row 2: Peripheral concentration C_p
-    p_cp_lo = plot(ylabel="C_p (mg/L)")
-    p_cp_hi = plot()
-
-    # Row 3: Dosing (drug input design)
-    p_d_lo = plot(xlabel="Time (hr)", ylabel="Dose rate (mg/hr)",
-                  ylims=(-0.5, ACTION_HI + 0.5))
-    p_d_hi = plot(xlabel="Time (hr)",
-                  ylims=(-0.5, ACTION_HI + 0.5))
+    p_cc = plot(title="Central concentration", xlabel="Time (hr)", ylabel="Cc (mg/L)",
+                legend=:topleft)
+    p_cp = plot(title="Peripheral concentration", xlabel="Time (hr)", ylabel="Cp (mg/L)",
+                legend=:topleft)
+    p_d  = plot(title="Infusion rate (design)", xlabel="Time (hr)", ylabel="Rinf (mg/hr)",
+                ylims=(-0.5, ACTION_HI + 0.5), legend=:topleft)
 
     for i in 1:n_samples
-        label = i == 1 ? "samples" : ""
+        label_lo = i == 1 ? "Slow elim. (CL=$(CL_LO), Qd=$(Q_D_LO))" : ""
+        label_hi = i == 1 ? "Fast elim. (CL=$(CL_HI), Qd=$(Q_D_HI))" : ""
 
         cc_l, cp_l, d_l = rollout_trajectory_cpu(policy, ps_cpu, st_cpu, rng, theta_low, sp_mid, sa_mid)
-        plot!(p_cc_lo, t_states, cc_l; alpha=0.4, color=:steelblue, label=label)
-        plot!(p_cp_lo, t_states, cp_l; alpha=0.4, color=:steelblue, label=label)
-        plot!(p_d_lo, t_designs, d_l; alpha=0.4, color=:steelblue, label=label,
+        plot!(p_cc, t_states, cc_l; lw=0.8, alpha=0.3, color=:steelblue, label=label_lo)
+        plot!(p_cp, t_states, cp_l; lw=0.8, alpha=0.3, color=:steelblue, label=label_lo)
+        plot!(p_d, t_designs, d_l; lw=0.8, alpha=0.3, color=:steelblue, label=label_lo,
               marker=:circle, markersize=2)
 
         cc_h, cp_h, d_h = rollout_trajectory_cpu(policy, ps_cpu, st_cpu, rng, theta_high, sp_mid, sa_mid)
-        plot!(p_cc_hi, t_states, cc_h; alpha=0.4, color=:crimson, label=label)
-        plot!(p_cp_hi, t_states, cp_h; alpha=0.4, color=:crimson, label=label)
-        plot!(p_d_hi, t_designs, d_h; alpha=0.4, color=:crimson, label=label,
+        plot!(p_cc, t_states, cc_h; lw=0.8, alpha=0.3, color=:crimson, label=label_hi)
+        plot!(p_cp, t_states, cp_h; lw=0.8, alpha=0.3, color=:crimson, label=label_hi)
+        plot!(p_d, t_designs, d_h; lw=0.8, alpha=0.3, color=:crimson, label=label_hi,
               marker=:circle, markersize=2)
     end
 
-    plt = plot(p_cc_lo, p_cc_hi, p_cp_lo, p_cp_hi, p_d_lo, p_d_hi;
-               layout=(3, 2), size=(1000, 900))
+    plt = plot(p_cc, p_cp, p_d;
+               layout=(1, 3), size=(1200, 350), bottom_margin=5Plots.mm)
     outfile = joinpath(results_dir, "plot_nuisance.png")
     save_plot(plt, outfile)
 end

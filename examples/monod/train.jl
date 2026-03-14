@@ -3,10 +3,11 @@ include(joinpath(@__DIR__, "..", "..", "src", "common.jl"))
 include(joinpath(@__DIR__, "..", "..", "src", "plotting.jl"))
 
 if abspath(PROGRAM_FILE) == @__FILE__
-    using Dates
+    using Dates, Random
     plotting = false
     n_iters = 1000
     seed = 0
+    Random.seed!(seed)
     loss_png_every = 10
     grad_accum = GRAD_ACCUM_STEPS
     ode_budget = ODE_BUDGET_TRAJ
@@ -15,9 +16,9 @@ if abspath(PROGRAM_FILE) == @__FILE__
     warmup = 50
     results_dir = joinpath(@__DIR__, "results")
 
-    L, M_nuis, B_total = allocate_budget(ode_budget)
+    L, M_nuis, B_micro = allocate_budget(ode_budget; B_multiplier=grad_accum)
+    B_total = B_micro * grad_accum
     loss_png_every = loss_png_every < 1 ? 10 : loss_png_every
-    B_micro = B_total ÷ grad_accum
 
     using Plots
 

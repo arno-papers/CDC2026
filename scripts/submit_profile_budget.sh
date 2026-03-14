@@ -6,10 +6,12 @@ set -euo pipefail
 #
 # Usage:
 #   EXAMPLE=monod ./scripts/submit_profile_budget.sh
+#   EXAMPLE=monod MODE=eval ./scripts/submit_profile_budget.sh
 #   EXAMPLE=haldane WALLTIME=2:00:00 ./scripts/submit_profile_budget.sh
 # ============================================================================
 
 EXAMPLE="${EXAMPLE:?Set EXAMPLE (e.g. monod, haldane, weibull)}"
+MODE="${MODE:-train}"
 
 REMOTE_HOST="${REMOTE_HOST:-tier2}"
 SSH_SOCKET="${SSH_SOCKET:-$HOME/.ssh/cm-tier2-%r@%h:%p}"
@@ -17,7 +19,7 @@ SSH_OPTS=(-S "${SSH_SOCKET}" -o BatchMode=yes)
 
 LOCAL_REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REMOTE_SUBDIR="${REMOTE_SUBDIR:-CDC2026}"
-PARTITION="${PARTITION:-gpu_a100}"
+PARTITION="${PARTITION:-gpu_h100}"
 ACCOUNT="${ACCOUNT:-lp_dad}"
 JULIA_VERSION="${JULIA_VERSION:-1.12.5}"
 WALLTIME="${WALLTIME:-4:00:00}"
@@ -32,6 +34,7 @@ fi
 remote_repo_dir="${remote_vsc_data}/${REMOTE_SUBDIR}"
 
 echo "[profile] Example:     ${EXAMPLE}"
+echo "[profile] Mode:        ${MODE}"
 echo "[profile] Remote repo: ${remote_repo_dir}"
 echo "[profile] Walltime:    ${WALLTIME}"
 
@@ -59,10 +62,10 @@ EOF
 # Submit
 job_id="$(ssh "${SSH_OPTS[@]}" "${REMOTE_HOST}" bash -s -- \
   "${remote_repo_dir}" "${PARTITION}" "${WALLTIME}" "${ACCOUNT}" \
-  "${JULIA_VERSION}" "${EXAMPLE}" <<'SUBMIT'
+  "${JULIA_VERSION}" "${EXAMPLE}" "${MODE}" <<'SUBMIT'
 set -euo pipefail
 remote_repo_dir="$1"; partition="$2"; walltime="$3"; account="$4"
-julia_version="$5"; example="$6"
+julia_version="$5"; example="$6"; prof_mode="$7"
 
 if [[ -z "${VSC_DATA:-}" ]]; then export VSC_DATA="$(dirname "$1")"; fi
 julia_bin="$VSC_DATA/software/julia/${julia_version}/bin/julia"
@@ -70,20 +73,20 @@ cd "${remote_repo_dir}"
 mkdir -p logs
 
 sbatch --parsable \
-  --job-name="profile-${example}" \
+  --job-name="profile-${example}-${prof_mode}" \
   --clusters=wice \
   --partition="${partition}" \
   --account="${account}" \
   --nodes=1 --ntasks=1 --cpus-per-task=18 --gpus-per-node=1 \
   --mem=120G \
   --time="${walltime}" \
-  --output="logs/profile-${example}-%j.out" \
-  --error="logs/profile-${example}-%j.err" \
+  --output="logs/profile-${example}-${prof_mode}-%j.out" \
+  --error="logs/profile-${example}-${prof_mode}-%j.err" \
   --export=ALL,JULIA_DEPOT_PATH="$VSC_DATA/julia-depot-cdc2026" \
-  --wrap="${julia_bin} --project=. scripts/profile_budget.jl example=${example}"
+  --wrap="${julia_bin} --project=. scripts/profile_budget.jl example=${example} mode=${prof_mode}"
 SUBMIT
 )"
 
 job_id="${job_id%%;*}"
 echo "[profile] Submitted job ${job_id}"
-echo "[profile] Logs:  ssh -S ${SSH_SOCKET} ${REMOTE_HOST} \"bash -lc 'tail -f ${remote_repo_dir}/logs/profile-${EXAMPLE}-${job_id}.out'\""
+echo "[profile] Logs:  ssh -S ${SSH_SOCKET} ${REMOTE_HOST} \"bash -lc 'tail -f ${remote_repo_dir}/logs/profile-${EXAMPLE}-${MODE}-${job_id}.out'\""

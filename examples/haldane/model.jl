@@ -49,10 +49,10 @@ const ACTION_HI = 10.0f0
 #  Prior Bounds
 # ============================================================================
 
-const μ_max_lo, μ_max_hi = 0.35f0, 0.45f0
-const K_s_lo, K_s_hi = 0.40f0, 0.50f0
-const σ_lo, σ_hi = 0.05f0, 0.15f0       # Nuisance: measurement noise std
-const Cx0_lo, Cx0_hi = 0.10f0, 0.50f0    # Nuisance: initial biomass
+const μ_max_lo, μ_max_hi = 0.39f0, 0.41f0    # Nuisance: max growth rate (tight)
+const K_s_lo, K_s_hi = 0.44f0, 0.46f0        # Nuisance: Monod constant (tight)
+const σ_lo, σ_hi = 0.05f0, 0.15f0             # Nuisance: measurement noise std
+const Cx0_lo, Cx0_hi = 0.22f0, 0.28f0         # Nuisance: initial biomass (tight)
 
 # ASCII aliases
 const mu_max_lo, mu_max_hi = μ_max_lo, μ_max_hi
@@ -63,11 +63,8 @@ const N_PARAMS_DYN = 3
 const N_PARAMS_OBS = 2      # σ, Cx0
 const N_NOISE_CHANNELS = 1  # single additive Gaussian noise
 
-# Spike-and-slab prior on α = 1/K_i
-const SPIKE_PROB = 0.5f0
-const SPIKE_STD = 0.003f0
-const SLAB_MEAN = 0.10f0
-const SLAB_STD = 0.03f0
+# Uniform prior on α = 1/K_i (substrate inhibition strength)
+const α_lo, α_hi = 0.0f0, 0.15f0
 
 # ============================================================================
 #  Training Budget Allocation
@@ -83,25 +80,11 @@ const GRAD_ACCUM_STEPS = 16
 #  Sampling
 # ============================================================================
 
-function _sample_alpha(rng, n::Int)
-    α = Vector{Float32}(undef, n)
-    @inbounds for i in 1:n
-        if rand(rng, Float32) < SPIKE_PROB
-            # Spike: |N(0, SPIKE_STD²)| — half-normal, effectively α ≈ 0
-            α[i] = abs(SPIKE_STD * randn(rng, Float32))
-        else
-            # Slab: N(SLAB_MEAN, SLAB_STD²) clamped to ≥ 0
-            α[i] = max(0.0f0, SLAB_MEAN + SLAB_STD * randn(rng, Float32))
-        end
-    end
-    return α
-end
-
 function sample_θ_full(rng, n_samples)
     θ = rand(rng, Float32, 5, n_samples)
     θ[1, :] .= μ_max_lo .+ (μ_max_hi - μ_max_lo) .* θ[1, :]
     θ[2, :] .= K_s_lo .+ (K_s_hi - K_s_lo) .* θ[2, :]
-    θ[3, :] .= _sample_alpha(rng, n_samples)
+    θ[3, :] .= α_lo .+ (α_hi - α_lo) .* θ[3, :]
     θ[4, :] .= σ_lo .+ (σ_hi - σ_lo) .* θ[4, :]
     θ[5, :] .= Cx0_lo .+ (Cx0_hi - Cx0_lo) .* θ[5, :]
     return θ
@@ -112,16 +95,9 @@ function sample_θ_full(rng, n_denom::Int, B::Int)
     @views begin
         θ[1, :, :] .= μ_max_lo .+ (μ_max_hi - μ_max_lo) .* θ[1, :, :]
         θ[2, :, :] .= K_s_lo .+ (K_s_hi - K_s_lo) .* θ[2, :, :]
+        θ[3, :, :] .= α_lo .+ (α_hi - α_lo) .* θ[3, :, :]
         θ[4, :, :] .= σ_lo .+ (σ_hi - σ_lo) .* θ[4, :, :]
         θ[5, :, :] .= Cx0_lo .+ (Cx0_hi - Cx0_lo) .* θ[5, :, :]
-    end
-    # Spike-and-slab for α (row 3)
-    for b in 1:B, j in 1:n_denom
-        if rand(rng, Float32) < SPIKE_PROB
-            θ[3, j, b] = abs(SPIKE_STD * randn(rng, Float32))
-        else
-            θ[3, j, b] = max(0.0f0, SLAB_MEAN + SLAB_STD * randn(rng, Float32))
-        end
     end
     return θ
 end

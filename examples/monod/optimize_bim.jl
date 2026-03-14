@@ -20,6 +20,7 @@ using Serialization
 
 if abspath(PROGRAM_FILE) == @__FILE__
     seed           = 0
+    Random.seed!(seed)
     n_prior_opt    = 512
     n_prior_report = 1024
     n_substeps     = N_SUBSTEPS
@@ -65,7 +66,7 @@ if abspath(PROGRAM_FILE) == @__FILE__
     static_design, static_obj = optimize_static_design_grad(
         prior_opt, init; n_iters=n_iters, lr_max=lr_max, lr_min=lr_min,
         warmup=warmup, n_substeps=n_substeps,
-        results_dir=results_dir, prefix="bim_std")
+        results_dir=results_dir, prefix="bim")
 
     rng_report = MersenneTwister(seed + 1)
     prior_report = draw_prior_samples(rng_report, n_prior_report)
@@ -78,8 +79,8 @@ if abspath(PROGRAM_FILE) == @__FILE__
     flush(stdout)
 
     # ---- Save ----
-    serialize(joinpath(results_dir, "bim_std_design.jls"), Dict(
-        "static_design"     => static_design,
+    serialize(joinpath(results_dir, "design_bim.jls"), Dict(
+        "design"            => static_design,
         "static_obj_opt"    => static_obj,
         "static_obj_report" => static_obj_report,
     ))

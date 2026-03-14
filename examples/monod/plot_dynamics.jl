@@ -11,7 +11,11 @@ if abspath(PROGRAM_FILE) == @__FILE__
     @assert isfile(file) "Checkpoint not found: $file. Run training first."
 
     ckpt = deserialize(file)
+
+    static_designs = load_static_designs(results_dir)
+
     rng = Random.MersenneTwister(42)
-    plot_trajectories(policy, ckpt["parameters"], ckpt["states"]; rng,
+    plot_design_comparison(policy, ckpt["parameters"], ckpt["states"],
+        static_designs; rng,
         outfile=joinpath(results_dir, "plot_dynamics.png"))
 end

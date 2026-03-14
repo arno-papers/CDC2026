@@ -41,7 +41,7 @@ function static_spce_loss(model, ps, st, data)
     θ_obs_true_3d = θ_full[N_PARAMS_DYN+1:N_PARAMS_DYN+N_PARAMS_OBS, 1:1, :]
     θ_obs_true = θ_full[N_PARAMS_DYN+1:N_PARAMS_DYN+N_PARAMS_OBS, 1, :]
 
-    u = make_initial_state(u0, θ_obs_true_3d, B)
+    u = make_initial_state(u0, θ_dyn_true, θ_obs_true_3d, B)
 
     for step in 1:N_STEPS
         d_step = design[step:step, :]
@@ -54,7 +54,7 @@ function static_spce_loss(model, ps, st, data)
     θ_dyn_denom = θ_full[1:N_PARAMS_DYN, :, :]
     θ_obs_denom = θ_full[N_PARAMS_DYN+1:N_PARAMS_DYN+N_PARAMS_OBS, :, :]
 
-    u_denom = make_initial_state(u0, θ_obs_denom, B)
+    u_denom = make_initial_state(u0, θ_dyn_denom, θ_obs_denom, B)
 
     for step in 1:N_STEPS
         d_step = design[step:step, :]
@@ -64,7 +64,7 @@ function static_spce_loss(model, ps, st, data)
 
     M_N = size(ll_numer, 1)
 
-    u_numer = make_initial_state(u0, θ_obs_numer, B)
+    u_numer = make_initial_state(u0, θ_dyn_true, θ_obs_numer, B)
 
     for step in 1:N_STEPS
         d_step = design[step:step, :]
@@ -124,7 +124,7 @@ function optimize_static_spce(design_init, xdev;
     t_start = time()
 
     for iter in 1:n_iters
-        ga = grad_accum + (iter - 1) ÷ 10
+        ga = grad_accum
         lr_t = cosine_lr(iter, n_iters, Float64(lr_max), Float64(lr_min), warmup)
         Optimisers.adjust!(train_state.optimizer_state;
                            eta = Float32(lr_t / ga))
@@ -181,9 +181,10 @@ end
 
 if abspath(PROGRAM_FILE) == @__FILE__
     seed        = 0
+    Random.seed!(seed)
     n_iters     = 1000
     n_rollouts  = 1000
-    ode_budget  = ODE_BUDGET_TRAJ ÷ 2
+    ode_budget  = ODE_BUDGET_TRAJ
     n_substeps  = N_SUBSTEPS
     lr_max      = 0.003f0
     lr_min      = 1f-5
@@ -192,8 +193,8 @@ if abspath(PROGRAM_FILE) == @__FILE__
     loss_png_every = 10
     results_dir = joinpath(@__DIR__, "results")
 
-    L, M, B_total = allocate_budget(ode_budget)
-    B_micro = B_total ÷ grad_accum
+    L, M, B_micro = allocate_budget(ode_budget; B_multiplier=grad_accum)
+    B_total = B_micro * grad_accum
 
     Reactant.set_default_backend("gpu")
     xdev = reactant_device()
@@ -256,7 +257,7 @@ if abspath(PROGRAM_FILE) == @__FILE__
     @printf("Total wall time: %.1fs (%.1fs/iter)\n", t_total, t_total / n_iters)
     flush(stdout)
 
-    serialize(joinpath(results_dir, "spce_static_design.jls"), Dict(
+    serialize(joinpath(results_dir, "design_spce.jls"), Dict(
         "design"       => best_design_cpu,
         "loss"         => best_loss,
         "loss_history" => loss_history,

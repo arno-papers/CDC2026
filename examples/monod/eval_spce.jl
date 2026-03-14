@@ -2,14 +2,13 @@
 # GPU-accelerated sPCE evaluation using Reactant (@jit, forward-only).
 #
 # Usage:
-#   julia --project=. examples/monod/eval_spce.jl [checkpoint=...] [n_trials=500] [L=1000] [M=128] [B=32]
+#   julia --project=. examples/monod/eval_spce.jl [n_trials=1000] [L=5000] [M=5000] [B=32]
 
 include(joinpath(@__DIR__, "model.jl"))
 include(joinpath(@__DIR__, "..", "..", "src", "common.jl"))
 include(joinpath(@__DIR__, "..", "..", "src", "plotting.jl"))
 
 using Dates
-using Plots
 using Printf
 using Random
 using Serialization
@@ -86,7 +85,7 @@ function adaptive_spce_eval(model, ps, st, data)
     θ_obs_true_3d = θ_full[N_PARAMS_DYN+1:N_PARAMS_DYN+N_PARAMS_OBS, 1:1, :]
     θ_obs_true = θ_full[N_PARAMS_DYN+1:N_PARAMS_DYN+N_PARAMS_OBS, 1, :]
 
-    u = make_initial_state(u0, θ_obs_true_3d, B)
+    u = make_initial_state(u0, θ_dyn_true, θ_obs_true_3d, B)
 
     for step in 1:N_STEPS
         action, st = model(input_buffer, ps, st)
@@ -106,7 +105,7 @@ function adaptive_spce_eval(model, ps, st, data)
     θ_dyn_denom = θ_full[1:N_PARAMS_DYN, :, :]
     θ_obs_denom = θ_full[N_PARAMS_DYN+1:N_PARAMS_DYN+N_PARAMS_OBS, :, :]
 
-    u_denom = make_initial_state(u0, θ_obs_denom, B)
+    u_denom = make_initial_state(u0, θ_dyn_denom, θ_obs_denom, B)
 
     for step in 1:N_STEPS
         d_step = designs[step:step, :]
@@ -116,7 +115,7 @@ function adaptive_spce_eval(model, ps, st, data)
 
     M_N = size(ll_numer, 1)
 
-    u_numer = make_initial_state(u0, θ_obs_numer, B)
+    u_numer = make_initial_state(u0, θ_dyn_true, θ_obs_numer, B)
 
     for step in 1:N_STEPS
         d_step = designs[step:step, :]
@@ -149,7 +148,7 @@ function static_spce_eval(model, ps, st, data)
     θ_obs_true_3d = θ_full[N_PARAMS_DYN+1:N_PARAMS_DYN+N_PARAMS_OBS, 1:1, :]
     θ_obs_true = θ_full[N_PARAMS_DYN+1:N_PARAMS_DYN+N_PARAMS_OBS, 1, :]
 
-    u = make_initial_state(u0, θ_obs_true_3d, B)
+    u = make_initial_state(u0, θ_dyn_true, θ_obs_true_3d, B)
 
     for step in 1:N_STEPS
         d_step = design[step:step, :]
@@ -162,7 +161,7 @@ function static_spce_eval(model, ps, st, data)
     θ_dyn_denom = θ_full[1:N_PARAMS_DYN, :, :]
     θ_obs_denom = θ_full[N_PARAMS_DYN+1:N_PARAMS_DYN+N_PARAMS_OBS, :, :]
 
-    u_denom = make_initial_state(u0, θ_obs_denom, B)
+    u_denom = make_initial_state(u0, θ_dyn_denom, θ_obs_denom, B)
 
     for step in 1:N_STEPS
         d_step = design[step:step, :]
@@ -172,7 +171,7 @@ function static_spce_eval(model, ps, st, data)
 
     M_N = size(ll_numer, 1)
 
-    u_numer = make_initial_state(u0, θ_obs_numer, B)
+    u_numer = make_initial_state(u0, θ_dyn_true, θ_obs_numer, B)
 
     for step in 1:N_STEPS
         d_step = design[step:step, :]
@@ -198,12 +197,29 @@ end
 
 if abspath(PROGRAM_FILE) == @__FILE__
     checkpoint       = joinpath(@__DIR__, "results")
-    n_trials         = 500
+    n_trials         = 1000
     n_substeps       = N_SUBSTEPS
-    L                = L_CONTRASTIVE
-    M                = M_NUISANCE
-    B                = 32
     seed             = 0
+    Random.seed!(seed)
+
+    # Paper-quality defaults: 5× training L,M to reduce NMC bias to O(1e-4).
+    # The paired t-test cancels common bias, but absolute sPCE values benefit
+    # from larger samples.  B is pure parallelism (no statistical effect).
+    L                = 5000
+    M                = 5000
+    B                = 32
+
+    # Parse CLI args (key=value), e.g.: julia ... eval_spce.jl n_trials=500 L=1000
+    for arg in ARGS
+        key, val = split(arg, '='; limit=2)
+        if     key == "n_trials";  n_trials  = parse(Int, val)
+        elseif key == "L";        L         = parse(Int, val)
+        elseif key == "M";        M         = parse(Int, val)
+        elseif key == "B";        B         = parse(Int, val)
+        elseif key == "seed";     seed      = parse(Int, val)
+        else   @warn "Unknown argument: $arg"
+        end
+    end
 
     results_dir = joinpath(@__DIR__, "results")
     mkpath(results_dir)
@@ -211,28 +227,8 @@ if abspath(PROGRAM_FILE) == @__FILE__
     # ---- Load model and static designs ----
     ps_cpu, st_cpu, _ = load_checkpoint_cpu(checkpoint)
 
-    standard_data = deserialize(joinpath(results_dir, "bim_std_design.jls"))
-    static_standard = standard_data["static_design"]
-
-    has_spce_opt = false
-    local static_spce_opt
-    spce_file = joinpath(results_dir, "spce_static_design.jls")
-    if isfile(spce_file)
-        spce_data = deserialize(spce_file)
-        static_spce_opt = spce_data["design"]
-        has_spce_opt = true
-        println("Loaded sPCE-optimized design from: $spce_file")
-    else
-        println("No sPCE-optimized design found (looked at: $spce_file)")
-        static_spce_opt = zeros(Float32, N_STEPS)
-    end
-
-    static_designs = Pair{String, Vector{Float32}}[
-        "static_std"   => Float32.(static_standard),
-    ]
-    if has_spce_opt
-        push!(static_designs, "static_spce" => Float32.(static_spce_opt))
-    end
+    static_designs = load_static_designs(results_dir)
+    has_spce_opt = any(p -> p.first == "static_spce", static_designs)
 
     println("\n=== GPU-Accelerated Targeted sPCE Evaluation ===")
     println("n_trials   = $n_trials")
@@ -280,8 +276,6 @@ if abspath(PROGRAM_FILE) == @__FILE__
     for (name, _) in static_designs
         all_scores[name] = Float64[]
     end
-    all_adaptive_designs = Matrix{Float32}(undef, N_STEPS, n_trials)
-
     t_start = time()
     println("\nStarting evaluation: $n_batches batches of $B episodes")
     println("First batch includes compilation time (~5-15 min)...")
@@ -311,10 +305,6 @@ if abspath(PROGRAM_FILE) == @__FILE__
         scores_ra, _, _ = @jit adaptive_spce_eval(policy, ps_ra, st_ra, data_adaptive)
         scores_cpu = Array(scores_ra)
         append!(all_scores["adaptive"], Float64.(scores_cpu[1, 1:actual_B]))
-
-        designs_cpu = Array(designs_buf)
-        col_start = (batch_idx - 1) * B + 1
-        all_adaptive_designs[:, col_start:col_start + actual_B - 1] .= designs_cpu[:, 1:actual_B]
 
         for (name, design) in static_designs
             ε_static = randn(rng, Float32, N_NOISE_CHANNELS, N_STEPS, B)
@@ -349,7 +339,6 @@ if abspath(PROGRAM_FILE) == @__FILE__
     scores_dict = Dict{String, Any}(
         "adaptive_scores"      => all_scores["adaptive"],
         "static_std_scores"    => all_scores["static_std"],
-        "adaptive_designs"     => all_adaptive_designs,
         "n_trials"             => n_trials,
         "L"                    => L,
         "M"                    => M,
@@ -363,15 +352,38 @@ if abspath(PROGRAM_FILE) == @__FILE__
     end
     serialize(joinpath(results_dir, "spce_scores.jls"), scores_dict)
 
-    score_designs = extract_designs(scores_dict)
+    # ---- Print and save score statistics ----
+    adaptive_scores = all_scores["adaptive"]
+    println("\n=== Results (targeted sPCE, higher = more informative) ===\n")
+    summary_lines = String[]
 
-    plot_spce_histograms(score_designs;
-        output_path = joinpath(results_dir, "plot_spce_histograms.png"),
-        title_suffix = " (L=$L, M=$M, $n_trials trials, GPU)")
+    for name in DESIGN_ORDER
+        haskey(all_scores, name) || continue
+        scores = all_scores[name]
+        style = get(DESIGN_STYLES, name, (label = name, color = :black))
+        m = mean(scores)
+        s = std(scores)
+        sem = s / sqrt(length(scores))
+        line = @sprintf("  %-30s  mean = %8.4f  std = %8.4f  SEM = %6.4f  (n=%d)",
+                         style.label, m, s, sem, length(scores))
+        println(line)
+        push!(summary_lines, line)
+    end
+    println()
 
-    plot_design_trajectories(all_adaptive_designs, static_designs;
-        output_path = joinpath(results_dir, "plot_spce_trajectories.png"),
-        design_ylabel = "Q_in (L/h)")
+    for name in DESIGN_ORDER
+        name == "adaptive" && continue
+        haskey(all_scores, name) || continue
+        scores = all_scores[name]
+        style = get(DESIGN_STYLES, name, (label = name, color = :black))
+        delta = adaptive_scores .- scores
+        t_stat = mean(delta) / (std(delta) / sqrt(length(delta)))
+        line = @sprintf("  Paired: Adaptive - %-20s  delta = %+.4f ± %.4f (SEM)  t=%6.2f",
+                         style.label, mean(delta), std(delta) / sqrt(length(delta)), t_stat)
+        println(line)
+        push!(summary_lines, line)
+    end
+    flush(stdout)
 
     open(joinpath(results_dir, "spce_summary.txt"), "w") do io
         println(io, "# Targeted sPCE Evaluation (GPU)")
@@ -385,9 +397,14 @@ if abspath(PROGRAM_FILE) == @__FILE__
         println(io, "seed = $seed")
         @printf(io, "wall_time_s = %.1f\n", t_total)
         println(io)
-        println(io, "static_std_design   = [", join(round.(static_standard; digits=4), ", "), "]")
-        if has_spce_opt
-            println(io, "static_spce_design  = [", join(round.(static_spce_opt; digits=4), ", "), "]")
+        for (name, d) in static_designs
+            println(io, "$(name)_design = [", join(round.(d; digits=4), ", "), "]")
+        end
+        println(io)
+        println(io, "=== Results (targeted sPCE, higher = more informative) ===")
+        println(io)
+        for line in summary_lines
+            println(io, line)
         end
     end
 

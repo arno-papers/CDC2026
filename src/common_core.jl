@@ -92,3 +92,32 @@ function load_checkpoint_cpu(path::AbstractString)
     ckpt = open(deserialize, ckpt_path)
     return ckpt["parameters"], ckpt["states"], dir
 end
+
+# ============================================================================
+#  Static design loading (shared across eval/plot scripts)
+# ============================================================================
+
+"""
+    load_static_designs(results_dir; T=Float32)
+
+Load static designs from `results_dir`, returning `Vector{Pair{String, Vector{T}}}`.
+Handles both new (`design_bim.jls`) and legacy (`bim_std_design.jls`) filenames,
+and both new (`"design"`) and legacy (`"static_design"`) dict keys.
+"""
+function load_static_designs(results_dir::AbstractString; T::Type=Float32)
+    designs = Pair{String, Vector{T}}[]
+    for (name, filename, legacy_filename) in [
+        ("static_std",  "design_bim.jls",  "bim_std_design.jls"),
+        ("static_spce", "design_spce.jls", "spce_static_design.jls"),
+    ]
+        path = joinpath(results_dir, filename)
+        if !isfile(path)
+            path = joinpath(results_dir, legacy_filename)
+        end
+        isfile(path) || continue
+        d = deserialize(path)
+        key = haskey(d, "design") ? "design" : "static_design"
+        push!(designs, name => T.(d[key]))
+    end
+    return designs
+end

@@ -1,7 +1,7 @@
 #!/bin/bash -l
 #SBATCH --job-name=cdc2026
 #SBATCH --clusters=wice
-#SBATCH --partition=gpu_a100
+#SBATCH --partition=gpu_h100
 #SBATCH --account=lp_dad
 #SBATCH --nodes=1
 #SBATCH --ntasks=1

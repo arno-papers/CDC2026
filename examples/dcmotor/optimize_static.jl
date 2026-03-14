@@ -123,8 +123,14 @@ function optimize_static_spce(;
     all_results = []
 
     # Load BIM design as initialization (avoids zero-signal plateau)
-    bim_file = joinpath(results_dir, "bim_std_design.jls")
-    bim_design = isfile(bim_file) ? Float32.(deserialize(bim_file)["static_design"]) : fill(5.0f0, N_STEPS)
+    bim_file = joinpath(results_dir, "design_bim.jls")
+    if !isfile(bim_file)
+        bim_file = joinpath(results_dir, "bim_std_design.jls")  # legacy
+    end
+    bim_key = let d = isfile(bim_file) ? deserialize(bim_file) : Dict()
+        haskey(d, "design") ? "design" : "static_design"
+    end
+    bim_design = isfile(bim_file) ? Float32.(deserialize(bim_file)[bim_key]) : fill(5.0f0, N_STEPS)
 
     for r in 1:n_restarts
         rng = MersenneTwister(seed + r)
@@ -215,7 +221,7 @@ function optimize_static_spce(;
     flush(stdout)
 
     mkpath(results_dir)
-    serialize(joinpath(results_dir, "spce_static_design.jls"), Dict(
+    serialize(joinpath(results_dir, "design_spce.jls"), Dict(
         "design"       => best_design,
         "loss"         => best_loss,
         "best_restart" => best_restart,
