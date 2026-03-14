@@ -181,6 +181,7 @@ end
 
 if abspath(PROGRAM_FILE) == @__FILE__
     seed        = 0
+    Random.seed!(seed)
     n_iters     = 1000
     n_rollouts  = 1000
     ode_budget  = ODE_BUDGET_TRAJ
@@ -256,7 +257,7 @@ if abspath(PROGRAM_FILE) == @__FILE__
     @printf("Total wall time: %.1fs (%.1fs/iter)\n", t_total, t_total / n_iters)
     flush(stdout)
 
-    serialize(joinpath(results_dir, "spce_static_design.jls"), Dict(
+    serialize(joinpath(results_dir, "design_spce.jls"), Dict(
         "design"       => best_design_cpu,
         "loss"         => best_loss,
         "loss_history" => loss_history,

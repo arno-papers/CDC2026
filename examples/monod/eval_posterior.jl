@@ -10,8 +10,6 @@ include(joinpath(@__DIR__, "..", "..", "src", "plotting.jl"))
 
 using Dates
 using LinearAlgebra: norm, det, inv
-using Plots
-using StatsPlots
 using Printf
 using Random
 using Serialization
@@ -43,50 +41,6 @@ function log_likelihood(observations::Vector{Float64}, theta_T, sigma, Cx0,
         ll -= 0.5 * (residual^2 / σ² + log(σ²))
     end
     return ll
-end
-
-# ============================================================================
-#  2D convex hull (Graham scan) + 95% confidence region
-# ============================================================================
-
-function convex_hull_2d(px::Vector{T}, py::Vector{T}) where T
-    n = length(px)
-    n <= 2 && return (copy(px), copy(py))
-    idx = sortperm(collect(zip(px, py)))
-    sx, sy = px[idx], py[idx]
-    cross(ox, oy, ax, ay, bx, by) = (ax - ox) * (by - oy) - (ay - oy) * (bx - ox)
-    lower_x, lower_y = T[], T[]
-    for i in 1:n
-        while length(lower_x) >= 2 && cross(lower_x[end-1], lower_y[end-1],
-                lower_x[end], lower_y[end], sx[i], sy[i]) <= 0
-            pop!(lower_x); pop!(lower_y)
-        end
-        push!(lower_x, sx[i]); push!(lower_y, sy[i])
-    end
-    upper_x, upper_y = T[], T[]
-    for i in n:-1:1
-        while length(upper_x) >= 2 && cross(upper_x[end-1], upper_y[end-1],
-                upper_x[end], upper_y[end], sx[i], sy[i]) <= 0
-            pop!(upper_x); pop!(upper_y)
-        end
-        push!(upper_x, sx[i]); push!(upper_y, sy[i])
-    end
-    hx = vcat(lower_x[1:end-1], upper_x[1:end-1])
-    hy = vcat(lower_y[1:end-1], upper_y[1:end-1])
-    push!(hx, hx[1]); push!(hy, hy[1])
-    return (hx, hy)
-end
-
-function confidence_hull(px::AbstractVector, py::AbstractVector; frac::Float64=0.95)
-    # Robust center: median (not pulled by outliers)
-    cx, cy = median(px), median(py)
-    # Robust covariance via MAD-scaled coordinates
-    mad_x = max(median(abs.(px .- cx)), 1e-12)
-    mad_y = max(median(abs.(py .- cy)), 1e-12)
-    # Mahalanobis-like distance using MAD scales
-    dists = [sqrt(((px[i] - cx)/mad_x)^2 + ((py[i] - cy)/mad_y)^2) for i in eachindex(px)]
-    keep = sortperm(dists)[1:round(Int, frac * length(px))]
-    return convex_hull_2d(Float64.(px[keep]), Float64.(py[keep]))
 end
 
 # ============================================================================
@@ -129,10 +83,6 @@ function posterior_mean_eval(model, ps, st, data)
 
     return vcat(post_μ, post_K, ess, var_μ, var_K), st, (;)
 end
-
-# ============================================================================
-#  Main
-# ============================================================================
 
 # ============================================================================
 #  Core evaluation function (runs for one θ* scenario)
@@ -223,6 +173,7 @@ if abspath(PROGRAM_FILE) == @__FILE__
     B                = 32
     n_substeps       = N_SUBSTEPS
     seed             = 0
+    Random.seed!(seed)
 
     # True parameters: high μ, low K — adaptive's strength
     true_μ   = 0.47f0
@@ -236,28 +187,8 @@ if abspath(PROGRAM_FILE) == @__FILE__
 
     ps_cpu, st_cpu, _ = load_checkpoint_cpu(checkpoint)
 
-    standard_data = deserialize(joinpath(results_dir, "bim_std_design.jls"))
-    static_standard = standard_data["static_design"]
-
-    has_spce_opt = false
-    local static_spce_opt
-    spce_file = joinpath(results_dir, "spce_static_design.jls")
-    if isfile(spce_file)
-        spce_data = deserialize(spce_file)
-        static_spce_opt = spce_data["design"]
-        has_spce_opt = true
-        println("Loaded sPCE-optimized design from: $spce_file")
-    else
-        println("No sPCE-optimized design found (looked at: $spce_file)")
-        static_spce_opt = zeros(Float32, N_STEPS)
-    end
-
-    static_designs = Pair{String, Vector{Float32}}[
-        "static_std"   => Float32.(static_standard),
-    ]
-    if has_spce_opt
-        push!(static_designs, "static_spce" => Float32.(static_spce_opt))
-    end
+    static_designs = load_static_designs(results_dir)
+    has_spce_opt = any(p -> p.first == "static_spce", static_designs)
 
     design_names = String["adaptive"; [n for (n, _) in static_designs]]
 
@@ -358,130 +289,6 @@ if abspath(PROGRAM_FILE) == @__FILE__
         "wall_time_s"          => t_total,
     )
     serialize(joinpath(results_dir, "posterior_results.jls"), results)
-
-    # ---- Plot 1: Posterior mean scatter ----
-    p = plot(; xlabel = "Posterior mean μ_max", ylabel = "Posterior mean K_s",
-               title = @sprintf("Posterior means (%d trials, N=%d)", n_trials, N_post),
-               legend = :outertopright, size = (750, 600))
-
-    # Legend entries in canonical order (invisible dummy points)
-    for name in DESIGN_ORDER
-        haskey(all_post_means, name) || continue
-        style = get(DESIGN_STYLES, name, (label = name, color = :black))
-        scatter!(p, [NaN], [NaN]; color = style.color, ms = 3, msw = 0,
-                 label = style.label)
-    end
-    # Scatter points: widest spread first (back) → tightest last
-    for name in reverse(DESIGN_ORDER)
-        haskey(all_post_means, name) || continue
-        style = get(DESIGN_STYLES, name, (label = name, color = :black))
-        pm = all_post_means[name]
-        scatter!(p, pm[1, :], pm[2, :];
-                 color = style.color, alpha = 0.4, ms = 3, msw = 0,
-                 label = "")
-    end
-    # Hulls on top: widest first → tightest last (front)
-    for name in reverse(DESIGN_ORDER)
-        haskey(all_post_means, name) || continue
-        style = get(DESIGN_STYLES, name, (label = name, color = :black))
-        pm = all_post_means[name]
-        hx, hy = confidence_hull(pm[1, :], pm[2, :])
-        plot!(p, Shape(hx, hy); fillcolor = style.color, fillalpha = 0.1,
-              linecolor = style.color, lw = 2, linealpha = 1.0, label = "")
-    end
-
-    scatter!(p, [true_μ], [true_K];
-             color = :black, shape = :xcross, ms = 10, msw = 3, label = "True value")
-
-    savefig(p, joinpath(results_dir, "plot_posterior.png"))
-    println("\nSaved: $(joinpath(results_dir, "plot_posterior.png"))")
-
-    # ---- Plot 2: Posterior std boxplots ----
-    p_std = plot(layout = (1, 2), size = (800, 400),
-                 title = ["Posterior std μ_max" "Posterior std K_s"])
-
-    for (param_idx, param_name) in enumerate(["μ_max", "K_s"])
-        labels = String[]
-        data_vecs = Vector{Float64}[]
-        colors = []
-        for name in DESIGN_ORDER
-            haskey(all_post_vars, name) || continue
-            style = get(DESIGN_STYLES, name, (label = name, color = :black))
-            stds = sqrt.(Float64.(all_post_vars[name][param_idx, :]))
-            push!(labels, style.label)
-            push!(data_vecs, stds)
-            push!(colors, style.color)
-        end
-        for (i, (lab, stds, col)) in enumerate(zip(labels, data_vecs, colors))
-            boxplot!(p_std[param_idx], [lab], stds;
-                     color = col, fillalpha = 0.4, lw = 1.5,
-                     outliers = true, label = "")
-        end
-    end
-    savefig(p_std, joinpath(results_dir, "plot_posterior_std.png"))
-    println("Saved: $(joinpath(results_dir, "plot_posterior_std.png"))")
-
-    # ---- Plot 3: Posterior contours for 5 sample trials (CPU) ----
-    println("\nComputing posterior contours for 5 sample trials (CPU)...")
-    flush(stdout)
-
-    n_contour_trials = 5
-    rng_contour = MersenneTwister(seed + 99)
-
-    θ_prior = sample_θ_full(rng_contour, N_post)
-
-    p_contour = plot(layout = (1, n_contour_trials),
-                     size = (250 * n_contour_trials, 250),
-                     xlabel = "μ_max", ylabel = "K_s")
-
-    for trial in 1:n_contour_trials
-        rng_trial = MersenneTwister(seed + trial)
-
-        for name in DESIGN_ORDER
-            haskey(all_post_means, name) || continue
-            style = get(DESIGN_STYLES, name, (label = name, color = :black))
-
-            if name == "adaptive"
-                design = rollout_adaptive_design_cpu(policy, ps_cpu, st_cpu, rng_trial,
-                            θT, true_σ; Cx0=true_Cx0, n_substeps=n_substeps)
-            else
-                design = Dict(static_designs)[name]
-            end
-
-            obs_rng = MersenneTwister(seed + (name == "adaptive" ? 0 : findfirst(p -> p.first == name, static_designs)) * 1000 + trial)
-            obs = generate_observations(obs_rng, θT, true_σ, true_Cx0, design; n_substeps=n_substeps)
-
-            ll = zeros(Float64, N_post)
-            for j in 1:N_post
-                θT_j = Float64[θ_prior[1, j], θ_prior[2, j]]
-                σ_j = Float64(θ_prior[3, j])
-                Cx0_j = Float64(θ_prior[4, j])
-                ll[j] = log_likelihood(Float64.(obs), θT_j, σ_j, Cx0_j,
-                                        Float64.(design); n_substeps=n_substeps)
-            end
-            ll_max = maximum(ll)
-            w = exp.(ll .- ll_max)
-            w ./= sum(w)
-
-            n_resample = 500
-            cum_w = cumsum(w)
-            idx = [searchsortedfirst(cum_w, rand(rng_contour)) for _ in 1:n_resample]
-            idx = clamp.(idx, 1, N_post)
-
-            lab = trial == 1 ? style.label : ""
-            scatter!(p_contour[trial], Float64.(θ_prior[1, idx]), Float64.(θ_prior[2, idx]);
-                     color = style.color, alpha = 0.25, ms = 2, msw = 0,
-                     label = lab)
-        end
-
-        scatter!(p_contour[trial], [Float64(true_μ)], [Float64(true_K)];
-                 color = :black, shape = :xcross, ms = 8, msw = 2,
-                 label = (trial == 1 ? "True" : ""))
-
-        plot!(p_contour[trial]; title = "Trial $trial")
-    end
-    savefig(p_contour, joinpath(results_dir, "plot_posterior_contours.png"))
-    println("Saved: $(joinpath(results_dir, "plot_posterior_contours.png"))")
 
     # ---- Summary file ----
     open(joinpath(results_dir, "posterior_summary.txt"), "w") do io

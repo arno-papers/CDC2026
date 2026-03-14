@@ -29,16 +29,16 @@ rule train:
     shell: "./vsc/train_remote.sh"
 
 # ---- BIM design optimization (CPU, local, sequential via resource lock) ----
-rule optimize_bim_std:
+rule optimize_bim:
     input: f"{MONOD}/optimize_bim.jl", *DEPS
-    output: f"{RESULTS}/bim_std_design.jls"
+    output: f"{RESULTS}/design_bim.jls"
     resources: bim_slot=1
     shell: "{JULIA} {input[0]}"
 
 # ---- Static sPCE optimization (GPU, VSC cluster) ----
 rule optimize_static:
     input: f"{MONOD}/optimize_static.jl", *DEPS
-    output: f"{RESULTS}/spce_static_design.jls"
+    output: f"{RESULTS}/design_spce.jls"
     shell: "TASK=optimize_static WALLTIME=4:00:00 ./vsc/train_remote.sh"
 
 # ---- sPCE evaluation (GPU, local) ----
@@ -46,13 +46,11 @@ rule eval_spce:
     input:
         script=f"{MONOD}/eval_spce.jl",
         checkpoint=f"{RESULTS}/checkpoint.jls",
-        bim_std=f"{RESULTS}/bim_std_design.jls",
-        spce_static=f"{RESULTS}/spce_static_design.jls",
+        bim=f"{RESULTS}/design_bim.jls",
+        spce=f"{RESULTS}/design_spce.jls",
         deps=DEPS,
     output:
         scores=f"{RESULTS}/spce_scores.jls",
-        hist=f"{RESULTS}/plot_spce_histograms.png",
-        traj=f"{RESULTS}/plot_spce_trajectories.png",
     shell: "{JULIA} {input.script}"
 
 # ---- Posterior evaluation (GPU, local) ----
@@ -60,12 +58,21 @@ rule eval_posterior:
     input:
         script=f"{MONOD}/eval_posterior.jl",
         checkpoint=f"{RESULTS}/checkpoint.jls",
-        bim_std=f"{RESULTS}/bim_std_design.jls",
-        spce_static=f"{RESULTS}/spce_static_design.jls",
+        bim=f"{RESULTS}/design_bim.jls",
+        spce=f"{RESULTS}/design_spce.jls",
         deps=DEPS,
     output:
         results=f"{RESULTS}/posterior_results.jls",
-        plot=f"{RESULTS}/plot_posterior.png",
+    shell: "{JULIA} {input.script}"
+
+# ---- Posterior plots (CPU, local) ----
+rule plot_posterior:
+    input:
+        script=f"{MONOD}/plot_posterior.jl",
+        results=f"{RESULTS}/posterior_results.jls",
+        checkpoint=f"{RESULTS}/checkpoint.jls",
+        deps=DEPS,
+    output: f"{RESULTS}/plot_posterior.png"
     shell: "{JULIA} {input.script}"
 
 # ---- Haldane training (VSC cluster) ----
@@ -88,6 +95,8 @@ rule monod_dynamics_plot:
     input:
         script=f"{MONOD}/plot_dynamics.jl",
         checkpoint=f"{RESULTS}/checkpoint.jls",
+        bim=f"{RESULTS}/design_bim.jls",
+        spce=f"{RESULTS}/design_spce.jls",
         deps=DEPS,
     output: f"{RESULTS}/plot_dynamics.png"
     shell: "{JULIA} {input.script}"
@@ -107,22 +116,26 @@ rule weibull_nuisance_plot:
     output: f"{WEIBULL_RESULTS}/plot_nuisance.png"
     shell: "{JULIA} {input.script}"
 
+# ---- Generate tables from results ----
+rule generate_tables:
+    input:
+        script="scripts/generate_tables.jl",
+        spce=f"{RESULTS}/spce_scores.jls",
+    output: "paper/tables/spce_table.tex"
+    shell: "{JULIA} {input.script}"
+
 # ---- Figures: copy to paper/figures/ ----
 rule figures:
     input:
         f"{RESULTS}/plot_training_loss.png",
-        f"{RESULTS}/plot_spce_trajectories.png",
-        f"{RESULTS}/plot_spce_histograms.png",
         f"{RESULTS}/plot_posterior.png",
         f"{RESULTS}/plot_dynamics.png",
         f"{HALDANE_RESULTS}/plot_comparison.png",
         f"{WEIBULL_RESULTS}/plot_nuisance.png",
     output:
         "paper/figures/monod_training_loss.png",
-        "paper/figures/monod_spce_trajectories.png",
-        "paper/figures/monod_spce_histograms.png",
         "paper/figures/monod_posterior.png",
-        "paper/figures/monod_dynamics.png",
+        "paper/figures/monod_comparison.png",
         "paper/figures/haldane_comparison.png",
         "paper/figures/pharma_nuisance.png",
     run:
@@ -133,7 +146,7 @@ rule figures:
 
 # ---- Paper compilation (CDC: compact, arXiv: extended) ----
 rule paper_cdc:
-    input: rules.figures.output
+    input: rules.figures.output, rules.generate_tables.output
     output: "paper/main_cdc.pdf"
     shell:
         r"""
@@ -145,7 +158,7 @@ rule paper_cdc:
         """
 
 rule paper_arxiv:
-    input: rules.figures.output
+    input: rules.figures.output, rules.generate_tables.output
     output: "paper/main_arxiv.pdf"
     shell:
         r"""

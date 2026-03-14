@@ -12,31 +12,35 @@ The goal is a research paper for the CDC conference.
 
 ```
 src/                     # Shared Julia infrastructure
-  common_core.jl         # RK4, positional encoding, diagnostics, I/O (CPU-safe)
+  common_core.jl         # RK4, positional encoding, I/O, load_static_designs() (CPU-safe)
   common.jl              # Reactant: integrate(), targeted_spce_loss(), train_policy()
-  plotting.jl            # Shared plot styles, histograms, t-tests
+  plotting.jl            # Shared plot styles, histograms, convex hulls
 
 examples/
   monod/                 # Monod bioreactor example
     model.jl             # Dynamics, constants, sampling, policy, BIM functions
     train.jl             # Training (GPU)
-    optimize_bim.jl      # Static BIM design optimization (CPU)
-    eval_spce.jl         # sPCE evaluation (GPU)
-    optimize_static.jl   # Static sPCE design optimization (GPU)
-    eval_posterior.jl     # Posterior evaluation (GPU)
-    plot_training.jl     # Training loss curve (CPU)
-    plot_trajectories.jl # Policy rollout visualization (CPU)
+    optimize_bim.jl      # Static BIM design optimization (CPU) → design_bim.jls
+    optimize_static.jl   # Static sPCE design optimization (GPU) → design_spce.jls
+    eval_spce.jl         # sPCE evaluation (GPU) → spce_scores.jls
+    eval_posterior.jl     # Posterior evaluation (GPU) → posterior_results.jls
+    plot_dynamics.jl     # Design comparison plot (CPU)
+    plot_trajectories.jl # CPU rollout helpers, plot_design_comparison() (included by plot_dynamics.jl)
+    plot_posterior.jl    # Posterior scatter/boxplot/contour plots (CPU)
+    plot_spce.jl         # sPCE histogram plot (CPU)
     results/             # Flat results directory (git-tracked)
-  haldane/               # Haldane bioreactor (substrate inhibition, spike-and-slab prior)
-    model.jl             # Dynamics, constants, spike-and-slab sampling, policy
+  haldane/               # Haldane bioreactor (substrate inhibition, uniform α prior)
+    model.jl             # Dynamics, constants, uniform prior sampling, policy
     train.jl             # Training (GPU)
     plot_comparison.jl   # Comparison plot: no-inhibition vs inhibition (CPU)
     results/             # Flat results directory (git-tracked)
 
-paper/                   # Research paper (renamed from latex/)
+paper/                   # Research paper
   figures/               # Git-tracked, copied from example results by Snakefile
+  tables/                # Auto-generated LaTeX table fragments
 
 scripts/
+  generate_tables.jl         # Generate paper/tables/spce_table.tex from results
   profile_budget.jl          # Find max ODE budget for GPU (search + probe modes)
   submit_profile_budget.sh   # Submit budget profiling to VSC
 
@@ -70,7 +74,7 @@ snakemake --keep-going   # BIM runs locally, training submits to cluster, stops
 snakemake                # sees training done, syncs checkpoint, runs eval/plots locally
 
 # Paper
-snakemake paper          # copy figures + compile LaTeX
+snakemake paper          # copy figures + generate tables + compile LaTeX
 
 # Dry run (show what would run)
 snakemake -n
@@ -81,8 +85,10 @@ snakemake -n
 ```bash
 julia --project=. examples/monod/train.jl
 julia --project=. examples/monod/optimize_bim.jl
-julia --project=. examples/monod/plot_training.jl
-julia --project=. examples/monod/plot_trajectories.jl
+julia --project=. examples/monod/plot_dynamics.jl
+julia --project=. examples/monod/plot_posterior.jl
+julia --project=. examples/monod/plot_spce.jl
+julia --project=. scripts/generate_tables.jl
 ```
 
 ### Direct cluster submission (bypassing Snakemake)

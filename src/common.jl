@@ -1,3 +1,5 @@
+ENV["XLA_FLAGS"] = get(ENV, "XLA_FLAGS", "") * " --xla_gpu_deterministic_ops=true"
+
 # ============================================================================
 # Common definitions for DADS experiments.
 #
