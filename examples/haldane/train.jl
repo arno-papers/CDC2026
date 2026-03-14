@@ -3,10 +3,11 @@ include(joinpath(@__DIR__, "..", "..", "src", "common.jl"))
 include(joinpath(@__DIR__, "..", "..", "src", "plotting.jl"))
 
 if abspath(PROGRAM_FILE) == @__FILE__
-    using Dates
+    using Dates, Random
     plotting = false
     n_iters = 250
     seed = 0
+    Random.seed!(seed)
     loss_png_every = 10
     grad_accum = GRAD_ACCUM_STEPS
     ode_budget = ODE_BUDGET_TRAJ
