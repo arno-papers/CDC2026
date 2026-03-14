@@ -25,7 +25,8 @@ examples/
     optimize_static.jl   # Static sPCE design optimization (GPU)
     eval_posterior.jl     # Posterior evaluation (GPU)
     plot_training.jl     # Training loss curve (CPU)
-    plot_trajectories.jl # Policy rollout visualization (CPU)
+    plot_dynamics.jl     # Design comparison plot (CPU)
+    plot_trajectories.jl # CPU rollout helpers, plot_design_comparison() (included by plot_dynamics.jl)
     results/             # Flat results directory (git-tracked)
   haldane/               # Haldane bioreactor (substrate inhibition, spike-and-slab prior)
     model.jl             # Dynamics, constants, spike-and-slab sampling, policy
@@ -82,7 +83,7 @@ snakemake -n
 julia --project=. examples/monod/train.jl
 julia --project=. examples/monod/optimize_bim.jl
 julia --project=. examples/monod/plot_training.jl
-julia --project=. examples/monod/plot_trajectories.jl
+julia --project=. examples/monod/plot_dynamics.jl
 ```
 
 ### Direct cluster submission (bypassing Snakemake)

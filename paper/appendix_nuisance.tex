@@ -192,17 +192,3 @@ Training is implemented in Julia~\citep{bezanson2017julia} using Lux.jl~\citep{p
 \caption{Training loss curve (targeted sPCE objective) over iterations for the Monod bioreactor. The objective converges within approximately 1000 iterations.}
 \label{fig:training_loss}
 \end{figure}
-
-\begin{figure}[t]
-\centering
-\includegraphics[width=\columnwidth]{figures/monod_spce_trajectories.png}
-\caption{Design trajectories for the Monod bioreactor: adaptive policy rollouts (gray) compared to static baselines. The adaptive policy varies its feed rate across rollouts in response to different observations, while static designs remain fixed.}
-\label{fig:trajectories}
-\end{figure}
-
-\begin{figure}[t]
-\centering
-\includegraphics[width=\columnwidth]{figures/monod_spce_histograms.png}
-\caption{Targeted sPCE score distributions across design strategies for the Monod bioreactor ($n=500$ trials). The adaptive policy achieves higher scores on average and with lower variance than the static baselines.}
-\label{fig:spce}
-\end{figure}

@@ -9,7 +9,6 @@ include(joinpath(@__DIR__, "..", "..", "src", "common.jl"))
 include(joinpath(@__DIR__, "..", "..", "src", "plotting.jl"))
 
 using Dates
-using Plots
 using Printf
 using Random
 using Serialization
@@ -281,8 +280,6 @@ if abspath(PROGRAM_FILE) == @__FILE__
     for (name, _) in static_designs
         all_scores[name] = Float64[]
     end
-    all_adaptive_designs = Matrix{Float32}(undef, N_STEPS, n_trials)
-
     t_start = time()
     println("\nStarting evaluation: $n_batches batches of $B episodes")
     println("First batch includes compilation time (~5-15 min)...")
@@ -312,10 +309,6 @@ if abspath(PROGRAM_FILE) == @__FILE__
         scores_ra, _, _ = @jit adaptive_spce_eval(policy, ps_ra, st_ra, data_adaptive)
         scores_cpu = Array(scores_ra)
         append!(all_scores["adaptive"], Float64.(scores_cpu[1, 1:actual_B]))
-
-        designs_cpu = Array(designs_buf)
-        col_start = (batch_idx - 1) * B + 1
-        all_adaptive_designs[:, col_start:col_start + actual_B - 1] .= designs_cpu[:, 1:actual_B]
 
         for (name, design) in static_designs
             ε_static = randn(rng, Float32, N_NOISE_CHANNELS, N_STEPS, B)
@@ -350,7 +343,6 @@ if abspath(PROGRAM_FILE) == @__FILE__
     scores_dict = Dict{String, Any}(
         "adaptive_scores"      => all_scores["adaptive"],
         "static_std_scores"    => all_scores["static_std"],
-        "adaptive_designs"     => all_adaptive_designs,
         "n_trials"             => n_trials,
         "L"                    => L,
         "M"                    => M,
@@ -363,16 +355,6 @@ if abspath(PROGRAM_FILE) == @__FILE__
         scores_dict["static_spce_scores"] = all_scores["static_spce"]
     end
     serialize(joinpath(results_dir, "spce_scores.jls"), scores_dict)
-
-    score_designs = extract_designs(scores_dict)
-
-    plot_spce_histograms(score_designs;
-        output_path = joinpath(results_dir, "plot_spce_histograms.png"),
-        title_suffix = " (L=$L, M=$M, $n_trials trials, GPU)")
-
-    plot_design_trajectories(all_adaptive_designs, static_designs;
-        output_path = joinpath(results_dir, "plot_spce_trajectories.png"),
-        design_ylabel = "Q_in (L/h)")
 
     # ---- Print and save score statistics ----
     adaptive_scores = all_scores["adaptive"]

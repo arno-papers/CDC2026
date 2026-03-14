@@ -51,8 +51,6 @@ rule eval_spce:
         deps=DEPS,
     output:
         scores=f"{RESULTS}/spce_scores.jls",
-        hist=f"{RESULTS}/plot_spce_histograms.png",
-        traj=f"{RESULTS}/plot_spce_trajectories.png",
     shell: "{JULIA} {input.script}"
 
 # ---- Posterior evaluation (GPU, local) ----
@@ -88,6 +86,8 @@ rule monod_dynamics_plot:
     input:
         script=f"{MONOD}/plot_dynamics.jl",
         checkpoint=f"{RESULTS}/checkpoint.jls",
+        bim_std=f"{RESULTS}/bim_std_design.jls",
+        spce_static=f"{RESULTS}/spce_static_design.jls",
         deps=DEPS,
     output: f"{RESULTS}/plot_dynamics.png"
     shell: "{JULIA} {input.script}"
@@ -111,18 +111,14 @@ rule weibull_nuisance_plot:
 rule figures:
     input:
         f"{RESULTS}/plot_training_loss.png",
-        f"{RESULTS}/plot_spce_trajectories.png",
-        f"{RESULTS}/plot_spce_histograms.png",
         f"{RESULTS}/plot_posterior.png",
         f"{RESULTS}/plot_dynamics.png",
         f"{HALDANE_RESULTS}/plot_comparison.png",
         f"{WEIBULL_RESULTS}/plot_nuisance.png",
     output:
         "paper/figures/monod_training_loss.png",
-        "paper/figures/monod_spce_trajectories.png",
-        "paper/figures/monod_spce_histograms.png",
         "paper/figures/monod_posterior.png",
-        "paper/figures/monod_dynamics.png",
+        "paper/figures/monod_comparison.png",
         "paper/figures/haldane_comparison.png",
         "paper/figures/pharma_nuisance.png",
     run:
