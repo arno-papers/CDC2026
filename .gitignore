@@ -9,6 +9,7 @@ paper/*.fdb_latexmk
 paper/main.pdf
 paper/main_cdc.pdf
 paper/main_arxiv.pdf
+paper/tables/
 
 # Julia
 LocalPreferences.toml
