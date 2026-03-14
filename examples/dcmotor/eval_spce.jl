@@ -126,24 +126,8 @@ if abspath(PROGRAM_FILE) == @__FILE__
     # ---- Load checkpoint and static designs ----
     ps_cpu, st_cpu, _ = load_checkpoint_cpu(results_dir)
 
-    standard_data = deserialize(joinpath(results_dir, "bim_std_design.jls"))
-    static_standard = Float64.(standard_data["static_design"])
-
-    has_spce_opt = false
-    local static_spce_opt
-    spce_file = joinpath(results_dir, "spce_static_design.jls")
-    if isfile(spce_file)
-        spce_data = deserialize(spce_file)
-        static_spce_opt = Float64.(spce_data["design"])
-        has_spce_opt = true
-    end
-
-    static_designs_eval = Pair{String, Vector{Float64}}[
-        "static_std" => static_standard,
-    ]
-    if has_spce_opt
-        push!(static_designs_eval, "static_spce" => static_spce_opt)
-    end
+    static_designs_eval = load_static_designs(results_dir; T=Float64)
+    has_spce_opt = any(p -> p.first == "static_spce", static_designs_eval)
 
     println("\n=== CPU sPCE Evaluation: DC Motor ===")
     println("n_trials   = $n_trials")
@@ -238,12 +222,7 @@ if abspath(PROGRAM_FILE) == @__FILE__
     serialize(joinpath(results_dir, "spce_scores.jls"), scores_dict)
 
     # ---- Plots ----
-    static_designs_plot = Pair{String, Vector{Float32}}[
-        "static_std" => Float32.(static_standard),
-    ]
-    if has_spce_opt
-        push!(static_designs_plot, "static_spce" => Float32.(static_spce_opt))
-    end
+    static_designs_plot = Pair{String, Vector{Float32}}[n => Float32.(d) for (n, d) in static_designs_eval]
 
     score_designs = extract_designs(scores_dict)
     plot_spce_histograms(score_designs;

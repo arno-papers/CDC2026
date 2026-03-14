@@ -27,15 +27,15 @@ if abspath(PROGRAM_FILE) == @__FILE__
     println("--- Standard BIM (average over full prior) ---")
     flush(stdout)
     best_design, best_score = optimize_static_design_grad(prior_samples;
-        n_iters=300, n_restarts=4, results_dir=results_dir, prefix="bim_std")
+        n_iters=300, n_restarts=4, results_dir=results_dir, prefix="bim")
 
-    serialize(joinpath(results_dir, "bim_std_design.jls"), Dict(
-        "static_design" => best_design,
+    serialize(joinpath(results_dir, "design_bim.jls"), Dict(
+        "design" => best_design,
         "bim_score" => best_score,
         "n_prior" => n_prior,
     ))
 
     println("\nBest BIM design: [$(join(round.(best_design; digits=3), ", "))]")
     @printf("BIM score: %.5f\n", best_score)
-    println("Saved to: $(results_dir)/bim_std_design.jls")
+    println("Saved to: $(results_dir)/design_bim.jls")
 end

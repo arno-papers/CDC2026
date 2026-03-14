@@ -12,20 +12,7 @@ if abspath(PROGRAM_FILE) == @__FILE__
 
     ckpt = deserialize(file)
 
-    # Load static designs (ordered by performance: sPCE-opt, then BIM)
-    static_designs = Pair{String, Vector{Float32}}[]
-
-    spce_file = joinpath(results_dir, "spce_static_design.jls")
-    if isfile(spce_file)
-        spce_data = deserialize(spce_file)
-        push!(static_designs, "static_spce" => Float32.(spce_data["design"]))
-    end
-
-    bim_file = joinpath(results_dir, "bim_std_design.jls")
-    if isfile(bim_file)
-        bim_data = deserialize(bim_file)
-        push!(static_designs, "static_std" => Float32.(bim_data["static_design"]))
-    end
+    static_designs = load_static_designs(results_dir)
 
     rng = Random.MersenneTwister(42)
     plot_design_comparison(policy, ckpt["parameters"], ckpt["states"],

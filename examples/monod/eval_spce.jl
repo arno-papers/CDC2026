@@ -2,7 +2,7 @@
 # GPU-accelerated sPCE evaluation using Reactant (@jit, forward-only).
 #
 # Usage:
-#   julia --project=. examples/monod/eval_spce.jl [checkpoint=...] [n_trials=500] [L=1000] [M=128] [B=32]
+#   julia --project=. examples/monod/eval_spce.jl [n_trials=1000] [L=5000] [M=5000] [B=32]
 
 include(joinpath(@__DIR__, "model.jl"))
 include(joinpath(@__DIR__, "..", "..", "src", "common.jl"))
@@ -197,13 +197,28 @@ end
 
 if abspath(PROGRAM_FILE) == @__FILE__
     checkpoint       = joinpath(@__DIR__, "results")
-    n_trials         = 500
+    n_trials         = 1000
     n_substeps       = N_SUBSTEPS
     seed             = 0
 
-    L                = 1000
-    M                = 1000
-    B                = 10
+    # Paper-quality defaults: 5× training L,M to reduce NMC bias to O(1e-4).
+    # The paired t-test cancels common bias, but absolute sPCE values benefit
+    # from larger samples.  B is pure parallelism (no statistical effect).
+    L                = 5000
+    M                = 5000
+    B                = 32
+
+    # Parse CLI args (key=value), e.g.: julia ... eval_spce.jl n_trials=500 L=1000
+    for arg in ARGS
+        key, val = split(arg, '='; limit=2)
+        if     key == "n_trials";  n_trials  = parse(Int, val)
+        elseif key == "L";        L         = parse(Int, val)
+        elseif key == "M";        M         = parse(Int, val)
+        elseif key == "B";        B         = parse(Int, val)
+        elseif key == "seed";     seed      = parse(Int, val)
+        else   @warn "Unknown argument: $arg"
+        end
+    end
 
     results_dir = joinpath(@__DIR__, "results")
     mkpath(results_dir)
@@ -211,28 +226,8 @@ if abspath(PROGRAM_FILE) == @__FILE__
     # ---- Load model and static designs ----
     ps_cpu, st_cpu, _ = load_checkpoint_cpu(checkpoint)
 
-    standard_data = deserialize(joinpath(results_dir, "bim_std_design.jls"))
-    static_standard = standard_data["static_design"]
-
-    has_spce_opt = false
-    local static_spce_opt
-    spce_file = joinpath(results_dir, "spce_static_design.jls")
-    if isfile(spce_file)
-        spce_data = deserialize(spce_file)
-        static_spce_opt = spce_data["design"]
-        has_spce_opt = true
-        println("Loaded sPCE-optimized design from: $spce_file")
-    else
-        println("No sPCE-optimized design found (looked at: $spce_file)")
-        static_spce_opt = zeros(Float32, N_STEPS)
-    end
-
-    static_designs = Pair{String, Vector{Float32}}[
-        "static_std"   => Float32.(static_standard),
-    ]
-    if has_spce_opt
-        push!(static_designs, "static_spce" => Float32.(static_spce_opt))
-    end
+    static_designs = load_static_designs(results_dir)
+    has_spce_opt = any(p -> p.first == "static_spce", static_designs)
 
     println("\n=== GPU-Accelerated Targeted sPCE Evaluation ===")
     println("n_trials   = $n_trials")
@@ -401,9 +396,8 @@ if abspath(PROGRAM_FILE) == @__FILE__
         println(io, "seed = $seed")
         @printf(io, "wall_time_s = %.1f\n", t_total)
         println(io)
-        println(io, "static_std_design   = [", join(round.(static_standard; digits=4), ", "), "]")
-        if has_spce_opt
-            println(io, "static_spce_design  = [", join(round.(static_spce_opt; digits=4), ", "), "]")
+        for (name, d) in static_designs
+            println(io, "$(name)_design = [", join(round.(d; digits=4), ", "), "]")
         end
         println(io)
         println(io, "=== Results (targeted sPCE, higher = more informative) ===")

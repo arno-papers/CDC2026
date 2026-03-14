@@ -72,7 +72,7 @@ if abspath(PROGRAM_FILE) == @__FILE__
 
     on_iteration = loss_plot_callback(;
         title="Training Loss (Weibull PK)",
-        output_path=joinpath(results_dir, "plot_loss_live.png"),
+        output_path=joinpath(results_dir, "plot_training_loss.png"),
         save_every=loss_png_every, n_iters)
 
     println("Starting training...")
