@@ -35,7 +35,7 @@
 
 \begin{document}
 
-\title{Deep Adaptive Design for Model-Based Experimental Design\\
+\title{Deep Adaptive Model-Based Design of Experiments\\
 }
 
 \author{\IEEEauthorblockN{Arno Strouwen}
@@ -47,7 +47,7 @@ contact@arnostrouwen.com}
 \maketitle
 
 \begin{abstract}
-Model-based design of experiments (MBDOE) is essential for efficient parameter estimation in nonlinear dynamical systems. However, conventional adaptive MBDOE requires costly posterior inference and design optimization between each experimental step, precluding real-time applications. We address this limitation by combining Deep Adaptive Design (DAD), which amortizes sequential design decisions using neural networks, with differentiable mechanistic models. Specifically, we consider dynamical systems with known governing equations but uncertain parameters. We derive tractable training objectives based on sequential contrastive bounds and propose a transformer-based policy architecture that respects the temporal structure of dynamical systems. We demonstrate the approach on four systems of increasing complexity: a fed-batch bioreactor with Monod kinetics, a Haldane bioreactor with spike-and-slab uncertainty over substrate inhibition, a two-compartment pharmacokinetic model with nuisance clearance parameters, and a DC motor for real-time deployment.
+Model-based design of experiments (MBDOE) is essential for efficient parameter estimation in nonlinear dynamical systems. However, conventional adaptive MBDOE requires costly posterior inference and design optimization between each experimental step, precluding real-time applications. We address this limitation by combining Deep Adaptive Design (DAD), which amortizes sequential design decisions using neural networks, with differentiable mechanistic models. Specifically, we consider dynamical systems with known governing equations but uncertain parameters. We derive tractable training objectives based on sequential contrastive bounds and propose a transformer-based policy architecture that respects the temporal structure of dynamical systems. We demonstrate the approach on four systems of increasing complexity: a fed-batch bioreactor with Monod kinetics, a Haldane bioreactor with uncertain substrate inhibition, a two-compartment pharmacokinetic model with nuisance clearance parameters, and a DC motor for real-time deployment.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -105,10 +105,10 @@ The specific growth rate $\mu$ follows Monod kinetics:
 \begin{equation}
 \mu(C_s; \theta_T) = \frac{\mu_{\max} C_s}{K_s + C_s},
 \end{equation}
-where $\mu_{\max}$ and $K_s$ are unknown.
+where $\mu_{\max}$ and $K_s$ are unknown, with independent uniform priors $\mu_{\max} \in [0.3, 0.5]$ and $K_s \in [0.3, 0.6]$.
 We measure substrate concentration (so $q=1$ and $g(x)=C_s$), with observations $y_k \sim \mathcal{N}(C_s(t_k),\, \sigma^2)$.
 The nuisance parameters are $\theta_N = (\sigma, C_{x,0})$: the initial substrate and volume are fixed at $C_{s,0} = 3.0$ and $V_0 = 7.0$, while $C_{x,0} \sim \text{Uniform}(0.10, 0.50)$ varies between batches due to different inocula.
-The noise scale $\sigma$ is a fixed system property shared across experiments; the targeted sPCE framework marginalizes over both $\sigma$ and $C_{x,0}$.
+The noise scale $\sigma \sim \text{Uniform}(0.05, 0.15)$ is a fixed system property shared across experiments; the targeted sPCE framework marginalizes over both $\sigma$ and $C_{x,0}$.
 The goal is to design a sequence of feed rates $Q_{in,1}, \ldots, Q_{in,K}$ that maximizes information about $\mu_{\max}$ and $K_s$ from noisy $C_s$ measurements.
 
 \section{Information-Theoretic Criterion}
@@ -220,27 +220,12 @@ u_k = \pi_\phi(h_{k-1}) = F_{\phi_2}(\text{Transformer}_{\phi_1}(h_{k-1})),
 where $\text{Transformer}_{\phi_1}$ processes the sequence and $F_{\phi_2}$ is a final projection head.
 
 This architecture captures temporal dependencies while enabling efficient parallel training over the sequence dimension.
+\ifextended All examples share the same architecture and optimizer; full hyperparameters are given in Appendix~\ref{sec:training_details}.\fi
 
 \section{Results}
 
-We apply the framework to four systems of increasing complexity, summarized in Table~\ref{tab:examples}.
+We apply the framework to four systems of increasing complexity.
 
-\begin{table}[t]
-\centering
-\caption{Summary of example systems.}
-\label{tab:examples}
-\small
-\begin{tabular}{@{}lcccc@{}}
-\hline
-Example & States & Target $\theta_T$ & Design & Obs \\
-\hline
-Monod & $C_s, C_x, V$ & $\mu_{\max}, K_s$ & $Q_{in}$ & $C_s$ \\
-Haldane & $C_s, C_x, V$ & $\alpha\!=\!1/K_i$ & $Q_{in}$ & $C_s$ \\
-PK & $A_{t_{1\text{-}3}}, A_c, A_p$ & $k_a, k_{tr}$ & $R_\text{inf}$ & $C_c$ \\
-Motor & $\omega, i$ & TBD & $V_{in}$ & $\omega$ \\
-\hline
-\end{tabular}
-\end{table}
 
 \begin{figure*}[t]
 \centering
@@ -251,11 +236,12 @@ Motor & $\omega, i$ & TBD & $V_{in}$ & $\omega$ \\
 
 \begin{table}[t]
 \centering
-\caption{Targeted sPCE scores for the Monod bioreactor (mean $\pm$ SEM, $n=500$). Higher scores indicate more informative designs.\ifextended{} The BIM baseline is detailed in Appendix~\ref{sec:bim}.\fi}
+\caption{Monod bioreactor: targeted sPCE scores (mean $\pm$ SEM, $n=500$; higher is better) and posterior RMSE ($\times 10^3$, $n=2000$; lower is better).\ifextended{} The BIM baseline is detailed in Appendix~\ref{sec:bim}.\fi}
 \label{tab:spce}
-\begin{tabular}{@{}lc@{}}
+\begin{tabular}{@{}lccc@{}}
 \hline
-Design strategy & sPCE score \\
+Design strategy & sPCE score & \multicolumn{2}{c}{RMSE ($\times 10^3$)} \\
+ & & $\mu_{\max}$ & $K_s$ \\
 \hline
 \input{tables/spce_table.tex}
 \end{tabular}
@@ -271,27 +257,28 @@ Design strategy & sPCE score \\
 \begin{figure*}[t]
 \centering
 \includegraphics[width=\textwidth]{figures/haldane_comparison.png}
-\caption{Haldane bioreactor: substrate $C_s$ and feed rate under no inhibition ($\alpha \approx 0$, left) and substrate inhibition ($\alpha = 0.10$, right). The policy adapts its feed strategy to probe the regime where inhibition effects are visible.}
+\caption{Haldane bioreactor rollouts (20 per scenario, shared nuisance samples). Blue: no inhibition ($\alpha \approx 0$); red: strong inhibition ($\alpha = 0.135$). The policy gives a small initial feed dose under inhibition (right panel, hour~1), then diverges: without inhibition biomass grows rapidly (middle), while inhibition stunts growth to ${\sim}0.5$~g/L. Both cases ramp feed to maximum at the end.}
 \label{fig:haldane}
 \end{figure*}
 
 \begin{figure*}[t]
 \centering
 \includegraphics[width=\textwidth]{figures/pharma_nuisance.png}
-\caption{PK model rollouts under slow elimination ($CL = 1.0$~L/hr, $Q_d = 0.5$~L/hr, left) and fast elimination ($CL = 5.0$~L/hr, $Q_d = 3.0$~L/hr, right) with fixed absorption parameters ($k_a, k_{tr}$ at midrange). Top: central concentration $C_c = A_c/V_C$. Middle: peripheral concentration $C_p = A_p/V_P$. Bottom: infusion rate $R_\text{inf}$ (design). The policy adapts its dosing schedule to the patient's elimination profile, a nuisance parameter: slow elimination leads to later, more spaced-out dosing as drug accumulates, while fast elimination triggers earlier and more frequent pulses.}
+\caption{PK model rollouts (20 per scenario, shared absorption parameters $k_a$, $k_{tr}$ at midrange). Blue: slow elimination ($CL = 1.0$~L/hr, $Q_d = 0.5$~L/hr); red: fast elimination ($CL = 5.0$~L/hr, $Q_d = 3.0$~L/hr). Left: central concentration $C_c = A_c/V_C$. Middle: peripheral concentration $C_p = A_p/V_P$. Right: infusion rate $R_\text{inf}$ (design). Under fast elimination, the policy doses earlier and more frequently to maintain informative drug levels; under slow elimination, drug persists longer and the policy delays dosing.}
 \label{fig:pharma}
 \end{figure*}
 
 \paragraph{Monod bioreactor.}
 The adaptive policy is trained on the Monod bioreactor (Section~\ref{sec:monod}) in approximately 1000 iterations\ifextended{} (Appendix~\ref{sec:training_details})\fi.
-Fig.~\ref{fig:dynamics} shows representative rollouts under the learned policy.
-Table~\ref{tab:spce} compares the adaptive policy against two static baselines; the adaptive policy significantly outperforms both ($p < 0.04$, paired $t$-tests).
+Fig.~\ref{fig:dynamics} shows representative rollouts: the adaptive policy varies its feed profile per rollout in response to observations, while the static designs apply a fixed sequence regardless of the outcome.
+Table~\ref{tab:spce} compares the adaptive policy against two static baselines---a classical Bayesian D-optimal design (BIM) and a static design optimized with the same sPCE objective. The adaptive policy significantly outperforms both on sPCE score ($p < 0.04$, paired $t$-tests) and reduces posterior RMSE by approximately 30\% relative to the best static design.
 Fig.~\ref{fig:posterior} confirms that the adaptive policy yields the most concentrated posterior estimates around the true parameter values.
-A handful of adaptive trials ($7/2000$, the isolated points to the left in Fig.~\ref{fig:posterior}) yield nearly uninformative posteriors. Because the adaptive policy conditions each action on noisy observations, occasional misleading early measurements can steer the policy toward an uninformative action sequence for the remainder of the episode---the same trials produce well-concentrated posteriors under the static baselines, which are immune to this effect. A larger training budget would expose the policy to more such rare noise patterns and improve robustness; all reported statistics include these trials without exclusion.
+A handful of adaptive trials (7/2000, the outliers in Fig.~\ref{fig:posterior}) yield poor posteriors: rare misleading early observations steer the policy into producing no pumping action, driving substrate to zero---a guaranteed suboptimal design. A larger training budget would expose the policy to more such rare noise patterns and remedy this. All reported statistics include these trials without exclusion.
 
 \paragraph{Haldane substrate inhibition.}
-To test model selection, we replace Monod with Haldane kinetics: $\mu = \mu_{\max} C_s / (K_s + C_s + C_s^2/K_i)$, adding substrate inhibition. We set $\alpha = 1/K_i$ as the sole target and treat $\mu_{\max}$, $K_s$, $\sigma$, $C_{x,0}$ as nuisance, so the sPCE objective focuses on discriminating whether inhibition is present ($\alpha = 0$ recovers Monod). We use a spike-and-slab prior: $\alpha \approx 0$ or $\alpha \sim \mathcal{N}(0.10, 0.03^2)$, each with probability $0.5$.
-Fig.~\ref{fig:haldane} shows that when no inhibition is present, the policy behaves similarly to the Monod case, while under inhibition ($\alpha = 0.10$) it adapts its feed strategy to probe the high-substrate regime where inhibition effects are most pronounced.
+This example shares the Monod bioreactor setup (same states, feed rate design $Q_{in}$, substrate observation $C_s$) but replaces the growth rate with Haldane kinetics: $\mu = \mu_{\max} C_s / (K_s + C_s + C_s^2/K_i)$, adding substrate inhibition. We set $\alpha = 1/K_i$ as the sole target with a uniform prior $\alpha \sim \text{Uniform}(0, 0.15)$, and treat $\mu_{\max}$, $K_s$, $\sigma$, $C_{x,0}$ as tightly bounded nuisance parameters (e.g., $\mu_{\max} \in [0.39, 0.41]$, $K_s \in [0.44, 0.46]$), so the sPCE objective focuses on discriminating whether inhibition is present ($\alpha = 0$ recovers Monod).
+Unlike the Monod example, where the policy adapts to nuisance variation, here it must adapt to the \emph{target parameter} itself.
+Fig.~\ref{fig:haldane} shows this: under inhibition ($\alpha = 0.135$), the policy applies a small initial feed dose at hour~1, then observes the growth response through its effect on substrate dynamics. The stunted biomass growth (${\sim}0.5$~g/L vs.\ ${\sim}3$~g/L without inhibition) signals the presence of inhibition, after which the policy adjusts the timing of its later feeding. Without inhibition, the policy recovers Monod-like behavior---zero feed during initial growth, then a ramp to maximum.
 
 \paragraph{Pharmacokinetic model.}
 A two-compartment PK model with transit absorption describes drug distribution between a central compartment (volume $V_C$) and a peripheral compartment (volume $V_P$), fed by a three-stage transit chain:
@@ -304,11 +291,19 @@ A two-compartment PK model with transit absorption describes drug distribution b
 \dot{A}_p &= \tfrac{Q_d}{V_C} A_c - \tfrac{Q_d}{V_P} A_p,
 \end{aligned}
 \end{equation}
-where $R_\text{inf}$ is the controllable infusion rate (design input). The target parameters are the absorption rates $\theta_T = (k_a, k_{tr})$, while $\theta_N = (CL, Q_d, \sigma_{\text{prop}}, \sigma_{\text{add}})$ are nuisance, including patient-specific clearance. The observation is central concentration $C_c = A_c/V_C$ with combined proportional and additive noise: $y_k \sim \mathcal{N}(C_c, (\sigma_{\text{prop}} C_c)^2 + \sigma_{\text{add}}^2)$.
-Fig.~\ref{fig:pharma} shows the policy adapts its dosing schedule based on the patient's elimination profile, even though it was trained to estimate absorption parameters---a consequence of the targeted sPCE objective marginalizing over nuisance.
+where $R_\text{inf}$ is the controllable infusion rate (design input). The target parameters are the absorption rates $\theta_T = (k_a, k_{tr})$, while $\theta_N = (CL, Q_d, \sigma_{\text{prop}}, \sigma_{\text{add}})$ are nuisance, including patient-specific clearance. The observation is central concentration $C_c = A_c/V_C$ with combined proportional and additive noise: $y_k \sim \mathcal{N}(C_c, (\sigma_{\text{prop}} C_c)^2 + \sigma_{\text{add}}^2)$,
+with uniform priors $k_a, k_{tr} \in [0.5, 3.0]$, $CL \in [1.0, 5.0]$, $Q_d \in [0.5, 3.0]$, $\sigma_{\text{prop}} \in [0.05, 0.20]$, and $\sigma_{\text{add}} \in [0.01, 0.10]$.
+Fig.~\ref{fig:pharma} shows the policy adapts its dosing schedule to the patient's elimination profile: fast elimination clears drug quickly, prompting earlier and more frequent doses to maintain informative concentrations, while slow elimination allows delayed dosing. This nuisance adaptation emerges from the targeted sPCE objective, which marginalizes over $(CL, Q_d)$ during training---the policy learns that the optimal schedule for probing absorption depends on how quickly the patient clears the drug.
 
 \paragraph{DC motor.}
-A DC motor with state $(\omega, i)$ (angular velocity, current) and voltage input demonstrates applicability to electromechanical systems where control loops operate at kHz frequencies.
+A DC motor with state $(\omega, i)$ (angular velocity, current) follows
+\begin{equation}\label{eq:motor}
+L \frac{di}{dt} = V_{in} - Ri - k\omega, \quad J \frac{d\omega}{dt} = ki - f\omega,
+\end{equation}
+with known resistance $R = 0.5\,\Omega$ and inductance $L = 4.5\,$mH.
+The design input is voltage $V_{in} \in [0, 10]\,$V and the observation is angular velocity $\omega$ with additive Gaussian noise.
+The experiment lasts $100\,$ms ($K = 10$ steps at $\Delta t = 10\,$ms), with target parameters $\theta_T = (k, J)$ (motor constant, inertia), nuisance $\theta_N = (f, \sigma)$ (friction, noise), and uniform priors $k \in [0.3, 0.7]$, $J \in [0.01, 0.04]$, $f \in [0.005, 0.02]$, $\sigma \in [0.5, 2.0]$.
+This example demonstrates applicability to electromechanical systems where control loops operate at kHz frequencies.
 Table~\ref{tab:timing} compares the per-step computational requirements across examples. For slow processes (bioreactor, PK), conventional adaptive BOED---requiring posterior MCMC and design optimization at each step---is expensive but feasible. For the motor, the required control frequency makes conventional approaches infeasible, while the amortized policy evaluates in $\mathcal{O}(\mathrm{ms})$ regardless of the system.
 
 \begin{table}[t]

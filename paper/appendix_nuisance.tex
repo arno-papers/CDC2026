@@ -186,6 +186,39 @@ where the expectation is approximated by averaging over prior samples. This is a
 
 Training is implemented in Julia~\citep{bezanson2017julia} using Lux.jl~\citep{pal2023lux} for the neural network, Enzyme~\citep{moses2020enzyme} for automatic differentiation through the ODE solver, and Reactant~\citep{reactant2025} for GPU-accelerated compilation via MLIR/XLA. Training was performed on the VSC (Flemish Supercomputer Center) using NVIDIA A100 GPUs.
 
+\paragraph{Architecture.}
+All examples share the same transformer architecture. Each design--observation pair $(u_k, y_k)$ is projected from $\mathbb{R}^2$ to $\mathbb{R}^{32}$ by a dense layer, then summed with 32-dimensional sinusoidal positional encodings. The transformer block consists of RMSNorm, causal multi-head attention (4~heads, dimension~32), and a feed-forward network ($32 \to 64$, GELU, $64 \to 32$). The output head is a dense layer $32 \to 1$ projecting the final hidden state to the design input, with a per-example initial bias (Table~\ref{tab:training_config}).
+
+\paragraph{Optimizer.}
+All examples use Adam with a cosine learning rate schedule: linear warmup from $10^{-5}$ to $3 \times 10^{-3}$ over 50~iterations, then cosine annealing back to $10^{-5}$.
+
+\paragraph{Budget allocation.}
+The contrastive samples $L$, nuisance samples $M$, and micro-batch size $B_{\text{micro}}$ are jointly optimized for each example's ODE trajectory budget $\mathcal{C}_{\text{traj}}$ (see Appendix~\ref{sec:budget_stub}). Gradient accumulation over $G$ micro-batches yields an effective batch size $B = G \times B_{\text{micro}}$.
+
+\paragraph{ODE integration.}
+The dynamics are integrated with a fixed-step RK4 solver, using $N_{\text{sub}}$ substeps per design interval to ensure numerical stability.
+
+\begin{table}[t]
+\centering
+\caption{Per-example training configuration. All examples share the architecture and optimizer described above.}
+\label{tab:training_config}
+\small
+\begin{tabular}{@{}lcccc@{}}
+\hline
+ & Monod & Haldane & Weibull & Motor \\
+\hline
+Iterations           & 1000 & 250   & 500   & 1000 \\
+$\mathcal{C}_{\text{traj}}$ & 6.25M & 2.12M & 12M & 2M \\
+$G$ (accum.\ steps)  & 8    & 16    & 1     & 16 \\
+$L$ (contrastive)    & 464  & 407   & 287   & 399 \\
+$M$ (nuisance)       & 466  & 407   & 288   & 399 \\
+$B_{\text{micro}}$   & 6706 & 2600  & 20797 & 2500 \\
+$N_{\text{sub}}$ (RK4) & 50 & 50    & 10    & 10 \\
+Output bias          & $-4.0$ & $-1.0$ & $-2.0$ & $0.0$ \\
+\hline
+\end{tabular}
+\end{table}
+
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.7\columnwidth]{figures/monod_training_loss.png}

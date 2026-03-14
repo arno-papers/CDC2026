@@ -121,6 +121,7 @@ rule generate_tables:
     input:
         script="scripts/generate_tables.jl",
         spce=f"{RESULTS}/spce_scores.jls",
+        posterior=f"{RESULTS}/posterior_results.jls",
     output: "paper/tables/spce_table.tex"
     shell: "{JULIA} {input.script}"
 
