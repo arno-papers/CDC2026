@@ -54,6 +54,7 @@ function main()
             end
             println(io, "$label & $score_str \\\\")
         end
+        println(io, "\\hline")
     end
 
     println("Generated: $outfile")

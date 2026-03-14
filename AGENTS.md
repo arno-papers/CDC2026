@@ -29,8 +29,8 @@ examples/
     plot_posterior.jl    # Posterior scatter/boxplot/contour plots (CPU)
     plot_spce.jl         # sPCE histogram plot (CPU)
     results/             # Flat results directory (git-tracked)
-  haldane/               # Haldane bioreactor (substrate inhibition, spike-and-slab prior)
-    model.jl             # Dynamics, constants, spike-and-slab sampling, policy
+  haldane/               # Haldane bioreactor (substrate inhibition, uniform α prior)
+    model.jl             # Dynamics, constants, uniform prior sampling, policy
     train.jl             # Training (GPU)
     plot_comparison.jl   # Comparison plot: no-inhibition vs inhibition (CPU)
     results/             # Flat results directory (git-tracked)

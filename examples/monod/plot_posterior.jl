@@ -55,6 +55,7 @@ end
 if abspath(PROGRAM_FILE) == @__FILE__
     n_substeps = N_SUBSTEPS
     seed       = 0
+    Random.seed!(seed)
     N_post     = 5000
 
     results_dir = joinpath(@__DIR__, "results")
