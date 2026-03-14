@@ -84,7 +84,7 @@ rsync -az --delete \
   -e "ssh -S ${SSH_SOCKET}" \
   "${LOCAL_REPO_DIR}/" "${REMOTE_HOST}:${remote_repo_dir}/"
 
-# Bootstrap Julia and instantiate
+# Bootstrap Julia (instantiate runs inside the SLURM job on the compute node)
 ssh "${SSH_OPTS[@]}" "${REMOTE_HOST}" bash -s -- "${remote_repo_dir}" "${JULIA_VERSION}" <<'EOF'
 set -euo pipefail
 remote_repo_dir="$1"
@@ -94,8 +94,6 @@ if [[ -z "${VSC_DATA:-}" ]]; then
   export VSC_DATA="$(dirname "${remote_repo_dir}")"
 fi
 ./vsc/bootstrap_julia.sh
-export JULIA_DEPOT_PATH="$VSC_DATA/julia-depot-cdc2026"
-"$VSC_DATA/software/julia/${julia_version}/bin/julia" --project=. -e 'using Pkg; Pkg.instantiate()'
 EOF
 
 # Cost estimate

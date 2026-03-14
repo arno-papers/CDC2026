@@ -1,5 +1,5 @@
 # Posterior Mean Evaluation (GPU)
-# Date: 2026-03-13 22:16:24
+# Date: 2026-03-14 06:56:03
 
 n_trials = 2000
 N_post = 5000
@@ -10,18 +10,18 @@ true_mu_max = 0.4700
 true_K_s    = 0.3450
 true_sigma  = 0.1000
 true_Cx0    = 0.3000
-wall_time_s = 2082.5
+wall_time_s = 2031.6
 
-static_std = [0.39, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.3433, 0.6108, 0.8703, 4.2927, 2.29, 0.9436]
-static_spce = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.2039, 0.2613, 3.1193, 1.0114, 0.0]
+static_std = [0.4034, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.3531, 0.6118, 0.9751, 4.7509, 1.9315, 0.9985]
+static_spce = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.1254, 0.23, 0.3493, 3.6041, 0.7859, 0.0]
 
   Design                            RMSE(mu)    RMSE(K)   Bias(mu)    Bias(K)    med ESS
   ------------------------------  ---------- ---------- ---------- ---------- ----------
   Adaptive policy                   0.003132   0.024883  +0.000887  +0.009247        3.0
-  Static (BIM)                      0.004528   0.034530  +0.002127  +0.017325        2.2
-  Static (sPCE-opt)                 0.006753   0.053199  +0.004412  +0.037882        7.9
+  Static (BIM)                      0.004486   0.035021  +0.002118  +0.017651        2.1
+  Static (sPCE-opt)                 0.005529   0.041197  +0.003122  +0.025656        5.6
 
 === Posterior Std (median across trials) ===
   Adaptive policy                 med_std(mu) = 0.002578  med_std(K) = 0.020964
-  Static (BIM)                    med_std(mu) = 0.002907  med_std(K) = 0.022027
-  Static (sPCE-opt)               med_std(mu) = 0.006200  med_std(K) = 0.046599
+  Static (BIM)                    med_std(mu) = 0.002814  med_std(K) = 0.021647
+  Static (sPCE-opt)               med_std(mu) = 0.005075  med_std(K) = 0.036594
