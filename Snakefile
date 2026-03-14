@@ -11,6 +11,11 @@ HALDANE_RESULTS = f"{HALDANE}/results"
 HALDANE_MODEL = f"{HALDANE}/model.jl"
 HALDANE_DEPS = [HALDANE_MODEL] + SRC
 
+DCMOTOR = "examples/dcmotor"
+DCMOTOR_RESULTS = f"{DCMOTOR}/results"
+DCMOTOR_MODEL = f"{DCMOTOR}/model.jl"
+DCMOTOR_DEPS = [DCMOTOR_MODEL] + SRC
+
 WEIBULL = "examples/weibull"
 WEIBULL_RESULTS = f"{WEIBULL}/results"
 WEIBULL_MODEL = f"{WEIBULL}/model.jl"
@@ -99,6 +104,46 @@ rule monod_dynamics_plot:
         spce=f"{RESULTS}/design_spce.jls",
         deps=DEPS,
     output: f"{RESULTS}/plot_dynamics.png"
+    shell: "{JULIA} {input.script}"
+
+# ---- DC Motor training (GPU, local or VSC) ----
+rule dcmotor_train:
+    input: f"{DCMOTOR}/train.jl", *DCMOTOR_DEPS
+    output: f"{DCMOTOR_RESULTS}/checkpoint.jls", f"{DCMOTOR_RESULTS}/plot_training_loss.png"
+    shell: "EXAMPLE=dcmotor TASK=train ./vsc/train_remote.sh"
+
+# ---- DC Motor BIM optimization (CPU, local) ----
+rule dcmotor_optimize_bim:
+    input: f"{DCMOTOR}/optimize_bim.jl", *DCMOTOR_DEPS
+    output: f"{DCMOTOR_RESULTS}/design_bim.jls"
+    resources: bim_slot=1
+    shell: "{JULIA} {input[0]}"
+
+# ---- DC Motor static sPCE optimization (GPU) ----
+rule dcmotor_optimize_static:
+    input: f"{DCMOTOR}/optimize_static.jl", *DCMOTOR_DEPS
+    output: f"{DCMOTOR_RESULTS}/design_spce.jls"
+    shell: "EXAMPLE=dcmotor TASK=optimize_static WALLTIME=4:00:00 ./vsc/train_remote.sh"
+
+# ---- DC Motor sPCE evaluation (GPU, local) ----
+rule dcmotor_eval_spce:
+    input:
+        script=f"{DCMOTOR}/eval_spce.jl",
+        checkpoint=f"{DCMOTOR_RESULTS}/checkpoint.jls",
+        bim=f"{DCMOTOR_RESULTS}/design_bim.jls",
+        spce=f"{DCMOTOR_RESULTS}/design_spce.jls",
+        deps=DCMOTOR_DEPS,
+    output:
+        scores=f"{DCMOTOR_RESULTS}/spce_scores.jls",
+    shell: "{JULIA} {input.script}"
+
+# ---- DC Motor trajectory plot (CPU, local) ----
+rule dcmotor_plot_trajectories:
+    input:
+        script=f"{DCMOTOR}/plot_trajectories.jl",
+        checkpoint=f"{DCMOTOR_RESULTS}/checkpoint.jls",
+        deps=DCMOTOR_DEPS,
+    output: f"{DCMOTOR_RESULTS}/plot_trajectories.png"
     shell: "{JULIA} {input.script}"
 
 # ---- Weibull PK training (VSC cluster) ----

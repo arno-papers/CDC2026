@@ -1,4 +1,4 @@
-date: 2026-03-10
+date: 2026-03-14
 experiment: DC Motor, ODE_BUDGET=2000000, cosine LR
 
 # Hyperparameters
@@ -19,8 +19,8 @@ seed = 0
 ode_budget = 2000000
 
 # Results
-best_loss = -2.7029574
-best_iter = 268
-training_time_s = 994.1
-per_iter_s = 1.0
-total_wall_time_s = 994.2
+best_loss = -2.7286589
+best_iter = 808
+training_time_s = 552.3
+per_iter_s = 0.6
+total_wall_time_s = 552.4
