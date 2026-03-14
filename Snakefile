@@ -112,38 +112,15 @@ rule dcmotor_train:
     output: f"{DCMOTOR_RESULTS}/checkpoint.jls", f"{DCMOTOR_RESULTS}/plot_training_loss.png"
     shell: "EXAMPLE=dcmotor TASK=train ./vsc/train_remote.sh"
 
-# ---- DC Motor BIM optimization (CPU, local) ----
-rule dcmotor_optimize_bim:
-    input: f"{DCMOTOR}/optimize_bim.jl", *DCMOTOR_DEPS
-    output: f"{DCMOTOR_RESULTS}/design_bim.jls"
-    resources: bim_slot=1
-    shell: "{JULIA} {input[0]}"
-
-# ---- DC Motor static sPCE optimization (GPU) ----
-rule dcmotor_optimize_static:
-    input: f"{DCMOTOR}/optimize_static.jl", *DCMOTOR_DEPS
-    output: f"{DCMOTOR_RESULTS}/design_spce.jls"
-    shell: "EXAMPLE=dcmotor TASK=optimize_static WALLTIME=4:00:00 ./vsc/train_remote.sh"
-
-# ---- DC Motor sPCE evaluation (GPU, local) ----
-rule dcmotor_eval_spce:
-    input:
-        script=f"{DCMOTOR}/eval_spce.jl",
-        checkpoint=f"{DCMOTOR_RESULTS}/checkpoint.jls",
-        bim=f"{DCMOTOR_RESULTS}/design_bim.jls",
-        spce=f"{DCMOTOR_RESULTS}/design_spce.jls",
-        deps=DCMOTOR_DEPS,
-    output:
-        scores=f"{DCMOTOR_RESULTS}/spce_scores.jls",
-    shell: "{JULIA} {input.script}"
-
-# ---- DC Motor trajectory plot (CPU, local) ----
+# ---- DC Motor trajectory + timing plots (CPU, local) ----
 rule dcmotor_plot_trajectories:
     input:
         script=f"{DCMOTOR}/plot_trajectories.jl",
         checkpoint=f"{DCMOTOR_RESULTS}/checkpoint.jls",
         deps=DCMOTOR_DEPS,
-    output: f"{DCMOTOR_RESULTS}/plot_trajectories.png"
+    output:
+        f"{DCMOTOR_RESULTS}/plot_trajectories.png",
+        f"{DCMOTOR_RESULTS}/plot_policy_timing.png",
     shell: "{JULIA} {input.script}"
 
 # ---- Weibull PK training (VSC cluster) ----
@@ -178,12 +155,14 @@ rule figures:
         f"{RESULTS}/plot_dynamics.png",
         f"{HALDANE_RESULTS}/plot_comparison.png",
         f"{WEIBULL_RESULTS}/plot_nuisance.png",
+        f"{DCMOTOR_RESULTS}/plot_policy_timing.png",
     output:
         "paper/figures/monod_training_loss.png",
         "paper/figures/monod_posterior.png",
         "paper/figures/monod_comparison.png",
         "paper/figures/haldane_comparison.png",
         "paper/figures/pharma_nuisance.png",
+        "paper/figures/dcmotor_timing.png",
     run:
         import shutil, os
         os.makedirs("paper/figures", exist_ok=True)
