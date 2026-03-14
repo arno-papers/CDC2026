@@ -14,7 +14,7 @@ The goal is a research paper for the CDC conference.
 src/                     # Shared Julia infrastructure
   common_core.jl         # RK4, positional encoding, I/O, load_static_designs() (CPU-safe)
   common.jl              # Reactant: integrate(), targeted_spce_loss(), train_policy()
-  plotting.jl            # Shared plot styles, histograms, convex hulls
+  plotting.jl            # Shared plot styles, convex hulls
 
 examples/
   monod/                 # Monod bioreactor example
@@ -26,8 +26,7 @@ examples/
     eval_posterior.jl     # Posterior evaluation (GPU) → posterior_results.jls
     plot_dynamics.jl     # Design comparison plot (CPU)
     plot_trajectories.jl # CPU rollout helpers, plot_design_comparison() (included by plot_dynamics.jl)
-    plot_posterior.jl    # Posterior scatter/boxplot/contour plots (CPU)
-    plot_spce.jl         # sPCE histogram plot (CPU)
+    plot_posterior.jl    # Posterior scatter plot (CPU)
     results/             # Flat results directory (git-tracked)
   haldane/               # Haldane bioreactor (substrate inhibition, uniform α prior)
     model.jl             # Dynamics, constants, uniform prior sampling, policy
@@ -87,7 +86,6 @@ julia --project=. examples/monod/train.jl
 julia --project=. examples/monod/optimize_bim.jl
 julia --project=. examples/monod/plot_dynamics.jl
 julia --project=. examples/monod/plot_posterior.jl
-julia --project=. examples/monod/plot_spce.jl
 julia --project=. scripts/generate_tables.jl
 ```
 
