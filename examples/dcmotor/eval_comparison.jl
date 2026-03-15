@@ -188,10 +188,12 @@ if abspath(PROGRAM_FILE) == @__FILE__
     denom_samples = draw_prior_samples(rng_samples, L + 1)
     post_samples = draw_prior_samples(rng_samples, N_post)
 
-    # Warm up sPCE policy (JIT compilation)
+    # Warm up both code paths (JIT compilation)
     warmup_rng = MersenneTwister(999)
     rollout_spce_timed(policy, ps_cpu, st_cpu, warmup_rng,
                        0.5, 0.025, 0.01, 1.0; n_substeps=n_substeps)
+    rollout_adaptive_bim(MersenneTwister(999), 0.5, 0.025, 0.01, 1.0;
+                         n_grid=n_grid, map_iters=map_iters, n_substeps=n_substeps)
 
     # Storage
     spce_scores_spce = zeros(Float64, n_trials)
