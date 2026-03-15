@@ -335,6 +335,19 @@ Adaptive (BIM) & TBD & TBD & TBD & TBD \\
 \label{fig:timing}
 \end{figure}
 
+\section{Conclusion}
+
+We have shown that combining deep adaptive design with differentiable mechanistic models enables real-time adaptive model-based design of experiments.
+The amortized policy outperforms static baselines and matches online re-optimization at a fraction of the computational cost, as demonstrated across four systems of increasing complexity.
+
+The policy is trained for a specific prior distribution; significant prior shifts require retraining.
+The current framework assumes the model structure is known---model misspecification is not addressed.
+Training requires GPU hours on a supercomputer, though deployment is lightweight (microseconds per forward pass).
+
+Extending the framework to handle model misspecification via joint Bayesian model selection and parameter estimation is explored in~\cite{strouwen2026modelselection}.
+Deploying the trained policy on physical hardware (e.g., the DC motor testbed) with closed-loop feedback is a natural next step.
+Finally, scaling to higher-dimensional parameter spaces and longer experimental horizons remains an open challenge.
+
 \section*{Acknowledgment}
 The resources and services used in this work were provided by the VSC (Flemish Supercomputer Center), funded by the Research Foundation -- Flanders (FWO) and the Flemish Government.
 
