@@ -86,7 +86,7 @@ const N_NOISE_CHANNELS = 2  # proportional + additive noise
 
 include(joinpath(@__DIR__, "..", "..", "src", "utils.jl"))
 
-const ODE_BUDGET_TRAJ = 12_000_000
+const ODE_BUDGET_TRAJ = 24_000_000
 const (L_CONTRASTIVE, M_NUISANCE, GRAD_BATCH) = allocate_budget(ODE_BUDGET_TRAJ)
 const GRAD_ACCUM_STEPS = 1
 
