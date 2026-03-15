@@ -112,15 +112,23 @@ rule dcmotor_train:
     output: f"{DCMOTOR_RESULTS}/checkpoint.jls", f"{DCMOTOR_RESULTS}/plot_training_loss.png"
     shell: "EXAMPLE=dcmotor TASK=train ./vsc/train_remote.sh"
 
-# ---- DC Motor trajectory + timing plots (CPU, local) ----
-rule dcmotor_plot_trajectories:
+# ---- DC Motor: adaptive sPCE vs adaptive BIM comparison (CPU, local) ----
+rule dcmotor_eval_comparison:
+    input:
+        script=f"{DCMOTOR}/eval_comparison.jl",
+        checkpoint=f"{DCMOTOR_RESULTS}/checkpoint.jls",
+        bim=f"{DCMOTOR}/adaptive_bim.jl",
+        deps=DCMOTOR_DEPS,
+    output: f"{DCMOTOR_RESULTS}/comparison_results.jls"
+    shell: "{JULIA} {input.script}"
+
+# ---- DC Motor timing plot (CPU, local) ----
+rule dcmotor_plot_timing:
     input:
         script=f"{DCMOTOR}/plot_trajectories.jl",
-        checkpoint=f"{DCMOTOR_RESULTS}/checkpoint.jls",
+        comparison=f"{DCMOTOR_RESULTS}/comparison_results.jls",
         deps=DCMOTOR_DEPS,
-    output:
-        f"{DCMOTOR_RESULTS}/plot_trajectories.png",
-        f"{DCMOTOR_RESULTS}/plot_policy_timing.png",
+    output: f"{DCMOTOR_RESULTS}/plot_policy_timing.png"
     shell: "{JULIA} {input.script}"
 
 # ---- Weibull PK training (VSC cluster) ----
@@ -147,6 +155,13 @@ rule generate_tables:
     output: "paper/tables/spce_table.tex"
     shell: "{JULIA} {input.script}"
 
+rule generate_dcmotor_table:
+    input:
+        script="scripts/generate_tables.jl",
+        comparison=f"{DCMOTOR_RESULTS}/comparison_results.jls",
+    output: "paper/tables/dcmotor_table.tex"
+    shell: "{JULIA} {input.script}"
+
 # ---- Figures: copy to paper/figures/ ----
 rule figures:
     input:
@@ -171,7 +186,7 @@ rule figures:
 
 # ---- Paper compilation (CDC: compact, arXiv: extended) ----
 rule paper_cdc:
-    input: rules.figures.output, rules.generate_tables.output
+    input: rules.figures.output, rules.generate_tables.output, rules.generate_dcmotor_table.output
     output: "paper/main_cdc.pdf"
     shell:
         r"""
@@ -183,7 +198,7 @@ rule paper_cdc:
         """
 
 rule paper_arxiv:
-    input: rules.figures.output, rules.generate_tables.output
+    input: rules.figures.output, rules.generate_tables.output, rules.generate_dcmotor_table.output
     output: "paper/main_arxiv.pdf"
     shell:
         r"""

@@ -20,8 +20,7 @@ const DESIGN_LABELS = Dict(
 )
 const DESIGN_ORDER = ["adaptive", "static_spce", "static_std"]
 
-function main()
-    root = dirname(@__DIR__)
+function generate_monod_table(root)
     results_dir = joinpath(root, "examples", "monod", "results")
 
     scores_file = joinpath(results_dir, "spce_scores.jls")
@@ -95,6 +94,95 @@ function main()
         label = get(DESIGN_LABELS, r.name, r.name)
         @printf("  %-20s  sPCE = %5.2f ± %.2f   RMSE(μ) = %.4f   RMSE(K) = %.4f\n",
                 label, r.spce_mean, r.spce_sem, r.rmse_μ, r.rmse_K)
+    end
+end
+
+function generate_dcmotor_table(root)
+    results_dir = joinpath(root, "examples", "dcmotor", "results")
+    comparison_file = joinpath(results_dir, "comparison_results.jls")
+    @assert isfile(comparison_file) "comparison_results.jls not found at $comparison_file"
+
+    d = deserialize(comparison_file)
+    true_k = d["true_k"]
+    true_J = d["true_J"]
+
+    # Build rows: (name, spce_mean, spce_sem, rmse_k, rmse_J, time_str)
+    rows = []
+    for (name, label, scores_key, pm_key, time_key) in [
+        ("spce", "Adaptive (sPCE)", "spce_scores_spce", "post_means_spce", "spce_step_times"),
+        ("bim",  "Adaptive (BIM)",  "spce_scores_bim",  "post_means_bim",  "bim_step_times"),
+    ]
+        scores = Float64.(d[scores_key])
+        m = mean(scores)
+        sem = std(scores) / sqrt(length(scores))
+
+        pm = d[pm_key]
+        rmse_k = sqrt(mean((pm[1, :] .- true_k) .^ 2))
+        rmse_J = sqrt(mean((pm[2, :] .- true_J) .^ 2))
+
+        med_time = median(vec(d[time_key]))
+        if med_time < 0.001
+            time_str = @sprintf("\$%.0f\\,\\mu\$s", med_time * 1e6)
+        elseif med_time < 1.0
+            time_str = @sprintf("\$%.1f\\,\$ms", med_time * 1e3)
+        else
+            time_str = @sprintf("\$%.1f\\,\$s", med_time)
+        end
+
+        push!(rows, (; name, label, spce_mean=m, spce_sem=sem, rmse_k, rmse_J, time_str))
+    end
+
+    best_spce = argmax([r.spce_mean for r in rows])
+    best_rmse_k = argmin([r.rmse_k for r in rows])
+    best_rmse_J = argmin([r.rmse_J for r in rows])
+
+    outfile = joinpath(root, "paper", "tables", "dcmotor_table.tex")
+    mkpath(dirname(outfile))
+    open(outfile, "w") do io
+        for (i, r) in enumerate(rows)
+            # sPCE column
+            if i == best_spce
+                spce_str = "\$\\mathbf{" * @sprintf("%.2f \\pm %.2f", r.spce_mean, r.spce_sem) * "}\$"
+            else
+                spce_str = @sprintf("\$%.2f \\pm %.2f\$", r.spce_mean, r.spce_sem)
+            end
+
+            # RMSE columns (×10³)
+            rmse_k_scaled = r.rmse_k * 1000
+            rmse_J_scaled = r.rmse_J * 1000
+            if i == best_rmse_k
+                rmse_k_str = "\$\\mathbf{" * @sprintf("%.1f", rmse_k_scaled) * "}\$"
+            else
+                rmse_k_str = @sprintf("\$%.1f\$", rmse_k_scaled)
+            end
+            if i == best_rmse_J
+                rmse_J_str = "\$\\mathbf{" * @sprintf("%.1f", rmse_J_scaled) * "}\$"
+            else
+                rmse_J_str = @sprintf("\$%.1f\$", rmse_J_scaled)
+            end
+
+            println(io, "$(r.label) & $spce_str & $rmse_k_str & $rmse_J_str & $(r.time_str) \\\\")
+        end
+        println(io, "\\hline")
+    end
+
+    println("Generated: $outfile")
+    for r in rows
+        @printf("  %-20s  sPCE = %5.2f ± %.2f   RMSE(k) = %.4f   RMSE(J) = %.5f   time = %s\n",
+                r.label, r.spce_mean, r.spce_sem, r.rmse_k, r.rmse_J, r.time_str)
+    end
+end
+
+function main()
+    root = dirname(@__DIR__)
+
+    generate_monod_table(root)
+
+    # DC motor table (optional — only if results exist)
+    dcmotor_file = joinpath(root, "examples", "dcmotor", "results", "comparison_results.jls")
+    if isfile(dcmotor_file)
+        println()
+        generate_dcmotor_table(root)
     end
 end
 

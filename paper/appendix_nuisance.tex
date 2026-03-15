@@ -181,6 +181,17 @@ d^\star_{\text{BIM}} = \argmax_{d_{1:K}} \; \E_{p(\theta)}\!\left[\log\det B_T(\
 \end{equation}
 where the expectation is approximated by averaging over prior samples. This is a standard criterion~\citep{chaloner1995} that assumes Gaussian posteriors (via the Laplace approximation) and does not account for sequential adaptation.
 
+\paragraph{Adaptive BIM baseline.}
+The adaptive BIM strategy in Table~\ref{tab:motor} extends the static BIM criterion to a sequential, myopic setting. At step~$k$, given the history $(d_{1:k-1}, y_{1:k-1})$:
+\begin{enumerate}
+\item Compute a MAP estimate $\hat{\theta}_k = \argmax_\theta\, p(\theta \mid y_{1:k-1}, d_{1:k-1})$ via Adam optimization with ForwardDiff gradients (100 iterations, warm-started from $\hat{\theta}_{k-1}$; at $k=1$, initialized at prior midpoints).
+\item Select $d_k = \argmax_{d} \log\det B_T(\hat{\theta}_k, [d_{1:k-1}, d])$ by grid search over 100 candidate voltages in $[0, 10]\,$V.
+\item Execute $d_k$ on the true system and observe $y_k$.
+\end{enumerate}
+This replaces the prior expectation $\E_{p(\theta)}[\cdot]$ with a point evaluation at $\hat{\theta}_k$ (a Dirac delta approximation consistent with the Laplace assumption that BIM already makes). The MAP estimate is the natural choice: under the Laplace approximation, MAP coincides with the posterior mean. The strategy is myopic, optimizing one step ahead only.
+
+The key computational difference is that adaptive BIM requires online posterior inference (MAP) and design re-optimization at \emph{each} experimental step, whereas the amortized sPCE policy requires only a single neural network forward pass. This makes adaptive BIM infeasible for real-time applications like the DC motor ($\Delta t = 10\,$ms), where the MAP + grid search takes on the order of seconds per step.
+
 \section{Training and Evaluation Details}
 \label{sec:training_details}
 

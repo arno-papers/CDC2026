@@ -311,6 +311,7 @@ The experiment lasts $100\,$ms ($K = 10$ steps at $\Delta t = 10\,$ms), with tar
 We compare the amortized adaptive policy against an adaptive Bayesian D-optimal baseline that re-optimizes the design at each step using the current posterior (adaptive BIM).
 Table~\ref{tab:motor} shows that the amortized policy outperforms adaptive BIM on both sPCE score and posterior RMSE, while evaluating orders of magnitude faster: a single forward pass takes a median of $18\,\mu$s versus the seconds required for online posterior inference and re-optimization.
 Fig.~\ref{fig:timing} confirms that even the 99.9th percentile ($55\,\mu$s) remains $181\times$ below the $10\,$ms sampling interval, making real-time deployment feasible.
+Note that this adaptive BIM baseline is already a deliberately simple strategy---myopic, with a Dirac posterior approximation and a 1D grid search---yet it already fails to run within the sampling interval by the later steps, as each FIM evaluation must differentiate through the growing history of design points.
 
 \begin{table}[t]
 \centering
@@ -322,16 +323,14 @@ Fig.~\ref{fig:timing} confirms that even the 99.9th percentile ($55\,\mu$s) rema
  & sPCE & \multicolumn{2}{c}{RMSE ($\times 10^3$)} & Time/step \\
  & & $k$ & $J$ & \\
 \hline
-Adaptive (sPCE) & TBD & TBD & TBD & $18\,\mu$s \\
-Adaptive (BIM) & TBD & TBD & TBD & TBD \\
-\hline
+\input{tables/dcmotor_table.tex}
 \end{tabular}
 \end{table}
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=\columnwidth]{figures/dcmotor_timing.png}
-\caption{Policy evaluation time for the DC motor (500~rollouts, 10~steps each). Boxes show IQR; whiskers span the 0.1--99.9th percentile. The dashed line marks the $\Delta t = 10\,$ms sampling interval. Even the slowest calls remain two orders of magnitude below real-time.}
+\caption{Per-step computation time for the DC motor (500~rollouts). Boxes show IQR; whiskers span the 0.1--99.9th percentile. The adaptive BIM baseline (blue) requires online MAP estimation and grid search at each step, growing from ${\sim}1\,$ms at step~1 to ${\sim}10\,$ms by step~10 as the history lengthens---approaching and exceeding the $\Delta t = 10\,$ms sampling interval (dashed red). The amortized sPCE policy (purple) evaluates in ${\sim}22\,\mu$s regardless of step, remaining two orders of magnitude below real-time.}
 \label{fig:timing}
 \end{figure}
 
