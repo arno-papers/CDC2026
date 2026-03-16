@@ -9,7 +9,7 @@
 
 include(joinpath(@__DIR__, "model.jl"))
 include(joinpath(@__DIR__, "..", "..", "src", "common_core.jl"))
-include(joinpath(@__DIR__, "..", "..", "src", "plotting.jl"))
+include(joinpath(@__DIR__, "plotting.jl"))
 
 using Plots
 using Printf

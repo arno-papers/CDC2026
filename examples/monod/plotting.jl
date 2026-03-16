@@ -1,38 +1,9 @@
 # ============================================================================
-# Shared plot styles, convex hulls, and utilities.
+# Monod-specific plot styles and convex hull utilities.
 #
-# Reusable via include(joinpath(@__DIR__, "..", "src", "plotting.jl"))
+# Included by Monod scripts that need DESIGN_STYLES, DESIGN_ORDER,
+# convex_hull_2d(), or confidence_hull().
 # ============================================================================
-
-using Plots
-using Printf
-using Statistics
-
-# ============================================================================
-#  Utility: save figure + print path
-# ============================================================================
-
-function save_plot(plt, path)
-    mkpath(dirname(path))
-    savefig(plt, path)
-    println("Saved: $path")
-end
-
-# ============================================================================
-#  Callback: live loss plot during training
-# ============================================================================
-
-function loss_plot_callback(; title="Training Loss", output_path="plot_training_loss.png",
-                              save_every=10, n_iters=0)
-    return (iter, _loss, loss_history, _train_state) -> begin
-        if iter % save_every == 0 || iter == 1 || (n_iters > 0 && iter == n_iters)
-            p = Plots.plot(loss_history;
-                xlabel="Iteration", ylabel="Targeted sPCE Loss",
-                title=title, label="loss", linewidth=2)
-            save_plot(p, output_path)
-        end
-    end
-end
 
 # ============================================================================
 #  Canonical design styles
@@ -86,4 +57,3 @@ function confidence_hull(px::AbstractVector, py::AbstractVector; frac::Float64=0
     keep = sortperm(dists)[1:round(Int, frac * length(px))]
     return convex_hull_2d(Float64.(px[keep]), Float64.(py[keep]))
 end
-

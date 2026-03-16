@@ -7,7 +7,6 @@
 
 include(joinpath(@__DIR__, "model.jl"))
 include(joinpath(@__DIR__, "..", "..", "src", "common.jl"))
-include(joinpath(@__DIR__, "..", "..", "src", "plotting.jl"))
 
 using Dates
 using Plots

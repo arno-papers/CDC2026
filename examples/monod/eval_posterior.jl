@@ -6,7 +6,7 @@
 
 include(joinpath(@__DIR__, "model.jl"))
 include(joinpath(@__DIR__, "..", "..", "src", "common.jl"))
-include(joinpath(@__DIR__, "..", "..", "src", "plotting.jl"))
+include(joinpath(@__DIR__, "plotting.jl"))
 
 using Dates
 using LinearAlgebra: norm, det, inv

@@ -2,7 +2,6 @@ include(joinpath(@__DIR__, "model.jl"))
 include(joinpath(@__DIR__, "..", "..", "src", "common_core.jl"))
 
 using Plots, Serialization
-include(joinpath(@__DIR__, "..", "..", "src", "plotting.jl"))
 
 function rollout_trajectory_cpu(model, ps_cpu, st_cpu, rng,
         theta_dyn::Vector{Float32}, sigma_prop::Float32, sigma_add::Float32;
@@ -29,58 +28,56 @@ function rollout_trajectory_cpu(model, ps_cpu, st_cpu, rng,
     return cc_traj, cp_traj, designs
 end
 
-if abspath(PROGRAM_FILE) == @__FILE__
-    results_dir = joinpath(@__DIR__, "results")
-    ckpt_file = length(ARGS) >= 1 ? ARGS[1] : joinpath(results_dir, "checkpoint.jls")
-    @assert isfile(ckpt_file) "Checkpoint not found: $ckpt_file. Run training first."
+results_dir = joinpath(@__DIR__, "results")
+ckpt_file = length(ARGS) >= 1 ? ARGS[1] : joinpath(results_dir, "checkpoint.jls")
+@assert isfile(ckpt_file) "Checkpoint not found: $ckpt_file. Run training first."
 
-    ckpt = deserialize(ckpt_file)
-    ps_cpu = ckpt["parameters"]
-    st_cpu = ckpt["states"]
+ckpt = deserialize(ckpt_file)
+ps_cpu = ckpt["parameters"]
+st_cpu = ckpt["states"]
 
-    rng = Random.MersenneTwister(42)
-    n_samples = 20
+rng = Random.MersenneTwister(42)
+n_samples = 20
 
-    t_states = Float32.(0:N_STEPS) .* DT
-    t_designs = Float32.(1:N_STEPS) .* DT
+t_states = Float32.(0:N_STEPS) .* DT
+t_designs = Float32.(1:N_STEPS) .* DT
 
-    # Fix absorption parameters at midrange
-    k_a_mid  = 0.5f0 * (K_A_LO + K_A_HI)
-    k_tr_mid = 0.5f0 * (K_TR_LO + K_TR_HI)
+# Fix absorption parameters at midrange
+k_a_mid  = 0.5f0 * (K_A_LO + K_A_HI)
+k_tr_mid = 0.5f0 * (K_TR_LO + K_TR_HI)
 
-    # Vary CL and Q_d jointly: low elimination vs high elimination
-    sp_mid  = 0.5f0 * (SIGMA_PROP_LO + SIGMA_PROP_HI)
-    sa_mid  = 0.5f0 * (SIGMA_ADD_LO + SIGMA_ADD_HI)
+# Vary CL and Q_d jointly: low elimination vs high elimination
+sp_mid  = 0.5f0 * (SIGMA_PROP_LO + SIGMA_PROP_HI)
+sa_mid  = 0.5f0 * (SIGMA_ADD_LO + SIGMA_ADD_HI)
 
-    theta_low  = Float32[k_a_mid, k_tr_mid, CL_LO, Q_D_LO]   # slow elimination + low redistribution
-    theta_high = Float32[k_a_mid, k_tr_mid, CL_HI, Q_D_HI]   # fast elimination + high redistribution
+theta_low  = Float32[k_a_mid, k_tr_mid, CL_LO, Q_D_LO]   # slow elimination + low redistribution
+theta_high = Float32[k_a_mid, k_tr_mid, CL_HI, Q_D_HI]   # fast elimination + high redistribution
 
-    p_cc = plot(title="Central concentration", xlabel="Time (hr)", ylabel="Cc (mg/L)",
-                legend=:topleft)
-    p_cp = plot(title="Peripheral concentration", xlabel="Time (hr)", ylabel="Cp (mg/L)",
-                legend=:topleft)
-    p_d  = plot(title="Infusion rate (design)", xlabel="Time (hr)", ylabel="Rinf (mg/hr)",
-                ylims=(-0.5, ACTION_HI + 0.5), legend=:topleft)
+p_cc = plot(title="Central concentration", xlabel="Time (hr)", ylabel="Cc (mg/L)",
+            legend=:topleft)
+p_cp = plot(title="Peripheral concentration", xlabel="Time (hr)", ylabel="Cp (mg/L)",
+            legend=:topleft)
+p_d  = plot(title="Infusion rate (design)", xlabel="Time (hr)", ylabel="Rinf (mg/hr)",
+            ylims=(-0.5, ACTION_HI + 0.5), legend=:topleft)
 
-    for i in 1:n_samples
-        label_lo = i == 1 ? "Slow elim. (CL=$(CL_LO), Qd=$(Q_D_LO))" : ""
-        label_hi = i == 1 ? "Fast elim. (CL=$(CL_HI), Qd=$(Q_D_HI))" : ""
+for i in 1:n_samples
+    label_lo = i == 1 ? "Slow elim. (CL=$(CL_LO), Qd=$(Q_D_LO))" : ""
+    label_hi = i == 1 ? "Fast elim. (CL=$(CL_HI), Qd=$(Q_D_HI))" : ""
 
-        cc_l, cp_l, d_l = rollout_trajectory_cpu(policy, ps_cpu, st_cpu, rng, theta_low, sp_mid, sa_mid)
-        plot!(p_cc, t_states, cc_l; lw=0.8, alpha=0.3, color=:steelblue, label=label_lo)
-        plot!(p_cp, t_states, cp_l; lw=0.8, alpha=0.3, color=:steelblue, label=label_lo)
-        plot!(p_d, t_designs, d_l; lw=0.8, alpha=0.3, color=:steelblue, label=label_lo,
-              marker=:circle, markersize=2)
+    cc_l, cp_l, d_l = rollout_trajectory_cpu(policy, ps_cpu, st_cpu, rng, theta_low, sp_mid, sa_mid)
+    plot!(p_cc, t_states, cc_l; lw=0.8, alpha=0.3, color=:steelblue, label=label_lo)
+    plot!(p_cp, t_states, cp_l; lw=0.8, alpha=0.3, color=:steelblue, label=label_lo)
+    plot!(p_d, t_designs, d_l; lw=0.8, alpha=0.3, color=:steelblue, label=label_lo,
+          marker=:circle, markersize=2)
 
-        cc_h, cp_h, d_h = rollout_trajectory_cpu(policy, ps_cpu, st_cpu, rng, theta_high, sp_mid, sa_mid)
-        plot!(p_cc, t_states, cc_h; lw=0.8, alpha=0.3, color=:crimson, label=label_hi)
-        plot!(p_cp, t_states, cp_h; lw=0.8, alpha=0.3, color=:crimson, label=label_hi)
-        plot!(p_d, t_designs, d_h; lw=0.8, alpha=0.3, color=:crimson, label=label_hi,
-              marker=:circle, markersize=2)
-    end
-
-    plt = plot(p_cc, p_cp, p_d;
-               layout=(1, 3), size=(1200, 350), bottom_margin=5Plots.mm)
-    outfile = joinpath(results_dir, "plot_nuisance.png")
-    save_plot(plt, outfile)
+    cc_h, cp_h, d_h = rollout_trajectory_cpu(policy, ps_cpu, st_cpu, rng, theta_high, sp_mid, sa_mid)
+    plot!(p_cc, t_states, cc_h; lw=0.8, alpha=0.3, color=:crimson, label=label_hi)
+    plot!(p_cp, t_states, cp_h; lw=0.8, alpha=0.3, color=:crimson, label=label_hi)
+    plot!(p_d, t_designs, d_h; lw=0.8, alpha=0.3, color=:crimson, label=label_hi,
+          marker=:circle, markersize=2)
 end
+
+plt = plot(p_cc, p_cp, p_d;
+           layout=(1, 3), size=(1200, 350), bottom_margin=5Plots.mm)
+outfile = joinpath(results_dir, "plot_nuisance.png")
+save_plot(plt, outfile)

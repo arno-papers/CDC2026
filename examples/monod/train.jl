@@ -1,6 +1,5 @@
 include(joinpath(@__DIR__, "model.jl"))
 include(joinpath(@__DIR__, "..", "..", "src", "common.jl"))
-include(joinpath(@__DIR__, "..", "..", "src", "plotting.jl"))
 
 if abspath(PROGRAM_FILE) == @__FILE__
     using Dates, Random

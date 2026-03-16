@@ -1,5 +1,5 @@
 using Plots, Random, Serialization
-include(joinpath(@__DIR__, "..", "..", "src", "plotting.jl"))
+include(joinpath(@__DIR__, "plotting.jl"))
 
 # ============================================================================
 #  CPU trajectory helpers

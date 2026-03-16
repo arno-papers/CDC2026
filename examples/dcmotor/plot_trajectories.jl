@@ -1,7 +1,6 @@
 using Plots, Random, Serialization, Statistics
 include(joinpath(@__DIR__, "model.jl"))
 include(joinpath(@__DIR__, "..", "..", "src", "common_core.jl"))
-include(joinpath(@__DIR__, "..", "..", "src", "plotting.jl"))
 
 # ============================================================================
 #  Plot: per-step timing comparison (sPCE policy vs adaptive BIM)

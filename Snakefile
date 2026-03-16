@@ -1,10 +1,10 @@
 JULIA = "julia --project=."
-SRC = ["src/utils.jl", "src/common_core.jl", "src/common.jl", "src/plotting.jl"]
+SRC = ["src/utils.jl", "src/common_core.jl", "src/common.jl"]
 
 MONOD = "examples/monod"
 RESULTS = f"{MONOD}/results"
 MODEL = f"{MONOD}/model.jl"
-DEPS = [MODEL] + SRC
+DEPS = [MODEL, f"{MONOD}/plotting.jl"] + SRC
 
 HALDANE = "examples/haldane"
 HALDANE_RESULTS = f"{HALDANE}/results"
@@ -135,7 +135,7 @@ rule dcmotor_plot_timing:
 rule weibull_train:
     input: f"{WEIBULL}/train.jl", *WEIBULL_DEPS
     output: f"{WEIBULL_RESULTS}/checkpoint.jls"
-    shell: "EXAMPLE=weibull WALLTIME=8:00:00 ./vsc/train_remote.sh"
+    shell: "EXAMPLE=weibull WALLTIME=10:00:00 ./vsc/train_remote.sh"
 
 # ---- Weibull nuisance adaptation plot (CPU, local) ----
 rule weibull_nuisance_plot:
