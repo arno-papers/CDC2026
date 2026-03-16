@@ -6,15 +6,15 @@
 We extend the sequential contrastive estimation framework to handle nuisance parameters—parameters that must be modeled but are not the focus of inference.
 Since $p(h_K|\theta_T,\pi)$ is intractable, we use Monte Carlo estimation with:
 \begin{itemize}
-    \item \textbf{Numerator}: $M$ samples $\theta_N^{(1:M)} \sim p(\theta_N|\theta_T^{(0)})$ to estimate $p(h_K|\theta_T^{(0)},\pi)$
+    \item \textbf{Numerator}: $M$ samples $\tilde{\theta}_N^{(1:M)} \sim p(\theta_N|\theta_T^{(0)})$ to estimate $p(h_K|\theta_T^{(0)},\pi)$
     \item \textbf{Denominator}: $L$ contrastive samples $\theta^{(1)},\ldots,\theta^{(L)} \sim p(\theta)$ (full parameter vectors) to estimate $p(h_K|\pi)$
 \end{itemize}
 
 \begin{theorem}[Targeted sPCE Lower Bound]
 \label{thm:targeted_spce}
-Let $\theta^{(0)} = (\theta_T^{(0)}, \theta_N^{(0)}) \sim p(\theta)$ generate $h_K \sim p(h_K|\theta^{(0)}, \pi)$. Let $\theta^{(1)},\ldots,\theta^{(L)} \sim p(\theta)$ be independent contrastive samples, and let $\theta_N^{(1:M)} \sim p(\theta_N|\theta_T^{(0)})$ be nuisance samples. Define
+Let $\theta^{(0)} = (\theta_T^{(0)}, \theta_N^{(0)}) \sim p(\theta)$ generate $h_K \sim p(h_K|\theta^{(0)}, \pi)$. Let $\theta^{(1)},\ldots,\theta^{(L)} \sim p(\theta)$ be independent contrastive samples, and let $\tilde{\theta}_N^{(1:M)} \sim p(\theta_N|\theta_T^{(0)})$ be nuisance samples. Define
 \begin{equation}
-\hat{\mathcal{L}}_K^{\text{tgt}}(\pi, L, M) = \E\left[\log \frac{\frac{1}{M}\sum_{m=1}^{M} p(h_K|\theta_T^{(0)}, \theta_N^{(m)}, \pi)}{\frac{1}{L+1}\sum_{\ell=0}^{L} p(h_K|\theta^{(\ell)}, \pi)}\right].
+\hat{\mathcal{L}}_K^{\text{tgt}}(\pi, L, M) = \E\left[\log \frac{\frac{1}{M}\sum_{m=1}^{M} p(h_K|\theta_T^{(0)}, \tilde{\theta}_N^{(m)}, \pi)}{\frac{1}{L+1}\sum_{\ell=0}^{L} p(h_K|\theta^{(\ell)}, \pi)}\right].
 \end{equation}
 Then $\hat{\mathcal{L}}_K^{\text{tgt}}(\pi, L, M) \leq \mathcal{I}_K^{\text{tgt}}(\pi)$, with $\hat{\mathcal{L}}_K^{\text{tgt}} \to \mathcal{I}_K^{\text{tgt}}$ as $L, M \to \infty$.
 \end{theorem}
@@ -22,7 +22,7 @@ Then $\hat{\mathcal{L}}_K^{\text{tgt}}(\pi, L, M) \leq \mathcal{I}_K^{\text{tgt}
 \begin{proof}
 Define:
 \begin{align}
-A &= \frac{1}{M}\sum_{m=1}^{M} p(h_K|\theta_T^{(0)}, \theta_N^{(m)}, \pi) & &\text{(estimator of } p(h_K|\theta_T^{(0)},\pi)\text{)} \\
+A &= \frac{1}{M}\sum_{m=1}^{M} p(h_K|\theta_T^{(0)}, \tilde{\theta}_N^{(m)}, \pi) & &\text{(estimator of } p(h_K|\theta_T^{(0)},\pi)\text{)} \\
 B &= \frac{1}{L+1}\sum_{\ell=0}^{L} p(h_K|\theta^{(\ell)}, \pi) & &\text{(estimator of } p(h_K|\pi)\text{, includes } \theta^{(0)}\text{)}
 \end{align}
 
@@ -32,7 +32,7 @@ The gap between the true objective and the practical bound is:
 &= \E\left[\log \frac{p(h_K|\theta_T^{(0)},\pi)}{A}\right] + \E\left[\log \frac{B}{p(h_K|\pi)}\right]
 \end{align}
 
-\textbf{Term 1 (Nuisance marginalization gap):} Condition on the realized $(\theta_T^{(0)}, h_K)$. Since $\theta_N^{(1:M)} \overset{\text{i.i.d.}}{\sim} p(\theta_N|\theta_T^{(0)})$,
+\textbf{Term 1 (Nuisance marginalization gap):} Condition on the realized $(\theta_T^{(0)}, h_K)$. Since $\tilde{\theta}_N^{(1:M)} \overset{\text{i.i.d.}}{\sim} p(\theta_N|\theta_T^{(0)})$,
 \begin{equation}
 \E[A \mid \theta_T^{(0)}, h_K] = \int p(h_K|\theta_T^{(0)},\theta_N,\pi)\,p(\theta_N|\theta_T^{(0)})\,d\theta_N = p(h_K|\theta_T^{(0)},\pi).
 \end{equation}
@@ -55,7 +55,7 @@ Since both terms are non-negative: $\hat{\mathcal{L}}_K^{\text{tgt}} \leq \mathc
 \kappa_{1,N} \le \frac{p(h_K|\theta_T,\theta_N,\pi)}{p(h_K|\theta_T,\pi)} \le \kappa_{2,N} && \forall\,\theta_T,\theta_N,h_K, \\
 \kappa_1 \le \frac{p(h_K|\theta,\pi)}{p(h_K|\pi)} \le \kappa_2 && \forall\,\theta,h_K,
 \end{align}
-as in the standard sPCE analysis~\cite{foster2021}. Then the log-ratios in Term 1 and Term 2 are bounded. By the Strong Law of Large Numbers, $A \to p(h_K|\theta_T^{(0)},\pi)$ and $B \to p(h_K|\pi)$ almost surely as $M,L\to\infty$, and the Bounded Convergence Theorem yields Term 1 $\to 0$ and Term 2 $\to 0$; moreover Term 2 decreases at rate $\mathcal{O}(L^{-1})$.
+as in the standard sPCE analysis~\cite{foster2021}. Then the log-ratios in Term 1 and Term 2 are bounded. By the Strong Law of Large Numbers, $A \to p(h_K|\theta_T^{(0)},\pi)$ and $B \to p(h_K|\pi)$ almost surely as $M,L\to\infty$, and the Bounded Convergence Theorem yields Term 1 $\to 0$ and Term 2 $\to 0$.
 \end{proof}
 
 \begin{remark}
@@ -73,7 +73,7 @@ For mechanistic models, the dominant cost of evaluating $p(h_K|\theta,\pi)$ is s
 In our implementation (Algorithm~\ref{algo:DAD}), per episode we perform:
 one rollout to generate $h_K$ under $\theta^{(0)}$,
 $(L+1)$ rollouts for the denominator likelihoods under $\theta^{(0:L)}$, and
-$M$ rollouts for the numerator likelihoods under $(\theta_T^{(0)}, \theta_N^{(m)})$ for $m=1,\ldots,M$.
+$M$ rollouts for the numerator likelihoods under $(\theta_T^{(0)}, \tilde{\theta}_N^{(m)})$ for $m=1,\ldots,M$.
 The nuisance samples require separate ODE solves whenever nuisance parameters enter as initial conditions (e.g., initial biomass $C_{x,0}$) or appear in the dynamics (e.g., $\mu_{\max}$, $K_s$ in Haldane).
 Thus, the compute budget is the total number of full-trajectory ODE rollouts per gradient update,
 \begin{equation}
@@ -85,12 +85,19 @@ which is proportional to the number of ODE solver steps per update.
 \paragraph{Asymptotic MSE of the gradient estimator.}
 Let $g(\phi)=\nabla_\phi\,\mathcal{I}_K^{\text{tgt}}(\pi_\phi)$ denote the true targeted EIG gradient.
 Let $\hat g_{B,L,M}(\phi)$ be the stochastic gradient used in training, obtained by differentiating the nested Monte Carlo objective in Theorem~\ref{thm:targeted_spce} and averaging over $B$ simulated episodes.
-Under standard regularity assumptions (finite second moments and differentiability, allowing the delta method to be applied to $\log(\tfrac{1}{n}\sum_i Z_i)$ and its gradient), as $B,L,M\to\infty$ we have
-\begin{align}
-\mathbb{E}[\hat g_{B,L,M}(\phi)] - g(\phi) &= \mathcal{O}((L+1)^{-1}) + \mathcal{O}(M^{-1}), \\
-\mathrm{Var}(\hat g_{B,L,M}(\phi)) &= \mathcal{O}(B^{-1}) + \mathcal{O}\big((B(L+1))^{-1}\big) + \mathcal{O}((BM)^{-1}),
-\end{align}
-and therefore the mean-squared error scales as
+Under standard regularity assumptions (finite second moments and differentiability, allowing the delta method to be applied to $\log(\tfrac{1}{n}\sum_i Z_i)$ and its gradient), as $B,L,M\to\infty$ we have:
+
+\emph{Bias.} The $\mathcal{O}(M^{-1})$ bias arises from Jensen's inequality applied to $\log A$ (since $A$ is an unbiased estimator of $p(h_K|\theta_T^{(0)},\pi)$ and $\log$ is concave). The $\mathcal{O}((L+1)^{-1})$ bias arises from the inclusion of $\theta^{(0)}$ in the denominator sum, which biases $B$ upward~\citep{foster2021}:
+\begin{equation}
+\mathbb{E}[\hat g_{B,L,M}(\phi)] - g(\phi) = \mathcal{O}((L+1)^{-1}) + \mathcal{O}(M^{-1}).
+\end{equation}
+
+\emph{Variance.} The estimator averages $B$ independent episodes, so $\mathrm{Var}(\hat g) = \mathrm{Var}(\hat g^{(1)})/B$. The single-episode variance decomposes via the law of total variance into an outer term (from the ground truth and observation noise) and an inner term (from the contrastive and nuisance samples). The inner term splits additively because $A$ depends only on $\tilde{\theta}_N^{(1:M)}$ and $B$ depends only on $\theta^{(1:L)}$, which are independent (so their covariance is zero). The delta method gives $\mathrm{Var}(\log A) = \mathcal{O}(M^{-1})$ and $\mathrm{Var}(\log B) = \mathcal{O}((L+1)^{-1})$:
+\begin{equation}
+\mathrm{Var}(\hat g_{B,L,M}(\phi)) = \mathcal{O}(B^{-1}) + \mathcal{O}\big((B(L+1))^{-1}\big) + \mathcal{O}((BM)^{-1}).
+\end{equation}
+
+\emph{MSE.} Since $\mathrm{MSE} = \mathrm{Bias}^2 + \mathrm{Var}$ and the cross term in $\mathrm{Bias}^2$ is bounded by the sum of the squared terms (by AM-GM):
 \begin{equation}
 \label{eq:grad_mse_scaling}
 \mathrm{MSE}(\hat g_{B,L,M})
@@ -100,7 +107,6 @@ and therefore the mean-squared error scales as
 + \mathcal{O}((L+1)^{-2})
 + \mathcal{O}(M^{-2}).
 \end{equation}
-The $B^{-1}$ term is the usual outer Monte Carlo variance reduction from averaging $B$ independent episodes, while the $(L+1)^{-2}$ and $M^{-2}$ terms arise from the squared bias induced by the concavity of $\log$ (i.e., the finite-sample Jensen gaps in the nested estimators).
 
 \paragraph{Optimal scaling under fixed ODE budget.}
 Since all three variables $L$, $M$, $B$ consume ODE rollouts, we jointly optimize them under the budget constraint~\eqref{eq:budget_rollouts}.
@@ -131,11 +137,11 @@ The cost is $G\times$ wall time per gradient update.
 \section{Policy Equivalence}
 \label{sec:policy_equiv}
 
-We show that the nested adaptive optimization criterion from Section~\ref{sec:criterion} is equivalent to optimizing over policies. Consider $K$ sequential design choices $d_1,\ldots,d_K$ with outcomes $Y_1,\ldots,Y_K$ and utility $u(d_{1:K},Y_{1:K})$. The nested adaptive objective is
+We show that the nested adaptive optimization criterion from Section~\ref{sec:criterion} is equivalent to optimizing over policies. Consider $K$ sequential input choices $u_1,\ldots,u_K$ with outcomes $Y_1,\ldots,Y_K$ and utility $U(u_{1:K},Y_{1:K})$. The nested adaptive objective is
 \begin{equation}
-V = \max_{d_1} \E_{Y_1|d_1}\Big[\max_{d_2} \E_{Y_2|Y_1,d_{1:2}}\Big[\cdots \max_{d_K} \E_{Y_K|Y_{1:K-1},d_{1:K}}[u]\cdots\Big]\Big].
+V = \max_{u_1} \E_{Y_1|u_1}\Big[\max_{u_2} \E_{Y_2|Y_1,u_{1:2}}\Big[\cdots \max_{u_K} \E_{Y_K|Y_{1:K-1},u_{1:K}}[U]\cdots\Big]\Big].
 \end{equation}
-A deterministic non-anticipative policy $\pi = (\pi_1,\ldots,\pi_K)$ maps histories to designs: $\pi_1 \in \mathcal{D}_1$ and $\pi_k: \mathcal{H}_{k-1} \to \mathcal{D}_k$ for $k \geq 2$, where $\mathcal{H}_{k-1}$ is the space of histories $(d_1,Y_1,\ldots,d_{k-1},Y_{k-1})$. The policy value is $J(\pi) = \E[u(\pi_1, \pi_2(h_1), \ldots, \pi_K(h_{K-1}), Y_{1:K})]$, with $\Pi$ the set of all such policies.
+A deterministic non-anticipative policy $\pi = (\pi_1,\ldots,\pi_K)$ maps histories to inputs: $\pi_1 \in \mathcal{U}_1$ and $\pi_k: \mathcal{H}_{k-1} \to \mathcal{U}_k$ for $k \geq 2$, where $\mathcal{H}_{k-1}$ is the space of histories $(u_1,Y_1,\ldots,u_{k-1},Y_{k-1})$. The policy value is $J(\pi) = \E[U(\pi_1, \pi_2(h_1), \ldots, \pi_K(h_{K-1}), Y_{1:K})]$, with $\Pi$ the set of all such policies.
 
 \begin{theorem}[Policy equivalence]
 \label{thm:policy_equiv}
@@ -145,48 +151,77 @@ $V = \max_{\pi \in \Pi} J(\pi)$.
 \begin{proof}
 Define continuation values by backward induction:
 \begin{align}
-G_K(h_{K-1}) &= \max_{a_K \in \mathcal{D}_K} \E[u(d_{1:K-1}, a_K, Y_{1:K}) \mid h_{K-1}, a_K], \\
-G_k(h_{k-1}) &= \max_{a_k \in \mathcal{D}_k} \E[G_{k+1}(h_{k-1}, a_k, Y_k) \mid h_{k-1}, a_k],
+G_K(h_{K-1}) &= \max_{a_K \in \mathcal{U}_K} \E[U(u_{1:K-1}, a_K, Y_{1:K}) \mid h_{K-1}, a_K], \\
+G_k(h_{k-1}) &= \max_{a_k \in \mathcal{U}_k} \E[G_{k+1}(h_{k-1}, a_k, Y_k) \mid h_{k-1}, a_k],
 \end{align}
 for $k = K{-}1, \ldots, 1$ (with $h_0 = \varnothing$). By construction, $G_1 = V$.
 
 \emph{Part 1: $\max_\pi J(\pi) \leq V$.}
-Fix any $\pi$. At stage $K$, $\pi_K(h_{K-1})$ is one feasible action, so its expected utility is at most $G_K(h_{K-1})$. Working backward, at each stage $k$ the policy's action $\pi_k(h_{k-1})$ achieves at most $G_k(h_{k-1})$. Taking expectations from stage 1 gives $J(\pi) \leq G_1 = V$.
+Fix any $\pi$ and let $V_k^\pi(h_{k-1})$ denote the expected utility under $\pi$ from stage $k$ onward. We show $V_k^\pi(h_{k-1}) \leq G_k(h_{k-1})$ for all $k$ by backward induction.
+
+Base case ($k=K$): $\pi_K(h_{K-1})$ is one feasible action, so
+\begin{equation}
+V_K^\pi(h_{K-1}) = \E[U \mid h_{K-1}, \pi_K(h_{K-1})] \leq \max_{a_K \in \mathcal{U}_K} \E[U \mid h_{K-1}, a_K] = G_K(h_{K-1}).
+\end{equation}
+Inductive step: assume $V_{k+1}^\pi(h_k) \leq G_{k+1}(h_k)$ for all $h_k$. Then
+\begin{align}
+V_k^\pi(h_{k-1}) &= \E[V_{k+1}^\pi(h_k) \mid h_{k-1}, \pi_k(h_{k-1})] \\
+&\leq \E[G_{k+1}(h_k) \mid h_{k-1}, \pi_k(h_{k-1})] \\
+&\leq \max_{a_k \in \mathcal{U}_k} \E[G_{k+1}(h_k) \mid h_{k-1}, a_k] = G_k(h_{k-1}),
+\end{align}
+where the first inequality uses the induction hypothesis and the second uses the definition of $G_k$. Setting $k=1$ gives $J(\pi) = V_1^\pi \leq G_1 = V$.
 
 \emph{Part 2: $V \leq \max_\pi J(\pi)$.}
-Construct $\pi^\star$ by choosing argmax actions at each history: $\pi_k^\star(h_{k-1}) = \argmax_{a_k} \E[G_{k+1}(h_{k-1},a_k,Y_k) \mid h_{k-1},a_k]$. By iterated expectation, $J(\pi^\star) = G_1 = V$.
+Construct $\pi^\star$ by choosing argmax actions at each stage:
+\begin{equation}
+\pi_k^\star(h_{k-1}) = \argmax_{a_k \in \mathcal{U}_k} \E[G_{k+1}(h_{k-1},a_k,Y_k) \mid h_{k-1},a_k].
+\end{equation}
+We show $V_k^{\pi^\star}(h_{k-1}) = G_k(h_{k-1})$ for all $k$ by backward induction.
+
+Base case ($k=K$): $\pi_K^\star$ achieves the argmax, so $V_K^{\pi^\star}(h_{K-1}) = G_K(h_{K-1})$.
+
+Inductive step: assume $V_{k+1}^{\pi^\star}(h_k) = G_{k+1}(h_k)$ for all $h_k$. Then
+\begin{align}
+V_k^{\pi^\star}(h_{k-1}) &= \E[V_{k+1}^{\pi^\star}(h_k) \mid h_{k-1}, \pi_k^\star(h_{k-1})] \\
+&= \E[G_{k+1}(h_k) \mid h_{k-1}, \pi_k^\star(h_{k-1})] \\
+&= G_k(h_{k-1}),
+\end{align}
+where the first equality uses the induction hypothesis and the second uses the definition of $\pi_k^\star$. Setting $k=1$ gives $J(\pi^\star) = V_1^{\pi^\star} = G_1 = V$.
 \end{proof}
 
 \section{Bayesian Information Matrix Baseline}
 \label{sec:bim}
 
-The BIM baseline in Table~\ref{tab:spce} uses a Bayesian D-optimal design criterion based on the Fisher information matrix (FIM). For a static design $d_{1:K}$ and parameter vector $\theta = (\mu_{\max}, K_s, C_{x,0})$, the FIM is
+\paragraph{Static BIM baseline.}
+We use a Bayesian D-optimal design criterion based on the Fisher information matrix (FIM) as a baseline. Here $\theta$ denotes only the parameters that enter the dynamics and initial conditions---not the noise parameters. For a static input sequence $u_{1:K}$ and known observation noise covariance $\Sigma$, the FIM is
 \begin{equation}
-F(\theta, d_{1:K}) = \frac{1}{\sigma^2} J(\theta, d_{1:K})^\top J(\theta, d_{1:K}),
+F(\theta, \Sigma, u_{1:K}) = J(\theta, u_{1:K})^\top \Sigma^{-1} J(\theta, u_{1:K}),
 \end{equation}
-where $J \in \mathbb{R}^{K \times 3}$ is the sensitivity matrix with entries $J_{k,j} = \partial C_s(t_k) / \partial \theta_j$, computed by differentiating the ODE solution with respect to $(\mu_{\max}, K_s, C_{x,0})$.
+where $J \in \mathbb{R}^{K \times q}$ is the sensitivity matrix with entries $J_{k,j} = \partial g(x(t_k)) / \partial \theta_j$, computed by differentiating the ODE solution. For the Monod bioreactor, $\Sigma = \sigma^2 I$ with $\sigma$ drawn from its prior.
 
-Since $C_{x,0}$ is a nuisance parameter, we project the information onto the target parameters $(\mu_{\max}, K_s)$ via the Schur complement. Partitioning the posterior precision $B = F + \Lambda$ (where $\Lambda = \mathrm{diag}(\lambda_1, \lambda_2, \lambda_3)$ is the prior precision from the uniform priors, with $\lambda_j = 12/(\theta_j^{\max} - \theta_j^{\min})^2$) as
+When nuisance parameters are present in $\theta$, we project the information onto the target parameters via the Schur complement. Partitioning the posterior precision $P = F + \Lambda$ (where $\Lambda$ is the prior precision, with $\lambda_j = 12/(\theta_j^{\max} - \theta_j^{\min})^2$ for independent uniform priors) as
 \begin{equation}
-B = \begin{pmatrix} B_{TT} & B_{TN} \\ B_{NT} & B_{NN} \end{pmatrix},
+P = \begin{pmatrix} P_{TT} & P_{TN} \\ P_{NT} & P_{NN} \end{pmatrix},
 \end{equation}
-the marginal posterior precision for $\theta_T = (\mu_{\max}, K_s)$ is
+the marginal posterior precision for $\theta_T$ is
 \begin{equation}
-B_T = B_{TT} - B_{TN} B_{NN}^{-1} B_{NT}.
+P_T = P_{TT} - P_{TN} P_{NN}^{-1} P_{NT}.
 \end{equation}
 
 The Bayesian D-optimal design maximizes the expected log-determinant:
 \begin{equation}
-d^\star_{\text{BIM}} = \argmax_{d_{1:K}} \; \E_{p(\theta)}\!\left[\log\det B_T(\theta, d_{1:K})\right],
+u^\star_{\text{BIM}} = \argmax_{u_{1:K}} \; \E_{p(\theta, \Sigma)}\!\left[\log\det P_T(\theta, \Sigma, u_{1:K})\right],
 \end{equation}
-where the expectation is approximated by averaging over prior samples. This is a standard criterion~\citep{chaloner1995} that assumes Gaussian posteriors (via the Laplace approximation) and does not account for sequential adaptation.
+where the expectation averages over both the dynamics parameters and the noise covariance, approximated by prior samples. This is a standard criterion~\citep{chaloner1995} that assumes Gaussian posteriors (via the Laplace approximation) and does not account for sequential adaptation.
+This formulation requires $\Sigma$ to be independent of $\theta$, which precludes application to the pharmacokinetic example where the noise scales are nuisance parameters that interact with the dynamics parameters in the targeted sPCE objective.
+We use the static BIM as a baseline for the Monod bioreactor (Table~\ref{tab:spce}) and the adaptive variant below for the DC motor (Table~\ref{tab:motor}).
 
 \paragraph{Adaptive BIM baseline.}
-The adaptive BIM strategy in Table~\ref{tab:motor} extends the static BIM criterion to a sequential, myopic setting. At step~$k$, given the history $(d_{1:k-1}, y_{1:k-1})$:
+The adaptive BIM strategy in Table~\ref{tab:motor} extends the static BIM criterion to a sequential, myopic setting. At step~$k$, given the history $(u_{1:k-1}, y_{1:k-1})$:
 \begin{enumerate}
-\item Compute a MAP estimate $\hat{\theta}_k = \argmax_\theta\, p(\theta \mid y_{1:k-1}, d_{1:k-1})$ via Adam optimization with ForwardDiff gradients (100 iterations, warm-started from $\hat{\theta}_{k-1}$; at $k=1$, initialized at prior midpoints).
-\item Select $d_k = \argmax_{d} \log\det B_T(\hat{\theta}_k, [d_{1:k-1}, d])$ by grid search over 100 candidate voltages in $[0, 10]\,$V.
-\item Execute $d_k$ on the true system and observe $y_k$.
+\item Compute a MAP estimate $\hat{\theta}_k = \argmax_\theta\, p(\theta \mid y_{1:k-1}, u_{1:k-1})$ via Adam optimization with ForwardDiff gradients (100 iterations, warm-started from $\hat{\theta}_{k-1}$; at $k=1$, initialized at prior midpoints).
+\item Select $u_k = \argmax_{u} \log\det P_T(\hat{\theta}_k, [u_{1:k-1}, u])$ by grid search over 100 candidate voltages in $[0, 10]\,$V.
+\item Execute $u_k$ on the true system and observe $y_k$.
 \end{enumerate}
 This replaces the prior expectation $\E_{p(\theta)}[\cdot]$ with a point evaluation at $\hat{\theta}_k$ (a Dirac delta approximation consistent with the Laplace assumption that BIM already makes). The MAP estimate is the natural choice: under the Laplace approximation, MAP coincides with the posterior mean. The strategy is myopic, optimizing one step ahead only.
 
@@ -195,19 +230,20 @@ The key computational difference is that adaptive BIM requires online posterior 
 \section{Training and Evaluation Details}
 \label{sec:training_details}
 
-Training is implemented in Julia~\citep{bezanson2017julia} using Lux.jl~\citep{pal2023lux} for the neural network, Enzyme~\citep{moses2020enzyme} for automatic differentiation through the ODE solver, and Reactant~\citep{reactant2025} for GPU-accelerated compilation via MLIR/XLA. Training was performed on the VSC (Flemish Supercomputer Center) using NVIDIA A100 GPUs.
+Training is implemented in Julia~\citep{bezanson2017julia} using Lux.jl~\citep{pal2023lux} for the neural network, Enzyme~\citep{moses2020enzyme} for automatic differentiation through the ODE solver, and Reactant~\citep{reactant2025} for GPU-accelerated compilation via MLIR/XLA. Training was performed on the VSC (Flemish Supercomputer Center) using NVIDIA H100 GPUs.
 
 \paragraph{Architecture.}
-All examples share the same transformer architecture. Each design--observation pair $(u_k, y_k)$ is projected from $\mathbb{R}^2$ to $\mathbb{R}^{32}$ by a dense layer, then summed with 32-dimensional sinusoidal positional encodings. The transformer block consists of RMSNorm, causal multi-head attention (4~heads, dimension~32), and a feed-forward network ($32 \to 64$, GELU, $64 \to 32$). The output head is a dense layer $32 \to 1$ projecting the final hidden state to the design input, with a per-example initial bias (Table~\ref{tab:training_config}).
+All examples share the same transformer architecture. Each design--observation pair $(u_k, y_k)$ is projected from $\mathbb{R}^2$ to $\mathbb{R}^{32}$ by a dense layer, then summed with 32-dimensional sinusoidal positional encodings. The transformer block consists of RMSNorm, causal multi-head attention (4~heads, dimension~32), and a feed-forward network ($32 \to 64$, GELU, $64 \to 32$). The output head is a dense layer $32 \to 1$ projecting the final hidden state to the design input, with a per-example initial bias (Table~\ref{tab:training_config}). Since the output is passed through a sigmoid, a negative bias initializes the untrained policy to produce small actions, which is more conservative for slow systems like bioreactors.
 
 \paragraph{Optimizer.}
 All examples use Adam with a cosine learning rate schedule: linear warmup from $10^{-5}$ to $3 \times 10^{-3}$ over 50~iterations, then cosine annealing back to $10^{-5}$.
 
 \paragraph{Budget allocation.}
-The contrastive samples $L$, nuisance samples $M$, and micro-batch size $B_{\text{micro}}$ are jointly optimized for each example's ODE trajectory budget $\mathcal{C}_{\text{traj}}$ (see Appendix~\ref{sec:budget_stub}). Gradient accumulation over $G$ micro-batches yields an effective batch size $B = G \times B_{\text{micro}}$.
+The contrastive samples $L$, nuisance samples $M$, and micro-batch size $B_{\text{micro}}$ are jointly optimized for each example's ODE trajectory budget $\mathcal{C}_{\text{traj}}$ (see Appendix~\ref{sec:budget_stub}). Gradient accumulation over $G$ micro-batches yields an effective batch size $B = G \times B_{\text{micro}}$. Per-example settings are listed in Table~\ref{tab:training_config}.
 
 \paragraph{ODE integration.}
 The dynamics are integrated with a fixed-step RK4 solver, using $N_{\text{sub}}$ substeps per design interval to ensure numerical stability.
+A representative training loss curve is shown in Figure~\ref{fig:training_loss}.
 
 \begin{table}[t]
 \centering
