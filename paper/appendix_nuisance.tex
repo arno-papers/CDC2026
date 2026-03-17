@@ -254,12 +254,12 @@ A representative training loss curve is shown in Figure~\ref{fig:training_loss}.
 \hline
  & Monod & Haldane & Weibull & Motor \\
 \hline
-Iterations           & 1000 & 250   & 500   & 1000 \\
-$\mathcal{C}_{\text{traj}}$ & 6.25M & 2.12M & 12M & 2M \\
-$G$ (accum.\ steps)  & 8    & 16    & 1     & 16 \\
-$L$ (contrastive)    & 464  & 407   & 287   & 399 \\
-$M$ (nuisance)       & 466  & 407   & 288   & 399 \\
-$B_{\text{micro}}$   & 6706 & 2600  & 20797 & 2500 \\
+Iterations           & 1000 & 1000  & 1000  & 1000 \\
+$\mathcal{C}_{\text{traj}}$ & 6.25M & 2.12M & 24M & 56M \\
+$G$ (accum.\ steps)  & 8    & 16    & 8     & 8 \\
+$L$ (contrastive)    & 464  & 161   & 725   & 960 \\
+$M$ (nuisance)       & 466  & 162   & 727   & 962 \\
+$B_{\text{micro}}$   & 6706 & 408   & 16506 & 29106 \\
 $N_{\text{sub}}$ (RK4) & 50 & 50    & 10    & 10 \\
 Output bias          & $-4.0$ & $-1.0$ & $-2.0$ & $0.0$ \\
 \hline
@@ -272,3 +272,33 @@ Output bias          & $-4.0$ & $-1.0$ & $-2.0$ & $0.0$ \\
 \caption{Training loss curve (targeted sPCE objective) over iterations for the Monod bioreactor. The objective converges within approximately 1000 iterations.}
 \label{fig:training_loss}
 \end{figure}
+
+\section{Architecture Ablation}
+\label{sec:ablation}
+
+We ablate the transformer-based policy on the Weibull PK model (Section~V) to isolate the contributions of attention and positional encoding. Three architectures are compared, all trained for 200 iterations with identical hyperparameters:
+\begin{itemize}
+\item \textbf{Full Transformer}: the proposed architecture (attention + sinusoidal PE).
+\item \textbf{Flat MLP}: a feedforward network that concatenates the full observation history into a single vector ($48 \to 64 \to 64 \to 1$; 7{,}361 parameters vs.\ 6{,}400 for the transformer).
+\item \textbf{Transformer (no PE)}: the same transformer with positional encoding removed.
+\end{itemize}
+
+Evaluation uses 1{,}000 paired trials ($L{=}M{=}5{,}000$, $B{=}32$): all three models share the same sampled parameters and noise per trial, so differences are due solely to the architecture. Table~\ref{tab:ablation} reports the results.
+
+\begin{table}[t]
+\centering
+\caption{Architecture ablation on the Weibull PK model (1{,}000 paired trials, $L{=}M{=}5{,}000$). Higher sPCE is better.}
+\label{tab:ablation}
+\small
+\begin{tabular}{@{}lcc@{}}
+\hline
+Architecture & sPCE (mean $\pm$ SEM) & Paired $t$ vs.\ Full \\
+\hline
+Full Transformer      & $1.709 \pm 0.031$ & --- \\
+Flat MLP              & $1.679 \pm 0.031$ & $t = 2.24$ ($p < 0.05$) \\
+Transformer (no PE)   & $1.364 \pm 0.030$ & $t = 12.09$ ($p < 0.001$) \\
+\hline
+\end{tabular}
+\end{table}
+
+Positional encoding is the dominant factor: without it, the transformer cannot distinguish \emph{when} observations were collected, losing 0.35~nats of expected information. The attention mechanism provides a smaller but statistically significant benefit over the flat MLP (0.03~nats), suggesting that selectively weighting the observation history helps but is less critical than temporal awareness.

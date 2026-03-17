@@ -36,6 +36,7 @@
 \begin{document}
 
 \title{Deep Adaptive Model-Based Design of Experiments\\
+\thanks{Preliminary version. A six-page conference paper has been submitted to the 2026 IEEE Conference on Decision and Control (CDC). This extended version will be updated with final results.}
 }
 
 \author{\IEEEauthorblockN{Arno Strouwen}
@@ -157,7 +158,7 @@ Let $\theta^{(0)} = (\theta_T^{(0)}, \theta_N^{(0)}) \sim p(\theta)$ generate $h
 \hat{\mathcal{L}}_K^{\text{tgt}}(\pi, L, M) = \E\left[\log \frac{\frac{1}{M}\sum_{m=1}^{M} p(h_K|\theta_T^{(0)}, \tilde{\theta}_N^{(m)}, \pi)}{\frac{1}{L+1}\sum_{\ell=0}^{L} p(h_K|\theta^{(\ell)}, \pi)}\right]
 \end{equation}
 satisfies $\hat{\mathcal{L}}_K^{\text{tgt}} \leq \mathcal{I}_K^{\text{tgt}}$, converging to $\mathcal{I}_K^{\text{tgt}}$ as $L, M \to \infty$.
-\ifextended See Appendix~\ref{sec:nuisance} for proof.\fi
+\ifextended See Appendix~\ref{sec:nuisance} for proof.\else{} See the extended version~\citep{strouwen2026extended} for proof.\fi
 \end{theorem}
 
 \section{Optimal Policy}
@@ -225,7 +226,7 @@ u_k = \pi_\phi(h_{k-1}) = F_{\phi_2}(\text{Transformer}_{\phi_1}(h_{k-1})),
 where $\text{Transformer}_{\phi_1}$ processes the sequence and $F_{\phi_2}$ is a final projection head.
 
 This architecture captures temporal dependencies while enabling efficient parallel training over the sequence dimension.
-\ifextended All examples share the same architecture and optimizer; full hyperparameters are given in Appendix~\ref{sec:training_details}.\fi
+\ifextended All examples share the same architecture and optimizer; full hyperparameters are given in Appendix~\ref{sec:training_details}.\else All examples share the same architecture and optimizer; full hyperparameters are given in the extended version~\citep{strouwen2026extended}.\fi
 
 \section{Results}
 
@@ -241,7 +242,7 @@ We apply the framework to four systems of increasing complexity.
 
 \begin{table}[t]
 \centering
-\caption{Monod bioreactor: targeted sPCE scores (mean $\pm$ SEM, $n=500$; higher is better) and posterior RMSE ($\times 10^3$, $n=2000$; lower is better).\ifextended{} The BIM baseline is detailed in Appendix~\ref{sec:bim}.\fi}
+\caption{Monod bioreactor: targeted sPCE scores (mean $\pm$ SEM, $n=500$; higher is better) and posterior RMSE ($\times 10^3$, $n=2000$; lower is better).\ifextended{} The BIM baseline is detailed in Appendix~\ref{sec:bim}.\else{} The BIM baseline is detailed in the extended version~\citep{strouwen2026extended}.\fi}
 \label{tab:spce}
 \begin{tabular}{@{}lccc@{}}
 \hline
@@ -274,7 +275,7 @@ Design strategy & sPCE score & \multicolumn{2}{c}{RMSE ($\times 10^3$)} \\
 \end{figure*}
 
 \paragraph{Monod bioreactor.}
-The adaptive policy is trained on the Monod bioreactor (Section~\ref{sec:monod}) in approximately 1000 iterations\ifextended{} (Appendix~\ref{sec:training_details})\fi.
+The adaptive policy is trained on the Monod bioreactor (Section~\ref{sec:monod}) in approximately 1000 iterations\ifextended{} (Appendix~\ref{sec:training_details})\else{} (see the extended version~\citep{strouwen2026extended} for training details)\fi.
 Fig.~\ref{fig:dynamics} shows representative rollouts: the adaptive policy varies its feed profile per rollout in response to observations, while the static designs apply a fixed sequence regardless of the outcome.
 Table~\ref{tab:spce} compares the adaptive policy against two static baselines---a classical Bayesian D-optimal design (BIM) and a static design optimized with the same sPCE objective. The adaptive policy significantly outperforms both on sPCE score ($p < 0.04$, paired $t$-tests) and reduces posterior RMSE by approximately 30\% relative to the best static design.
 Fig.~\ref{fig:posterior} confirms that the adaptive policy yields the most concentrated posterior estimates around the true parameter values.
@@ -299,6 +300,7 @@ A two-compartment PK model with transit absorption describes drug distribution b
 where $R_\text{inf}$ is the controllable infusion rate (design input). The target parameters are the absorption rates $\theta_T = (k_a, k_{tr})$, while $\theta_N = (CL, Q_d, \sigma_{\text{prop}}, \sigma_{\text{add}})$ are nuisance, including patient-specific clearance. The observation is central concentration $C_c = A_c/V_C$ with combined proportional and additive noise: $y_k \sim \mathcal{N}(C_c, (\sigma_{\text{prop}} C_c)^2 + \sigma_{\text{add}}^2)$,
 with uniform priors $k_a, k_{tr} \in [0.5, 3.0]$, $CL \in [1.0, 5.0]$, $Q_d \in [0.5, 3.0]$, $\sigma_{\text{prop}} \in [0.05, 0.20]$, and $\sigma_{\text{add}} \in [0.01, 0.10]$.
 Fig.~\ref{fig:pharma} shows the policy adapts its dosing schedule to the patient's elimination profile: fast elimination clears drug quickly, prompting earlier and more frequent doses to maintain informative concentrations, while slow elimination allows delayed dosing. This nuisance adaptation emerges from the targeted sPCE objective, which marginalizes over $(CL, Q_d)$ during training---the policy learns that the optimal schedule for probing absorption depends on how quickly the patient clears the drug.
+An architecture ablation on this example confirms both transformer components matter: removing positional encoding drops sPCE by $0.35$~nats ($t{=}12.1$); replacing attention with a comparably-sized MLP costs $0.03$~nats ($t{=}2.2$)\ifextended{} (Appendix~\ref{sec:ablation})\else{} (see the extended version~\citep{strouwen2026extended})\fi.
 
 \paragraph{DC motor.}
 A DC motor with state $(\omega, i)$ (angular velocity, current) follows
