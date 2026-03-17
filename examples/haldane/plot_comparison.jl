@@ -2,7 +2,6 @@ include(joinpath(@__DIR__, "model.jl"))
 include(joinpath(@__DIR__, "..", "..", "src", "common_core.jl"))
 
 using Plots
-include(joinpath(@__DIR__, "..", "..", "src", "plotting.jl"))
 
 function rollout_trajectory_cpu(model, ps_cpu, st_cpu, rng,
         theta_dyn::Vector{Float32}, sigma::Float32;
@@ -80,12 +79,10 @@ function plot_comparison(model, ps_cpu, st_cpu;
     return plt
 end
 
-if abspath(PROGRAM_FILE) == @__FILE__
-    results_dir = joinpath(@__DIR__, "results")
-    ckpt_file = length(ARGS) >= 1 ? ARGS[1] : joinpath(results_dir, "checkpoint.jls")
-    @assert isfile(ckpt_file) "Checkpoint not found: $ckpt_file. Run training first."
+results_dir = joinpath(@__DIR__, "results")
+ckpt_file = length(ARGS) >= 1 ? ARGS[1] : joinpath(results_dir, "checkpoint.jls")
+@assert isfile(ckpt_file) "Checkpoint not found: $ckpt_file. Run training first."
 
-    ckpt = deserialize(ckpt_file)
-    rng = Random.MersenneTwister(42)
-    plot_comparison(policy, ckpt["parameters"], ckpt["states"]; rng=rng)
-end
+ckpt = deserialize(ckpt_file)
+rng = Random.MersenneTwister(42)
+plot_comparison(policy, ckpt["parameters"], ckpt["states"]; rng=rng)

@@ -1,0 +1,14 @@
+probe C=24000000 L=725 M=727 B=132048 B_micro=16506 mode=train
+OK C=24000000 loss=-0.203183 ps_norm=325.678528 time=779.4s
+
+---
+probe C=48000000 L=916 M=917 B=209264 B_micro=26158 mode=train
+OK C=48000000 loss=-0.225849 ps_norm=325.671326 time=784.3s
+
+---
+FAIL C=96000000
+---
+FAIL C=72000000
+---
+FAIL C=60000000
+---

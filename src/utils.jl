@@ -33,3 +33,33 @@ function allocate_budget(C::Int; lambda_L::Float64=1.0, lambda_M::Float64=1.0,
     end
     return (best_L, best_M, best_B)
 end
+
+# ============================================================================
+#  Utility: save figure + print path
+# ============================================================================
+
+using Plots
+using Printf
+using Statistics
+
+function save_plot(plt, path)
+    mkpath(dirname(path))
+    savefig(plt, path)
+    println("Saved: $path")
+end
+
+# ============================================================================
+#  Callback: live loss plot during training
+# ============================================================================
+
+function loss_plot_callback(; title="Training Loss", output_path="plot_training_loss.png",
+                              save_every=10, n_iters=0)
+    return (iter, _loss, loss_history, _train_state) -> begin
+        if iter % save_every == 0 || iter == 1 || (n_iters > 0 && iter == n_iters)
+            p = Plots.plot(loss_history;
+                xlabel="Iteration", ylabel="Targeted sPCE Loss",
+                title=title, label="loss", linewidth=2)
+            save_plot(p, output_path)
+        end
+    end
+end

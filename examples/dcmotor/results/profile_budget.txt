@@ -1,0 +1,30 @@
+probe C=8000000 L=504 M=506 B=63240 B_micro=7905 mode=train
+OK C=8000000 loss=-1.781198 ps_norm=321.701660 time=612.9s
+
+---
+probe C=16000000 L=636 M=637 B=100392 B_micro=12549 mode=train
+OK C=16000000 loss=-1.795660 ps_norm=321.702515 time=609.0s
+
+---
+probe C=32000000 L=798 M=800 B=160000 B_micro=20000 mode=train
+OK C=32000000 loss=-1.804720 ps_norm=321.700684 time=616.9s
+
+---
+probe C=64000000 L=1006 M=1008 B=253968 B_micro=31746 mode=train
+OK C=64000000 loss=-1.813981 ps_norm=321.700134 time=627.5s
+
+---
+probe C=128000000 L=1269 M=1271 B=402832 B_micro=50354 mode=train
+OK C=128000000 loss=-1.820612 ps_norm=321.702271 time=640.7s
+
+---
+FAIL C=256000000
+---
+probe C=192000000 L=1453 M=1454 B=528016 B_micro=66002 mode=train
+OK C=192000000 loss=-1.812481 ps_norm=321.701599 time=650.3s
+
+---
+probe C=224000000 L=1530 M=1532 B=584856 B_micro=73107 mode=train
+OK C=224000000 loss=-1.822953 ps_norm=321.700958 time=664.5s
+
+---
