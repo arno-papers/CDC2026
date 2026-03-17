@@ -7,7 +7,6 @@
 
 include(joinpath(@__DIR__, "model.jl"))
 include(joinpath(@__DIR__, "..", "..", "src", "common.jl"))
-include(joinpath(@__DIR__, "..", "..", "src", "plotting.jl"))
 
 using Dates
 using Plots
@@ -179,97 +178,95 @@ end
 #  Main
 # ============================================================================
 
-if abspath(PROGRAM_FILE) == @__FILE__
-    seed        = 0
-    Random.seed!(seed)
-    n_iters     = 1000
-    n_rollouts  = 1000
-    ode_budget  = ODE_BUDGET_TRAJ
-    n_substeps  = N_SUBSTEPS
-    lr_max      = 0.003f0
-    lr_min      = 1f-5
-    warmup      = 50
-    grad_accum  = GRAD_ACCUM_STEPS
-    loss_png_every = 10
-    results_dir = joinpath(@__DIR__, "results")
+seed        = 0
+Random.seed!(seed)
+n_iters     = 1000
+n_rollouts  = 1000
+ode_budget  = ODE_BUDGET_TRAJ
+n_substeps  = N_SUBSTEPS
+lr_max      = 0.003f0
+lr_min      = 1f-5
+warmup      = 50
+grad_accum  = GRAD_ACCUM_STEPS
+loss_png_every = 10
+results_dir = joinpath(@__DIR__, "results")
 
-    L, M, B_micro = allocate_budget(ode_budget; B_multiplier=grad_accum)
-    B_total = B_micro * grad_accum
+L, M, B_micro = allocate_budget(ode_budget; B_multiplier=grad_accum)
+B_total = B_micro * grad_accum
 
-    Reactant.set_default_backend("gpu")
-    xdev = reactant_device()
-    println("Using device: ", xdev)
+Reactant.set_default_backend("gpu")
+xdev = reactant_device()
+println("Using device: ", xdev)
 
-    mkpath(results_dir)
+mkpath(results_dir)
 
-    # ---- Compute initial design from adaptive policy rollouts ----
-    println("\n--- Computing initial design from adaptive policy ---")
-    flush(stdout)
-    ps_cpu, st_cpu, _ = load_checkpoint_cpu(results_dir)
-    rng_init = MersenneTwister(42)
-    _, st_cpu = Lux.setup(rng_init, policy)
+# ---- Compute initial design from adaptive policy rollouts ----
+println("\n--- Computing initial design from adaptive policy ---")
+flush(stdout)
+ps_cpu, st_cpu, _ = load_checkpoint_cpu(results_dir)
+rng_init = MersenneTwister(42)
+_, st_cpu = Lux.setup(rng_init, policy)
 
-    init = adaptive_mean_design(policy, ps_cpu, st_cpu;
-                                 n_rollouts=n_rollouts, seed=seed, n_substeps=n_substeps)
-    design_init = Float32.(clamp.(init, ACTION_LO, ACTION_HI))
-    println("  Init: [", join([@sprintf("%.3f", x) for x in design_init], ", "), "]")
-    flush(stdout)
+init = adaptive_mean_design(policy, ps_cpu, st_cpu;
+                             n_rollouts=n_rollouts, seed=seed, n_substeps=n_substeps)
+design_init = Float32.(clamp.(init, ACTION_LO, ACTION_HI))
+println("  Init: [", join([@sprintf("%.3f", x) for x in design_init], ", "), "]")
+flush(stdout)
 
-    println("\n=== Static sPCE Design Optimizer (Reactant + Enzyme) ===")
-    println("n_iters     = $n_iters")
-    println("B_micro     = $B_micro  (ga ramps from $grad_accum)")
-    println("L           = $L")
-    println("M           = $M")
-    println("n_substeps  = $n_substeps")
-    println("lr          = [$lr_min, $lr_max] cosine, warmup=$warmup")
-    println("init        = mean of $n_rollouts adaptive rollouts")
-    println("seed        = $seed")
-    println("results_dir = $results_dir")
-    println()
-    flush(stdout)
+println("\n=== Static sPCE Design Optimizer (Reactant + Enzyme) ===")
+println("n_iters     = $n_iters")
+println("B_micro     = $B_micro  (ga ramps from $grad_accum)")
+println("L           = $L")
+println("M           = $M")
+println("n_substeps  = $n_substeps")
+println("lr          = [$lr_min, $lr_max] cosine, warmup=$warmup")
+println("init        = mean of $n_rollouts adaptive rollouts")
+println("seed        = $seed")
+println("results_dir = $results_dir")
+println()
+flush(stdout)
 
-    open(joinpath(results_dir, "spce_optimize_summary.txt"), "w") do io
-        println(io, "# Static sPCE-optimal design (GPU + Enzyme)")
-        println(io, "date = $(Dates.format(Dates.now(), "yyyy-mm-dd HH:MM:SS"))")
-        println(io)
-        println(io, "# Configuration")
-        println(io, "n_iters = $n_iters")
-        println(io, "B_micro = $B_micro")
-        println(io, "L = $L")
-        println(io, "M = $M")
-        println(io, "n_substeps = $n_substeps")
-        println(io, "grad_accum = $grad_accum (ramps)")
-        println(io, "lr_max = $lr_max")
-        println(io, "lr_min = $lr_min")
-        println(io, "warmup = $warmup")
-        println(io, "ode_budget = $ode_budget")
-        println(io, "seed = $seed")
-        println(io, "init = adaptive_mean ($n_rollouts rollouts)")
-    end
-
-    best_design_cpu, best_loss, loss_history, t_total = optimize_static_spce(
-        design_init, xdev;
-        n_iters, L, M, B_micro, n_substeps, lr_max, lr_min, warmup, grad_accum,
-        loss_png_every, seed, results_dir)
-
-    @printf("\n[sPCE] best loss = %.7f\n", best_loss)
-    println("Final design: [", join([@sprintf("%.4f", x) for x in best_design_cpu], ", "), "]")
-    @printf("Total wall time: %.1fs (%.1fs/iter)\n", t_total, t_total / n_iters)
-    flush(stdout)
-
-    serialize(joinpath(results_dir, "design_spce.jls"), Dict(
-        "design"       => best_design_cpu,
-        "loss"         => best_loss,
-        "loss_history" => loss_history,
-    ))
-
-    open(joinpath(results_dir, "spce_optimize_summary.txt"), "a") do io
-        println(io)
-        println(io, "# Result")
-        @printf(io, "best_loss = %.7f\n", best_loss)
-        println(io, "design = [", join([@sprintf("%.6f", x) for x in best_design_cpu], ", "), "]")
-        @printf(io, "wall_time_s = %.1f\n", t_total)
-    end
-
-    println("\nDone. Outputs in: $results_dir")
+open(joinpath(results_dir, "spce_optimize_summary.txt"), "w") do io
+    println(io, "# Static sPCE-optimal design (GPU + Enzyme)")
+    println(io, "date = $(Dates.format(Dates.now(), "yyyy-mm-dd HH:MM:SS"))")
+    println(io)
+    println(io, "# Configuration")
+    println(io, "n_iters = $n_iters")
+    println(io, "B_micro = $B_micro")
+    println(io, "L = $L")
+    println(io, "M = $M")
+    println(io, "n_substeps = $n_substeps")
+    println(io, "grad_accum = $grad_accum (ramps)")
+    println(io, "lr_max = $lr_max")
+    println(io, "lr_min = $lr_min")
+    println(io, "warmup = $warmup")
+    println(io, "ode_budget = $ode_budget")
+    println(io, "seed = $seed")
+    println(io, "init = adaptive_mean ($n_rollouts rollouts)")
 end
+
+best_design_cpu, best_loss, loss_history, t_total = optimize_static_spce(
+    design_init, xdev;
+    n_iters, L, M, B_micro, n_substeps, lr_max, lr_min, warmup, grad_accum,
+    loss_png_every, seed, results_dir)
+
+@printf("\n[sPCE] best loss = %.7f\n", best_loss)
+println("Final design: [", join([@sprintf("%.4f", x) for x in best_design_cpu], ", "), "]")
+@printf("Total wall time: %.1fs (%.1fs/iter)\n", t_total, t_total / n_iters)
+flush(stdout)
+
+serialize(joinpath(results_dir, "design_spce.jls"), Dict(
+    "design"       => best_design_cpu,
+    "loss"         => best_loss,
+    "loss_history" => loss_history,
+))
+
+open(joinpath(results_dir, "spce_optimize_summary.txt"), "a") do io
+    println(io)
+    println(io, "# Result")
+    @printf(io, "best_loss = %.7f\n", best_loss)
+    println(io, "design = [", join([@sprintf("%.6f", x) for x in best_design_cpu], ", "), "]")
+    @printf(io, "wall_time_s = %.1f\n", t_total)
+end
+
+println("\nDone. Outputs in: $results_dir")

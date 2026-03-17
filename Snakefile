@@ -1,15 +1,20 @@
 JULIA = "julia --project=."
-SRC = ["src/utils.jl", "src/common_core.jl", "src/common.jl", "src/plotting.jl"]
+SRC = ["src/utils.jl", "src/common_core.jl", "src/common.jl"]
 
 MONOD = "examples/monod"
 RESULTS = f"{MONOD}/results"
 MODEL = f"{MONOD}/model.jl"
-DEPS = [MODEL] + SRC
+DEPS = [MODEL, f"{MONOD}/plotting.jl"] + SRC
 
 HALDANE = "examples/haldane"
 HALDANE_RESULTS = f"{HALDANE}/results"
 HALDANE_MODEL = f"{HALDANE}/model.jl"
 HALDANE_DEPS = [HALDANE_MODEL] + SRC
+
+DCMOTOR = "examples/dcmotor"
+DCMOTOR_RESULTS = f"{DCMOTOR}/results"
+DCMOTOR_MODEL = f"{DCMOTOR}/model.jl"
+DCMOTOR_DEPS = [DCMOTOR_MODEL] + SRC
 
 WEIBULL = "examples/weibull"
 WEIBULL_RESULTS = f"{WEIBULL}/results"
@@ -101,11 +106,36 @@ rule monod_dynamics_plot:
     output: f"{RESULTS}/plot_dynamics.png"
     shell: "{JULIA} {input.script}"
 
+# ---- DC Motor training (GPU, local or VSC) ----
+rule dcmotor_train:
+    input: f"{DCMOTOR}/train.jl", *DCMOTOR_DEPS
+    output: f"{DCMOTOR_RESULTS}/checkpoint.jls", f"{DCMOTOR_RESULTS}/plot_training_loss.png"
+    shell: "EXAMPLE=dcmotor TASK=train ./vsc/train_remote.sh"
+
+# ---- DC Motor: adaptive sPCE vs adaptive BIM comparison (CPU, local) ----
+rule dcmotor_eval_comparison:
+    input:
+        script=f"{DCMOTOR}/eval_comparison.jl",
+        checkpoint=f"{DCMOTOR_RESULTS}/checkpoint.jls",
+        bim=f"{DCMOTOR}/adaptive_bim.jl",
+        deps=DCMOTOR_DEPS,
+    output: f"{DCMOTOR_RESULTS}/comparison_results.jls"
+    shell: "{JULIA} {input.script}"
+
+# ---- DC Motor timing plot (CPU, local) ----
+rule dcmotor_plot_timing:
+    input:
+        script=f"{DCMOTOR}/plot_trajectories.jl",
+        comparison=f"{DCMOTOR_RESULTS}/comparison_results.jls",
+        deps=DCMOTOR_DEPS,
+    output: f"{DCMOTOR_RESULTS}/plot_policy_timing.png"
+    shell: "{JULIA} {input.script}"
+
 # ---- Weibull PK training (VSC cluster) ----
 rule weibull_train:
     input: f"{WEIBULL}/train.jl", *WEIBULL_DEPS
     output: f"{WEIBULL_RESULTS}/checkpoint.jls"
-    shell: "EXAMPLE=weibull WALLTIME=8:00:00 ./vsc/train_remote.sh"
+    shell: "EXAMPLE=weibull WALLTIME=10:00:00 ./vsc/train_remote.sh"
 
 # ---- Weibull nuisance adaptation plot (CPU, local) ----
 rule weibull_nuisance_plot:
@@ -125,6 +155,13 @@ rule generate_tables:
     output: "paper/tables/spce_table.tex"
     shell: "{JULIA} {input.script}"
 
+rule generate_dcmotor_table:
+    input:
+        script="scripts/generate_tables.jl",
+        comparison=f"{DCMOTOR_RESULTS}/comparison_results.jls",
+    output: "paper/tables/dcmotor_table.tex"
+    shell: "{JULIA} {input.script}"
+
 # ---- Figures: copy to paper/figures/ ----
 rule figures:
     input:
@@ -133,12 +170,14 @@ rule figures:
         f"{RESULTS}/plot_dynamics.png",
         f"{HALDANE_RESULTS}/plot_comparison.png",
         f"{WEIBULL_RESULTS}/plot_nuisance.png",
+        f"{DCMOTOR_RESULTS}/plot_policy_timing.png",
     output:
         "paper/figures/monod_training_loss.png",
         "paper/figures/monod_posterior.png",
         "paper/figures/monod_comparison.png",
         "paper/figures/haldane_comparison.png",
         "paper/figures/pharma_nuisance.png",
+        "paper/figures/dcmotor_timing.png",
     run:
         import shutil, os
         os.makedirs("paper/figures", exist_ok=True)
@@ -147,7 +186,7 @@ rule figures:
 
 # ---- Paper compilation (CDC: compact, arXiv: extended) ----
 rule paper_cdc:
-    input: rules.figures.output, rules.generate_tables.output
+    input: rules.figures.output, rules.generate_tables.output, rules.generate_dcmotor_table.output
     output: "paper/main_cdc.pdf"
     shell:
         r"""
@@ -159,7 +198,7 @@ rule paper_cdc:
         """
 
 rule paper_arxiv:
-    input: rules.figures.output, rules.generate_tables.output
+    input: rules.figures.output, rules.generate_tables.output, rules.generate_dcmotor_table.output
     output: "paper/main_arxiv.pdf"
     shell:
         r"""

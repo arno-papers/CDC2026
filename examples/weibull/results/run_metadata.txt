@@ -1,0 +1,15 @@
+job_id=66199028
+job_name=cdc2026
+partition=gpu_h100
+host=s16g09
+start_time=2026-03-16T03:07:43+01:00
+repo_dir=/data/leuven/325/vsc32553/CDC2026
+source_branch=6be9169
+source_commit=unknown
+julia_version=1.12.5
+example=weibull
+task=train
+script_path=examples/weibull/train.jl
+script_args=finalpharma
+results_dir=/data/leuven/325/vsc32553/CDC2026/examples/weibull/results
+archive_dir=/data/leuven/325/vsc32553/CDC2026-runs/weibull-train-20260316-030656
