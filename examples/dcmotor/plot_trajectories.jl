@@ -12,7 +12,7 @@ include(joinpath(@__DIR__, "..", "..", "src", "common_core.jl"))
 function plot_policy_timing(comparison_results;
         outfile=joinpath(@__DIR__, "results", "plot_policy_timing.png"))
 
-    t_obs_ms = Float64.((1:N_STEPS) .* DT .* 1000)
+    t_obs = Float64.(1:N_STEPS)
     dt_ms = Float64(DT) * 1000
     dt_us = dt_ms * 1000
 
@@ -23,7 +23,7 @@ function plot_policy_timing(comparison_results;
     p = plot(xlabel="Experiment step", ylabel="Time per step (μs)",
              title=@sprintf("Per-step computation time (%d trials)", n_trials),
              yscale=:log10, legend=:topright, size=(700, 400),
-             bottom_margin=5Plots.mm, left_margin=5Plots.mm)
+             xticks=1:N_STEPS, bottom_margin=5Plots.mm, left_margin=5Plots.mm)
 
     # Helper: draw one boxplot at position t
     function draw_boxplot!(p, t, vals; color, fillcolor, w, label="")
@@ -38,23 +38,23 @@ function plot_policy_timing(comparison_results;
         # Box (IQR)
         plot!(p, Shape([t-w, t+w, t+w, t-w], [q1, q1, q3, q3]);
               fillcolor=fillcolor, fillalpha=0.3, linecolor=color, lw=1,
-              label=label)
+              label=label, legend=(0.78, 0.6))
         # Median
         plot!(p, [t-w, t+w], [q2, q2]; color=color, lw=2, label="")
     end
 
-    w = dt_ms * 0.2  # box half-width
+    w = 0.2  # box half-width
 
     # BIM boxplots (drawn first so sPCE is on top)
-    for (i, t) in enumerate(t_obs_ms)
-        draw_boxplot!(p, t + w * 1.1, bim_matrix_us[i, :];
+    for (i, t) in enumerate(t_obs)
+        draw_boxplot!(p, t + 0 * 1.1, bim_matrix_us[i, :];
                       color=:dodgerblue, fillcolor=:dodgerblue, w=w,
                       label=(i == 1 ? "Adaptive (BIM)" : ""))
     end
 
     # sPCE policy boxplots
-    for (i, t) in enumerate(t_obs_ms)
-        draw_boxplot!(p, t - w * 1.1, spce_matrix_us[i, :];
+    for (i, t) in enumerate(t_obs)
+        draw_boxplot!(p, t - 0 * 1.1, spce_matrix_us[i, :];
                       color=:purple, fillcolor=:mediumpurple, w=w,
                       label=(i == 1 ? "Adaptive (sPCE)" : ""))
     end
