@@ -3,16 +3,38 @@ include(joinpath(@__DIR__, "..", "..", "src", "common.jl"))
 
 using Dates, Random
 plotting = false
-n_iters = 1000
+n_iters = 200
 seed = 0
-Random.seed!(seed)
 loss_png_every = 10
 grad_accum = GRAD_ACCUM_STEPS
 ode_budget = ODE_BUDGET_TRAJ
 lr_max = 0.003f0
 lr_min = 1f-5
 warmup = 50
-results_dir = joinpath(@__DIR__, "results")
+results_dir = joinpath(@__DIR__, "results", "ablation_flat")
+
+for arg in ARGS
+    key, val = split(arg, '='; limit=2)
+    if     key == "n_iters";     n_iters    = parse(Int, val)
+    elseif key == "seed";        seed       = parse(Int, val)
+    elseif key == "ode_budget";  ode_budget = parse(Int, val)
+    else   @warn "Unknown argument: $arg"
+    end
+end
+
+Random.seed!(seed)
+
+# ---- Flat MLP ablation architecture ----
+const ablation_model = @compact(
+    mlp = Chain(
+        Dense(2 * N_STEPS => 64, gelu),
+        Dense(64 => 64, gelu),
+        Dense(64 => 1; init_bias=(rng, dims...) -> fill(-2.0f0, dims...)),
+    ),
+) do x
+    x_flat = reshape(x, 2 * N_STEPS, :)
+    @return ACTION_HI .* sigmoid.(mlp(x_flat))
+end
 
 L, M_nuis, B_micro = allocate_budget(ode_budget; B_multiplier=grad_accum)
 B_total = B_micro * grad_accum
@@ -25,7 +47,14 @@ Reactant.set_default_backend("gpu")
 mkpath(results_dir)
 open(joinpath(results_dir, "config.txt"), "w") do io
     println(io, "date: $(Dates.format(Dates.now(), "yyyy-mm-dd"))")
-    println(io, "experiment: ODE_BUDGET=$(ode_budget), cosine LR")
+    println(io, "experiment: Ablation: Flat MLP ($(n_iters) iter)")
+    println(io)
+    println(io, "# Model")
+    println(io, "V_C = $V_C")
+    println(io, "V_P = $V_P")
+    println(io, "target: k_a ∈ [$K_A_LO, $K_A_HI], k_tr ∈ [$K_TR_LO, $K_TR_HI]")
+    println(io, "nuisance_dyn: CL ∈ [$CL_LO, $CL_HI], Q_d ∈ [$Q_D_LO, $Q_D_HI]")
+    println(io, "nuisance_obs: σ_prop ∈ [$SIGMA_PROP_LO, $SIGMA_PROP_HI], σ_add ∈ [$SIGMA_ADD_LO, $SIGMA_ADD_HI]")
     println(io)
     println(io, "# Hyperparameters")
     println(io, "n_iters = $n_iters")
@@ -45,8 +74,8 @@ open(joinpath(results_dir, "config.txt"), "w") do io
     println(io, "ode_budget = $ode_budget")
 end
 
-println("\n=== Targeted DADS Training (Reactant + Enzyme) ===")
-println("Target params: (mu_max, K_s), Nuisance: (sigma, Cx0) jointly sampled")
+println("\n=== Ablation: Flat MLP — Weibull PK (Reactant + Enzyme) ===")
+println("Target params: (k_a, k_tr), Nuisance: (CL, Q_d, sigma_prop, sigma_add)")
 println("L = $L contrastive, M = $M_nuis nuisance, B = $B_total total ($(grad_accum)x$(B_micro) micro)")
 println("n_iters = $n_iters, lr_max = $lr_max, lr_min = $lr_min, warmup = $warmup")
 println("grad_accum = $grad_accum, plotting = $plotting")
@@ -54,7 +83,7 @@ println("results_dir = $results_dir")
 println("loss_png_every = $loss_png_every\n")
 
 rng = Random.MersenneTwister(seed)
-ps, st = Lux.setup(rng, policy)
+ps, st = Lux.setup(rng, ablation_model)
 
 xdev = reactant_device()
 println("Using device: ", xdev)
@@ -63,14 +92,14 @@ ps_ra = ps |> xdev
 st_ra = st |> xdev
 
 on_iteration = loss_plot_callback(;
-    title="Training Loss",
+    title="Training Loss (Ablation: Flat MLP)",
     output_path=joinpath(results_dir, "plot_training_loss.png"),
     save_every=loss_png_every, n_iters)
 
 println("Starting training...")
 t_start = time()
 train_state, loss_history = train_policy(
-    policy, ps_ra, st_ra, rng;
+    ablation_model, ps_ra, st_ra, rng;
     xdev = xdev,
     n_iters = n_iters,
     on_iteration = on_iteration,
@@ -89,11 +118,6 @@ per_iter = t_train / n_iters
 println("\nTraining complete.")
 @printf("Training time: %.1fs (%.1fs/iter)\n", t_train, per_iter)
 @printf("Best loss: %.7f @ iter %d\n", best_loss, best_iter)
-
-if plotting
-    include(joinpath(@__DIR__, "plot_trajectories.jl"))
-    plot_trajectories(policy, train_state; rng=rng, outfile=joinpath(results_dir, "plot_trajectories.png"))
-end
 
 t_total = time() - t_start
 @printf("Total wall time (incl. compilation): %.1fs\n", t_total)

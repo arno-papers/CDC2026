@@ -1,0 +1,18 @@
+# Architecture Ablation — Paired sPCE Evaluation
+# Date: 2026-03-17 09:12:06
+
+n_trials = 1000
+L = 5000
+M = 5000
+B = 32
+n_substeps = 10
+seed = 42
+wall_time_s = 5950.8
+
+=== Results (targeted sPCE, higher = more informative) ===
+
+  Full Transformer           mean =   1.7093  std =   0.9705  SEM = 0.0307  (n=1000)
+  Flat MLP                   mean =   1.6789  std =   0.9855  SEM = 0.0312  (n=1000)
+  Transformer (no PE)        mean =   1.3635  std =   0.9598  SEM = 0.0304  (n=1000)
+  Paired: Full - Flat MLP            delta = +0.0304 ± 0.0136 (SEM)  t=  2.24
+  Paired: Full - Transformer (no PE)  delta = +0.3458 ± 0.0286 (SEM)  t= 12.09

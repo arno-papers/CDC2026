@@ -84,9 +84,10 @@ const N_NOISE_CHANNELS = 1
 
 include(joinpath(@__DIR__, "..", "..", "src", "utils.jl"))
 
-const ODE_BUDGET_TRAJ = 2_000_000
-const (L_CONTRASTIVE, M_NUISANCE, GRAD_BATCH) = allocate_budget(ODE_BUDGET_TRAJ)
-const GRAD_ACCUM_STEPS = 16
+const ODE_BUDGET_TRAJ = 56_000_000
+const GRAD_ACCUM_STEPS = 8
+const (L_CONTRASTIVE, M_NUISANCE, _B_MICRO) = allocate_budget(ODE_BUDGET_TRAJ; B_multiplier=GRAD_ACCUM_STEPS)
+const GRAD_BATCH = _B_MICRO * GRAD_ACCUM_STEPS
 
 # ============================================================================
 #  Sampling

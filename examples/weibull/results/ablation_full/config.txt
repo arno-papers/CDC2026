@@ -1,0 +1,33 @@
+date: 2026-03-17
+experiment: Ablation: Full Transformer (200 iter)
+
+# Model
+V_C = 10.0
+V_P = 30.0
+target: k_a ∈ [0.5, 3.0], k_tr ∈ [0.5, 3.0]
+nuisance_dyn: CL ∈ [1.0, 5.0], Q_d ∈ [0.5, 3.0]
+nuisance_obs: σ_prop ∈ [0.05, 0.2], σ_add ∈ [0.01, 0.1]
+
+# Hyperparameters
+n_iters = 200
+lr_max = 0.003
+lr_min = 1.0e-5
+warmup = 50
+optimizer = Adam
+grad_accum = 8
+B_micro = 16506
+B_total = 132048
+L_contrastive = 725
+M_nuisance = 727
+N_STEPS = 24
+N_SUBSTEPS = 10
+DT = 1.0
+seed = 0
+ode_budget = 24000000
+
+# Results
+best_loss = -1.3121206
+best_iter = 151
+training_time_s = 6297.6
+per_iter_s = 31.5
+total_wall_time_s = 6297.7

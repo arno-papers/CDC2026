@@ -71,11 +71,9 @@ end
 #  Standalone
 # ============================================================================
 
-if abspath(PROGRAM_FILE) == @__FILE__
-    results_dir = joinpath(@__DIR__, "results")
-    comparison_file = joinpath(results_dir, "comparison_results.jls")
-    @assert isfile(comparison_file) "comparison_results.jls not found. Run eval_comparison.jl first."
+results_dir = joinpath(@__DIR__, "results")
+comparison_file = joinpath(results_dir, "comparison_results.jls")
+@assert isfile(comparison_file) "comparison_results.jls not found. Run eval_comparison.jl first."
 
-    cr = deserialize(comparison_file)
-    plot_policy_timing(cr)
-end
+cr = deserialize(comparison_file)
+plot_policy_timing(cr)

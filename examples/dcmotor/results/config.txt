@@ -1,5 +1,5 @@
-date: 2026-03-14
-experiment: DC Motor, ODE_BUDGET=2000000, cosine LR
+date: 2026-03-16
+experiment: DC Motor, ODE_BUDGET=56000000, cosine LR
 
 # Hyperparameters
 n_iters = 1000
@@ -7,20 +7,20 @@ lr_max = 0.003
 lr_min = 1.0e-5
 warmup = 50
 optimizer = Adam
-grad_accum = 16
-B_micro = 390
-B_total = 6250
-L_contrastive = 158
-M_nuisance = 160
+grad_accum = 8
+B_micro = 29106
+B_total = 232848
+L_contrastive = 960
+M_nuisance = 962
 N_STEPS = 10
 N_SUBSTEPS = 10
 DT = 0.01
 seed = 0
-ode_budget = 2000000
+ode_budget = 56000000
 
 # Results
-best_loss = -2.7286589
-best_iter = 808
-training_time_s = 552.3
-per_iter_s = 0.6
-total_wall_time_s = 552.4
+best_loss = -2.9169910
+best_iter = 818
+training_time_s = 13330.6
+per_iter_s = 13.3
+total_wall_time_s = 13330.7

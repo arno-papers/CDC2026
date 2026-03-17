@@ -1,12 +1,12 @@
 # DC Motor Comparison: Adaptive sPCE vs Adaptive BIM
-# Date: 2026-03-15 03:28:33
+# Date: 2026-03-16 17:37:55
 
 n_trials = 500
 L = 5000, M = 5000, N_post = 5000
 map_iters = 100, n_grid = 100
-wall_time_s = 884.2
+wall_time_s = 897.7
 
-Adaptive (sPCE)       sPCE =  2.956 +/- 0.057  RMSE(k) = 0.0206  RMSE(J) = 0.00295  time/step = 24 us
+Adaptive (sPCE)       sPCE =  2.958 +/- 0.057  RMSE(k) = 0.0206  RMSE(J) = 0.00294  time/step = 24 us
 Adaptive (BIM)        sPCE =  2.555 +/- 0.059  RMSE(k) = 0.0351  RMSE(J) = 0.00462  time/step = 0.007 s
 
-Paired: sPCE - BIM  delta = +0.4011 +/- 0.0595  t=6.74
+Paired: sPCE - BIM  delta = +0.4024 +/- 0.0594  t=6.77
