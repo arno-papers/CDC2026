@@ -167,7 +167,7 @@ end
 # ============================================================================
 
 checkpoint       = joinpath(@__DIR__, "results")
-n_trials         = 2000
+n_trials         = 5000
 N_post           = 5000
 B                = 32
 n_substeps       = N_SUBSTEPS

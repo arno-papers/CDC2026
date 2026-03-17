@@ -49,7 +49,7 @@ function convex_hull_2d(px::Vector{T}, py::Vector{T}) where T
     return (hx, hy)
 end
 
-function confidence_hull(px::AbstractVector, py::AbstractVector; frac::Float64=0.95)
+function confidence_hull(px::AbstractVector, py::AbstractVector; frac::Float64=0.90)
     cx, cy = median(px), median(py)
     mad_x = max(median(abs.(px .- cx)), 1e-12)
     mad_y = max(median(abs.(py .- cy)), 1e-12)

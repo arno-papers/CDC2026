@@ -1,4 +1,4 @@
-date: 2026-03-13
+date: 2026-03-17
 experiment: ODE_BUDGET=6250000, cosine LR
 
 # Hyperparameters
@@ -19,8 +19,8 @@ seed = 0
 ode_budget = 6250000
 
 # Results
-best_loss = -2.5784504
+best_loss = -2.5774145
 best_iter = 970
-training_time_s = 15398.4
+training_time_s = 15357.7
 per_iter_s = 15.4
-total_wall_time_s = 15398.5
+total_wall_time_s = 15357.9

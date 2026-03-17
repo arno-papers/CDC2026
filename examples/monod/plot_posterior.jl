@@ -36,7 +36,7 @@ N_post   = results["N_post"]
 
 # ---- Plot 1: Posterior mean scatter ----
 p = plot(; xlabel = "Posterior mean μ_max", ylabel = "Posterior mean K_s",
-           title = @sprintf("Posterior means (%d trials, N=%d)", n_trials, N_post),
+           title = "",
            legend = :outertopright, size = (750, 600))
 
 for name in DESIGN_ORDER

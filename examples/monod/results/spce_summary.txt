@@ -1,21 +1,21 @@
 # Targeted sPCE Evaluation (GPU)
-# Date: 2026-03-13 21:08:59
+# Date: 2026-03-17 21:10:32
 
-n_trials = 500
-L = 1000
-M = 1000
-B = 10
+n_trials = 1000
+L = 5000
+M = 5000
+B = 32
 n_substeps = 50
 seed = 0
-wall_time_s = 3761.8
+wall_time_s = 2556.9
 
-static_std_design   = [0.39, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.3433, 0.6108, 0.8703, 4.2927, 2.29, 0.9436]
-static_spce_design  = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.2039, 0.2613, 3.1193, 1.0114, 0.0]
+static_std_design = [0.4038, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.3534, 0.612, 0.976, 4.7444, 1.938, 1.004]
+static_spce_design = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.1254, 0.23, 0.3493, 3.6041, 0.7859, 0.0]
 
 === Results (targeted sPCE, higher = more informative) ===
 
-  Adaptive policy                 mean =   3.0980  std =   1.2270  SEM = 0.0549  (n=500)
-  Static (BIM)                    mean =   2.4692  std =   1.3936  SEM = 0.0623  (n=500)
-  Static (sPCE-opt)               mean =   2.6085  std =   1.1406  SEM = 0.0510  (n=500)
-  Paired: Adaptive - Static (BIM)          delta = +0.6288 ± 0.0654 (SEM)  t=  9.62
-  Paired: Adaptive - Static (sPCE-opt)     delta = +0.4895 ± 0.0604 (SEM)  t=  8.11
+  Adaptive policy                 mean =   3.6819  std =   1.2725  SEM = 0.0402  (n=1000)
+  Static (BIM)                    mean =   3.4478  std =   1.3020  SEM = 0.0412  (n=1000)
+  Static (sPCE-opt)               mean =   3.3430  std =   1.1602  SEM = 0.0367  (n=1000)
+  Paired: Adaptive - Static (BIM)          delta = +0.2341 ± 0.0444 (SEM)  t=  5.27
+  Paired: Adaptive - Static (sPCE-opt)     delta = +0.3390 ± 0.0451 (SEM)  t=  7.52

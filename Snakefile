@@ -31,7 +31,7 @@ rule all:
 rule train:
     input: f"{MONOD}/train.jl", *DEPS
     output: f"{RESULTS}/checkpoint.jls", f"{RESULTS}/plot_training_loss.png"
-    shell: "./vsc/train_remote.sh"
+    shell: "WALLTIME=6:00:00 ./vsc/train_remote.sh"
 
 # ---- BIM design optimization (CPU, local, sequential via resource lock) ----
 rule optimize_bim:
@@ -44,7 +44,7 @@ rule optimize_bim:
 rule optimize_static:
     input: f"{MONOD}/optimize_static.jl", *DEPS
     output: f"{RESULTS}/design_spce.jls"
-    shell: "TASK=optimize_static WALLTIME=4:00:00 ./vsc/train_remote.sh"
+    shell: "TASK=optimize_static WALLTIME=6:00:00 ./vsc/train_remote.sh"
 
 # ---- sPCE evaluation (GPU, local) ----
 rule eval_spce:
