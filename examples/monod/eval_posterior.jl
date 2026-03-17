@@ -166,164 +166,162 @@ end
 #  Main
 # ============================================================================
 
-if abspath(PROGRAM_FILE) == @__FILE__
-    checkpoint       = joinpath(@__DIR__, "results")
-    n_trials         = 2000
-    N_post           = 5000
-    B                = 32
-    n_substeps       = N_SUBSTEPS
-    seed             = 0
-    Random.seed!(seed)
+checkpoint       = joinpath(@__DIR__, "results")
+n_trials         = 2000
+N_post           = 5000
+B                = 32
+n_substeps       = N_SUBSTEPS
+seed             = 0
+Random.seed!(seed)
 
-    # True parameters: high μ, low K — adaptive's strength
-    true_μ   = 0.47f0
-    true_K   = 0.345f0
-    true_σ   = Float32(Float64(σ_lo + σ_hi) / 2)
-    true_Cx0 = Float32(Float64(Cx0_lo + Cx0_hi) / 2)
-    θT       = Float32[true_μ, true_K]
+# True parameters: high μ, low K — adaptive's strength
+true_μ   = 0.47f0
+true_K   = 0.345f0
+true_σ   = Float32(Float64(σ_lo + σ_hi) / 2)
+true_Cx0 = Float32(Float64(Cx0_lo + Cx0_hi) / 2)
+θT       = Float32[true_μ, true_K]
 
-    results_dir = joinpath(@__DIR__, "results")
-    mkpath(results_dir)
+results_dir = joinpath(@__DIR__, "results")
+mkpath(results_dir)
 
-    ps_cpu, st_cpu, _ = load_checkpoint_cpu(checkpoint)
+ps_cpu, st_cpu, _ = load_checkpoint_cpu(checkpoint)
 
-    static_designs = load_static_designs(results_dir)
-    has_spce_opt = any(p -> p.first == "static_spce", static_designs)
+static_designs = load_static_designs(results_dir)
+has_spce_opt = any(p -> p.first == "static_spce", static_designs)
 
-    design_names = String["adaptive"; [n for (n, _) in static_designs]]
+design_names = String["adaptive"; [n for (n, _) in static_designs]]
 
-    println("\n=== GPU-Accelerated Posterior Mean Evaluation ===")
-    println("n_trials   = $n_trials")
-    println("N_post     = $N_post")
-    println("B          = $B")
-    println("n_substeps = $n_substeps")
-    println("seed       = $seed")
-    @printf("true_mu_max = %.4f\n", true_μ)
-    @printf("true_K_s    = %.4f\n", true_K)
-    @printf("true_sigma  = %.4f\n", true_σ)
-    @printf("true_Cx0    = %.4f\n", true_Cx0)
-    println()
-    for (name, d) in static_designs
-        println("$name: [", join(round.(d; digits=3), ", "), "]")
-    end
-    println()
-    flush(stdout)
-
-    Reactant.set_default_backend("gpu")
-    xdev = reactant_device()
-    println("Using device: ", xdev)
-
-    u0 = make_u0()
-    u0_ra = u0 |> xdev
-
-    rng_setup = MersenneTwister(seed)
-    dummy_model = Dense(1 => 1)
-    ps_dummy, st_dummy = Lux.setup(rng_setup, dummy_model)
-    ps_dummy_ra = ps_dummy |> xdev
-    st_dummy_ra = st_dummy |> xdev
-
-    println("\nStarting evaluation...")
-    flush(stdout)
-    t_start = time()
-
-    res = evaluate_scenario(;
-        true_μ, true_K, true_σ, true_Cx0,
-        ps_cpu, st_cpu, static_designs, design_names,
-        n_trials, N_post, B, n_substeps, seed,
-        u0_ra, ps_dummy_ra, st_dummy_ra, dummy_model, xdev)
-
-    all_post_means = res.all_post_means
-    all_post_vars  = res.all_post_vars
-    all_ess        = res.all_ess
-
-    t_total = time() - t_start
-    @printf("\nTotal evaluation time: %.1fs\n", t_total)
-
-    # ---- Summary ----
-    println("\n=== Posterior Mean Quality ===\n")
-
-    header = @sprintf("  %-30s  %10s %10s %10s %10s %10s",
-                       "Design", "RMSE(mu)", "RMSE(K)", "Bias(mu)", "Bias(K)", "med ESS")
-    sep    = @sprintf("  %-30s  %10s %10s %10s %10s %10s",
-                       "-"^30, "-"^10, "-"^10, "-"^10, "-"^10, "-"^10)
-    println(header)
-    println(sep)
-
-    summary_lines = [header, sep]
-
-    for name in DESIGN_ORDER
-        haskey(all_post_means, name) || continue
-        pm = all_post_means[name]
-        ess_vals = all_ess[name]
-        style = get(DESIGN_STYLES, name, (label = name, color = :black))
-
-        δ_μ = pm[1, :] .- true_μ
-        δ_K = pm[2, :] .- true_K
-        rmse_μ = sqrt(mean(δ_μ .^ 2))
-        rmse_K = sqrt(mean(δ_K .^ 2))
-        bias_μ = mean(δ_μ)
-        bias_K = mean(δ_K)
-        med_ess = median(ess_vals)
-
-        line = @sprintf("  %-30s  %10.6f %10.6f %+10.6f %+10.6f %10.1f",
-                         style.label, rmse_μ, rmse_K, bias_μ, bias_K, med_ess)
-        println(line)
-        push!(summary_lines, line)
-    end
-    flush(stdout)
-
-    # ---- Save ----
-    results = Dict{String, Any}(
-        "true_mu_max"          => true_μ,
-        "true_K_s"             => true_K,
-        "true_sigma"           => true_σ,
-        "true_Cx0"             => true_Cx0,
-        "posterior_means"      => Dict(name => all_post_means[name] for name in keys(all_post_means)),
-        "posterior_vars"       => Dict(name => all_post_vars[name] for name in keys(all_post_vars)),
-        "ess"                  => Dict(name => all_ess[name] for name in keys(all_ess)),
-        "n_trials"             => n_trials,
-        "N_post"               => N_post,
-        "B"                    => B,
-        "n_substeps"           => n_substeps,
-        "seed"                 => seed,
-        "wall_time_s"          => t_total,
-    )
-    serialize(joinpath(results_dir, "posterior_results.jls"), results)
-
-    # ---- Summary file ----
-    open(joinpath(results_dir, "posterior_summary.txt"), "w") do io
-        println(io, "# Posterior Mean Evaluation (GPU)")
-        println(io, "# Date: $(Dates.format(Dates.now(), "yyyy-mm-dd HH:MM:SS"))")
-        println(io)
-        println(io, "n_trials = $n_trials")
-        println(io, "N_post = $N_post")
-        println(io, "B = $B")
-        println(io, "n_substeps = $n_substeps")
-        println(io, "seed = $seed")
-        @printf(io, "true_mu_max = %.4f\n", true_μ)
-        @printf(io, "true_K_s    = %.4f\n", true_K)
-        @printf(io, "true_sigma  = %.4f\n", true_σ)
-        @printf(io, "true_Cx0    = %.4f\n", true_Cx0)
-        @printf(io, "wall_time_s = %.1f\n", t_total)
-        println(io)
-        for (name, d) in static_designs
-            println(io, "$name = [", join(round.(d; digits=4), ", "), "]")
-        end
-        println(io)
-        for line in summary_lines
-            println(io, line)
-        end
-        println(io)
-        println(io, "=== Posterior Std (median across trials) ===")
-        for name in DESIGN_ORDER
-            haskey(all_post_vars, name) || continue
-            style = get(DESIGN_STYLES, name, (label = name, color = :black))
-            med_std_μ = median(sqrt.(Float64.(all_post_vars[name][1, :])))
-            med_std_K = median(sqrt.(Float64.(all_post_vars[name][2, :])))
-            @printf(io, "  %-30s  med_std(mu) = %.6f  med_std(K) = %.6f\n",
-                     style.label, med_std_μ, med_std_K)
-        end
-    end
-
-    println("\nDone. Outputs in: $results_dir")
+println("\n=== GPU-Accelerated Posterior Mean Evaluation ===")
+println("n_trials   = $n_trials")
+println("N_post     = $N_post")
+println("B          = $B")
+println("n_substeps = $n_substeps")
+println("seed       = $seed")
+@printf("true_mu_max = %.4f\n", true_μ)
+@printf("true_K_s    = %.4f\n", true_K)
+@printf("true_sigma  = %.4f\n", true_σ)
+@printf("true_Cx0    = %.4f\n", true_Cx0)
+println()
+for (name, d) in static_designs
+    println("$name: [", join(round.(d; digits=3), ", "), "]")
 end
+println()
+flush(stdout)
+
+Reactant.set_default_backend("gpu")
+xdev = reactant_device()
+println("Using device: ", xdev)
+
+u0 = make_u0()
+u0_ra = u0 |> xdev
+
+rng_setup = MersenneTwister(seed)
+dummy_model = Dense(1 => 1)
+ps_dummy, st_dummy = Lux.setup(rng_setup, dummy_model)
+ps_dummy_ra = ps_dummy |> xdev
+st_dummy_ra = st_dummy |> xdev
+
+println("\nStarting evaluation...")
+flush(stdout)
+t_start = time()
+
+res = evaluate_scenario(;
+    true_μ, true_K, true_σ, true_Cx0,
+    ps_cpu, st_cpu, static_designs, design_names,
+    n_trials, N_post, B, n_substeps, seed,
+    u0_ra, ps_dummy_ra, st_dummy_ra, dummy_model, xdev)
+
+all_post_means = res.all_post_means
+all_post_vars  = res.all_post_vars
+all_ess        = res.all_ess
+
+t_total = time() - t_start
+@printf("\nTotal evaluation time: %.1fs\n", t_total)
+
+# ---- Summary ----
+println("\n=== Posterior Mean Quality ===\n")
+
+header = @sprintf("  %-30s  %10s %10s %10s %10s %10s",
+                   "Design", "RMSE(mu)", "RMSE(K)", "Bias(mu)", "Bias(K)", "med ESS")
+sep    = @sprintf("  %-30s  %10s %10s %10s %10s %10s",
+                   "-"^30, "-"^10, "-"^10, "-"^10, "-"^10, "-"^10)
+println(header)
+println(sep)
+
+summary_lines = [header, sep]
+
+for name in DESIGN_ORDER
+    haskey(all_post_means, name) || continue
+    pm = all_post_means[name]
+    ess_vals = all_ess[name]
+    style = get(DESIGN_STYLES, name, (label = name, color = :black))
+
+    δ_μ = pm[1, :] .- true_μ
+    δ_K = pm[2, :] .- true_K
+    rmse_μ = sqrt(mean(δ_μ .^ 2))
+    rmse_K = sqrt(mean(δ_K .^ 2))
+    bias_μ = mean(δ_μ)
+    bias_K = mean(δ_K)
+    med_ess = median(ess_vals)
+
+    line = @sprintf("  %-30s  %10.6f %10.6f %+10.6f %+10.6f %10.1f",
+                     style.label, rmse_μ, rmse_K, bias_μ, bias_K, med_ess)
+    println(line)
+    push!(summary_lines, line)
+end
+flush(stdout)
+
+# ---- Save ----
+results = Dict{String, Any}(
+    "true_mu_max"          => true_μ,
+    "true_K_s"             => true_K,
+    "true_sigma"           => true_σ,
+    "true_Cx0"             => true_Cx0,
+    "posterior_means"      => Dict(name => all_post_means[name] for name in keys(all_post_means)),
+    "posterior_vars"       => Dict(name => all_post_vars[name] for name in keys(all_post_vars)),
+    "ess"                  => Dict(name => all_ess[name] for name in keys(all_ess)),
+    "n_trials"             => n_trials,
+    "N_post"               => N_post,
+    "B"                    => B,
+    "n_substeps"           => n_substeps,
+    "seed"                 => seed,
+    "wall_time_s"          => t_total,
+)
+serialize(joinpath(results_dir, "posterior_results.jls"), results)
+
+# ---- Summary file ----
+open(joinpath(results_dir, "posterior_summary.txt"), "w") do io
+    println(io, "# Posterior Mean Evaluation (GPU)")
+    println(io, "# Date: $(Dates.format(Dates.now(), "yyyy-mm-dd HH:MM:SS"))")
+    println(io)
+    println(io, "n_trials = $n_trials")
+    println(io, "N_post = $N_post")
+    println(io, "B = $B")
+    println(io, "n_substeps = $n_substeps")
+    println(io, "seed = $seed")
+    @printf(io, "true_mu_max = %.4f\n", true_μ)
+    @printf(io, "true_K_s    = %.4f\n", true_K)
+    @printf(io, "true_sigma  = %.4f\n", true_σ)
+    @printf(io, "true_Cx0    = %.4f\n", true_Cx0)
+    @printf(io, "wall_time_s = %.1f\n", t_total)
+    println(io)
+    for (name, d) in static_designs
+        println(io, "$name = [", join(round.(d; digits=4), ", "), "]")
+    end
+    println(io)
+    for line in summary_lines
+        println(io, line)
+    end
+    println(io)
+    println(io, "=== Posterior Std (median across trials) ===")
+    for name in DESIGN_ORDER
+        haskey(all_post_vars, name) || continue
+        style = get(DESIGN_STYLES, name, (label = name, color = :black))
+        med_std_μ = median(sqrt.(Float64.(all_post_vars[name][1, :])))
+        med_std_K = median(sqrt.(Float64.(all_post_vars[name][2, :])))
+        @printf(io, "  %-30s  med_std(mu) = %.6f  med_std(K) = %.6f\n",
+                 style.label, med_std_μ, med_std_K)
+    end
+end
+
+println("\nDone. Outputs in: $results_dir")

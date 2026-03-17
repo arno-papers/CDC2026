@@ -4,17 +4,15 @@ include(joinpath(@__DIR__, "..", "..", "src", "common_core.jl"))
 
 include(joinpath(@__DIR__, "plot_trajectories.jl"))
 
-if abspath(PROGRAM_FILE) == @__FILE__
-    results_dir = joinpath(@__DIR__, "results")
-    file = length(ARGS) >= 1 ? ARGS[1] : joinpath(results_dir, "checkpoint.jls")
-    @assert isfile(file) "Checkpoint not found: $file. Run training first."
+results_dir = joinpath(@__DIR__, "results")
+file = length(ARGS) >= 1 ? ARGS[1] : joinpath(results_dir, "checkpoint.jls")
+@assert isfile(file) "Checkpoint not found: $file. Run training first."
 
-    ckpt = deserialize(file)
+ckpt = deserialize(file)
 
-    static_designs = load_static_designs(results_dir)
+static_designs = load_static_designs(results_dir)
 
-    rng = Random.MersenneTwister(42)
-    plot_design_comparison(policy, ckpt["parameters"], ckpt["states"],
-        static_designs; rng,
-        outfile=joinpath(results_dir, "plot_dynamics.png"))
-end
+rng = Random.MersenneTwister(42)
+plot_design_comparison(policy, ckpt["parameters"], ckpt["states"],
+    static_designs; rng,
+    outfile=joinpath(results_dir, "plot_dynamics.png"))
