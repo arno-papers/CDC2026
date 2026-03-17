@@ -45,6 +45,8 @@ rng = Random.MersenneTwister(42)
 n_samples = 20
 
 t_states = range(0, N_STEPS * DT; length=N_STEPS * N_SUBSTEPS + 1)
+t_obs = Float32.(1:N_STEPS) .* DT
+obs_idx = [k * N_SUBSTEPS + 1 for k in 1:N_STEPS]
 t_designs = Float32.(1:N_STEPS) .* DT
 
 # Fix absorption parameters at midrange
@@ -71,15 +73,17 @@ for i in 1:n_samples
 
     cc_l, cp_l, d_l = rollout_trajectory_cpu(policy, ps_cpu, st_cpu, rng, theta_low, sp_mid, sa_mid)
     plot!(p_cc, t_states, cc_l; lw=0.8, alpha=0.3, color=:steelblue, label=label_lo)
+    scatter!(p_cc, t_obs, cc_l[obs_idx]; markersize=2, alpha=0.3, color=:steelblue, label="")
     plot!(p_cp, t_states, cp_l; lw=0.8, alpha=0.3, color=:steelblue, label=label_lo)
     plot!(p_d, t_designs, d_l; lw=0.8, alpha=0.3, color=:steelblue, label=label_lo,
-          marker=:circle, markersize=2)
+          seriestype=:steppost)
 
     cc_h, cp_h, d_h = rollout_trajectory_cpu(policy, ps_cpu, st_cpu, rng, theta_high, sp_mid, sa_mid)
     plot!(p_cc, t_states, cc_h; lw=0.8, alpha=0.3, color=:crimson, label=label_hi)
+    scatter!(p_cc, t_obs, cc_h[obs_idx]; markersize=2, alpha=0.3, color=:crimson, label="")
     plot!(p_cp, t_states, cp_h; lw=0.8, alpha=0.3, color=:crimson, label=label_hi)
     plot!(p_d, t_designs, d_h; lw=0.8, alpha=0.3, color=:crimson, label=label_hi,
-          marker=:circle, markersize=2)
+          seriestype=:steppost)
 end
 
 plt = plot(p_cc, p_cp, p_d;

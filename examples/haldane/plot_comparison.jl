@@ -49,6 +49,8 @@ function plot_comparison(model, ps_cpu, st_cpu;
     theta_yes = Float32[mu_max_mid, K_s_mid, alpha_inhib]
 
     t_states = range(0, N_STEPS * DT; length=N_STEPS * N_SUBSTEPS + 1)
+    t_obs = Float32.(1:N_STEPS) .* DT   # observation times
+    obs_idx = [k * N_SUBSTEPS + 1 for k in 1:N_STEPS]  # indices into substep trajectory
     t_designs = (1:N_STEPS) .* DT
 
     p_cs = plot(title="Substrate concentration", xlabel="Time (h)", ylabel="Cs (g/L)",
@@ -67,15 +69,17 @@ function plot_comparison(model, ps_cpu, st_cpu;
 
         cs_no, cx_no, d_no = rollout_trajectory_cpu(model, ps_cpu, st_cpu, rng, theta_no, sigma; Cx0=Cx0)
         plot!(p_cs, t_states, cs_no; lw=0.8, alpha=0.3, color=:steelblue, label=label_no)
+        scatter!(p_cs, t_obs, cs_no[obs_idx]; markersize=2, alpha=0.3, color=:steelblue, label="")
         plot!(p_cx, t_states, cx_no; lw=0.8, alpha=0.3, color=:steelblue, label=label_no)
         plot!(p_qin, t_designs, d_no; lw=0.8, alpha=0.3, color=:steelblue, label=label_no,
-              marker=:circle, markersize=2)
+              seriestype=:steppost)
 
         cs_yes, cx_yes, d_yes = rollout_trajectory_cpu(model, ps_cpu, st_cpu, rng, theta_yes, sigma; Cx0=Cx0)
         plot!(p_cs, t_states, cs_yes; lw=0.8, alpha=0.3, color=:crimson, label=label_yes)
+        scatter!(p_cs, t_obs, cs_yes[obs_idx]; markersize=2, alpha=0.3, color=:crimson, label="")
         plot!(p_cx, t_states, cx_yes; lw=0.8, alpha=0.3, color=:crimson, label=label_yes)
         plot!(p_qin, t_designs, d_yes; lw=0.8, alpha=0.3, color=:crimson, label=label_yes,
-              marker=:circle, markersize=2)
+              seriestype=:steppost)
     end
 
     plt = plot(p_cs, p_cx, p_qin; layout=(1, 3), size=(1200, 350),
