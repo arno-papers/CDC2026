@@ -36,7 +36,7 @@
 \begin{document}
 
 \title{Deep Adaptive Model-Based Design of Experiments\\
-\thanks{Preliminary version. A six-page conference paper has been submitted to the 2026 IEEE Conference on Decision and Control (CDC). This extended version will be updated with final results.}
+\thanks{\ifextended Preliminary version. A six-page conference paper has been submitted to the 2026 IEEE Conference on Decision and Control (CDC). This extended version will be updated with final results.\else An extended version with proofs, training details, and ablation studies is available~\citep{strouwen2026extended}.\fi{} Code: \protect\url{https://github.com/arno-papers/CDC2026}.}
 }
 
 \author{\IEEEauthorblockN{Arno Strouwen}
@@ -68,7 +68,7 @@ Bayesian optimal experimental design (BOED) provides a principled framework for 
 Deep Adaptive Design (DAD)~\citep{foster2021} addresses this bottleneck by amortizing sequential design into a neural network policy trained offline. iDAD~\citep{ivanova2021implicit} extended this to implicit (likelihood-free) models.
 However, for the mechanistic models central to MBDOE, explicit likelihoods \emph{are} available via differentiable simulation~\citep{rackauckas}. This allows us to use the sequential Prior Contrastive Estimation (sPCE) bounds of the original DAD framework, which require explicit likelihoods, and to differentiate end-to-end through the simulator for low-variance gradient estimates.
 
-In this paper, we combine DAD with differentiable mechanistic models to enable real-time adaptive MBDOE for dynamical systems with known governing equations and uncertain parameters.\footnote{Code: \url{https://github.com/arno-papers/CDC2026}}
+In this paper, we combine DAD with differentiable mechanistic models to enable real-time adaptive MBDOE for dynamical systems with known governing equations and uncertain parameters.
 
 Our contributions are:
 \begin{itemize}
@@ -351,6 +351,9 @@ Finally, scaling to higher-dimensional parameter spaces and longer experimental 
 
 \section*{Acknowledgment}
 The resources and services used in this work were provided by the VSC (Flemish Supercomputer Center), funded by the Research Foundation -- Flanders (FWO) and the Flemish Government.
+
+\noindent\textit{Use of generative AI:}
+Claude~\citep{anthropic2025claude} was used as a programming assistant for implementing the Julia codebase and as a writing aid for drafting and editing manuscript text. All methodological decisions, experimental design, result interpretation, and scientific claims are the authors' own. The authors verified all outputs and take full responsibility for the content.
 
 \bibliographystyle{plainnat}
 \bibliography{references}
