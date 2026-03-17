@@ -72,9 +72,10 @@ const α_lo, α_hi = 0.0f0, 0.15f0
 
 include(joinpath(@__DIR__, "..", "..", "src", "utils.jl"))
 
-const ODE_BUDGET_TRAJ = 2121728
-const (L_CONTRASTIVE, M_NUISANCE, GRAD_BATCH) = allocate_budget(ODE_BUDGET_TRAJ)
-const GRAD_ACCUM_STEPS = 16
+const ODE_BUDGET_TRAJ = 6_365_184
+const GRAD_ACCUM_STEPS = 8
+const (L_CONTRASTIVE, M_NUISANCE, _B_MICRO) = allocate_budget(ODE_BUDGET_TRAJ; B_multiplier=GRAD_ACCUM_STEPS)
+const GRAD_BATCH = _B_MICRO * GRAD_ACCUM_STEPS
 
 # ============================================================================
 #  Sampling
