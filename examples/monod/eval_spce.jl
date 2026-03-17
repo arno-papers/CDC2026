@@ -211,11 +211,11 @@ B                = 32
 # Parse CLI args (key=value), e.g.: julia ... eval_spce.jl n_trials=500 L=1000
 for arg in ARGS
     key, val = split(arg, '='; limit=2)
-    if     key == "n_trials";  n_trials  = parse(Int, val)
-    elseif key == "L";        L         = parse(Int, val)
-    elseif key == "M";        M         = parse(Int, val)
-    elseif key == "B";        B         = parse(Int, val)
-    elseif key == "seed";     seed      = parse(Int, val)
+    if     key == "n_trials";  global n_trials  = parse(Int, val)
+    elseif key == "L";        global L         = parse(Int, val)
+    elseif key == "M";        global M         = parse(Int, val)
+    elseif key == "B";        global B         = parse(Int, val)
+    elseif key == "seed";     global seed      = parse(Int, val)
     else   @warn "Unknown argument: $arg"
     end
 end
