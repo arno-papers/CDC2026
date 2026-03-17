@@ -263,7 +263,7 @@ Design strategy & sPCE score & \multicolumn{2}{c}{RMSE ($\times 10^3$)} \\
 \begin{figure*}[t]
 \centering
 \includegraphics[width=\textwidth]{figures/haldane_comparison.png}
-\caption{Haldane bioreactor rollouts (20 per scenario, shared nuisance samples). Blue: no inhibition ($\alpha \approx 0$); red: strong inhibition ($\alpha = 0.135$). The policy gives a small initial feed dose under inhibition (right panel, hour~1), then diverges: without inhibition biomass grows rapidly (middle), while inhibition stunts growth to ${\sim}0.5$~g/L. Both cases ramp feed to maximum at the end.}
+\caption{Haldane bioreactor rollouts (20 per scenario, shared nuisance samples). Blue: no inhibition ($\alpha = 0$); red: strong inhibition ($\alpha = 0.15$). The policy gives a small initial feed dose under inhibition (right panel, hour~1), then diverges: without inhibition biomass grows rapidly (middle), while inhibition stunts growth to ${\sim}0.5$~g/L. Both cases ramp feed to maximum at the end.}
 \label{fig:haldane}
 \end{figure*}
 
@@ -284,7 +284,7 @@ A handful of adaptive trials (7/2000, the outliers in Fig.~\ref{fig:posterior}) 
 \paragraph{Haldane substrate inhibition.}
 This example shares the Monod bioreactor setup (same states, feed rate design $Q_{in}$, substrate observation $C_s$) but replaces the growth rate with Haldane kinetics: $\mu = \mu_{\max} C_s / (K_s + C_s + C_s^2/K_i)$, adding substrate inhibition. We set $\alpha = 1/K_i$ as the sole target with a uniform prior $\alpha \sim \text{Uniform}(0, 0.15)$, and treat $\mu_{\max}$, $K_s$, $\sigma$, $C_{x,0}$ as tightly bounded nuisance parameters (e.g., $\mu_{\max} \in [0.39, 0.41]$, $K_s \in [0.44, 0.46]$), so the sPCE objective focuses on discriminating whether inhibition is present ($\alpha = 0$ recovers Monod).
 Unlike the Monod example, where the policy adapts to nuisance variation, here it must adapt to the \emph{target parameter} itself.
-Fig.~\ref{fig:haldane} shows this: under inhibition ($\alpha = 0.135$), the policy applies a small initial feed dose at hour~1, then observes the growth response through its effect on substrate dynamics. The stunted biomass growth (${\sim}0.5$~g/L vs.\ ${\sim}3$~g/L without inhibition) signals the presence of inhibition, after which the policy adjusts the timing of its later feeding. Without inhibition, the policy recovers Monod-like behavior---zero feed during initial growth, then a ramp to maximum.
+Fig.~\ref{fig:haldane} shows this: under inhibition ($\alpha = 0.15$), the policy applies a small initial feed dose at hour~1, then observes the growth response through its effect on substrate dynamics. The stunted biomass growth (${\sim}0.5$~g/L vs.\ ${\sim}3$~g/L without inhibition) signals the presence of inhibition, after which the policy adjusts the timing of its later feeding. Without inhibition, the policy recovers Monod-like behavior---zero feed during initial growth, then a ramp to maximum.
 
 \paragraph{Pharmacokinetic model.}
 A two-compartment PK model with transit absorption describes drug distribution between a central compartment (volume $V_C$) and a peripheral compartment (volume $V_P$), fed by a three-stage transit chain:
