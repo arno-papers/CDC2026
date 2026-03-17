@@ -204,6 +204,12 @@ ess_bim          = zeros(Float64, n_trials)
 spce_step_times  = zeros(Float64, N_STEPS, n_trials)
 bim_step_times   = zeros(Float64, N_STEPS, n_trials)
 
+# Extra warmup: run a few untimed rollouts so JIT and CPU caches are fully warm
+for _ in 1:3
+    rollout_spce_timed(policy, ps_cpu, st_cpu, MersenneTwister(999),
+                       0.5, 0.025, 0.01, 1.0; n_substeps=n_substeps)
+end
+
 t_start = time()
 
 for trial in 1:n_trials
