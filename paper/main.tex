@@ -345,15 +345,15 @@ The policy is trained for a specific prior distribution; significant prior shift
 The current framework assumes the model structure is known---model misspecification is not addressed.
 Training requires GPU hours on a supercomputer, though deployment is lightweight (microseconds per forward pass).
 
-Extending the framework to handle model misspecification via joint Bayesian model selection and parameter estimation is explored in~\cite{strouwen2026modelselection}.
-Deploying the trained policy on physical hardware (e.g., the DC motor testbed) with closed-loop feedback is a natural next step.
-Finally, scaling to higher-dimensional parameter spaces and longer experimental horizons remains an open challenge.
+Combining the framework with our Bayesian model selection approach~\cite{strouwen2026modelselection} to handle model misspecification is a promising direction.
+Incorporating process noise via Bayesian filtering~\cite{strouwen2023adaptive} would further leverage the adaptive policy, as stochastic state drift makes real-time design adaptation particularly valuable.
+Deploying the trained policy on physical hardware with closed-loop feedback is a natural next step.
 
 \section*{Acknowledgment}
 The resources and services used in this work were provided by the VSC (Flemish Supercomputer Center), funded by the Research Foundation -- Flanders (FWO) and the Flemish Government.
 
 \noindent\textit{Use of generative AI:}
-Claude~\citep{anthropic2025claude} was used as a programming assistant for implementing the Julia codebase and as a writing aid for drafting and editing manuscript text. All methodological decisions, experimental design, result interpretation, and scientific claims are the authors' own. The authors verified all outputs and take full responsibility for the content.
+Claude~\citep{anthropic2025claude} was used as a programming assistant for implementing the Julia codebase and as a writing aid for editing and improving manuscript text. All methodological decisions, experimental design, result interpretation, and scientific claims are the authors' own. The authors verified all outputs and take full responsibility for the content.
 
 \bibliographystyle{plainnat}
 \bibliography{references}
