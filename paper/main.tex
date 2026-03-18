@@ -5,7 +5,7 @@
 % Extended/compact toggle: pass \def\buildmode{cdc} or \def\buildmode{arxiv}
 % before \input{main}. Default (standalone build) is extended.
 \newif\ifextended
-\extendedtrue
+\extendedfalse
 \ifdefined\buildmode
   \def\buildmodecdc{cdc}
   \ifx\buildmode\buildmodecdc \extendedfalse \fi
@@ -36,7 +36,7 @@
 \begin{document}
 
 \title{Deep Adaptive Model-Based Design of Experiments\\
-\thanks{\ifextended Preliminary version. A six-page conference paper has been submitted to the 2026 IEEE Conference on Decision and Control (CDC). This extended version will be updated with final results.\else An extended version with proofs, training details, and ablation studies is available~\citep{strouwen2026extended}.\fi{} Code: \protect\url{https://github.com/arno-papers/CDC2026}.}
+\thanks{\ifextended This work has been submitted to the IEEE for possible publication. Copyright may be transferred without notice, after which this version may no longer be accessible. This is the extended version; a six-page conference paper has been submitted to the 2026 IEEE Conference on Decision and Control (CDC).\else An extended version with proofs, training details, and ablation studies is available~\citep{strouwen2026extended}.\fi{} Code: \protect\url{https://github.com/arno-papers/CDC2026}.}
 }
 
 \author{\IEEEauthorblockN{Arno Strouwen}
@@ -53,7 +53,7 @@ sebastian.mc95@proton.me}
 \maketitle
 
 \begin{abstract}
-Model-based design of experiments (MBDOE) is essential for efficient parameter estimation in nonlinear dynamical systems. However, conventional adaptive MBDOE requires costly posterior inference and design optimization between each experimental step, precluding real-time applications. We address this by combining Deep Adaptive Design (DAD), which amortizes sequential design into a neural network policy trained offline, with differentiable mechanistic models. For dynamical systems with known governing equations but uncertain parameters, we extend sequential contrastive training objectives to handle nuisance parameters and propose a transformer-based policy architecture that respects the temporal structure of dynamical systems. We demonstrate the approach on four systems of increasing complexity: a fed-batch bioreactor with Monod kinetics, a Haldane bioreactor with uncertain substrate inhibition, a two-compartment pharmacokinetic model with nuisance clearance parameters, and a DC motor for real-time deployment.
+Model-based design of experiments (MBDOE) is essential for efficient parameter estimation in nonlinear dynamical systems. However, conventional adaptive MBDOE requires costly posterior inference and design optimization between each experimental step, precluding real-time applications. We address this by combining Deep Adaptive Design (DAD), which amortizes sequential design into a neural network policy trained offline, with differentiable mechanistic models. For dynamical systems with known governing equations but uncertain parameters, we extend sequential contrastive training objectives to handle nuisance parameters and propose a transformer-based policy architecture that respects the temporal structure of dynamical systems. We demonstrate the approach on four systems of increasing complexity: a fed-batch bioreactor with Monod kinetics, a Haldane bioreactor with uncertain substrate inhibition, a two-compartment pharmacokinetic model with nuisance clearance parameters, and a DC motor for real-time deployment. On the Monod bioreactor, the adaptive policy reduces posterior RMSE by about 30\% versus the best static design; on the DC motor, it evaluates in $24~\mu$s per step versus $7.4~\mathrm{ms}$ for non-amortized adaptive design, enabling real-time deployment.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -74,8 +74,8 @@ Our contributions are:
 \begin{itemize}
 \item We formulate adaptive MBDOE for dynamical systems where the model structure is known, training the policy end-to-end by differentiating through the ODE solver and observation model.
 \item We extend the sPCE bound to handle nuisance parameters, enabling targeted inference by marginalizing over nuisance parameters such as measurement noise.
-\item We introduce a transformer-based policy architecture that respects temporal ordering in dynamical systems, replacing the permutation-invariant deep set architecture of the original DAD framework.
-\item We demonstrate the methodology on four examples: a Monod bioreactor, a Haldane bioreactor with uncertain substrate inhibition, a pharmacokinetic model with nuisance adaptation, and a DC motor for real-time deployment.
+\item We retain the transformer-based policy architecture from DAD and adapt it to dynamical systems by making temporal order explicit through positional encoding, rather than treating design-outcome pairs as permutation invariant.
+\item We demonstrate the methodology on four examples: a Monod bioreactor, a Haldane bioreactor illustrating adaptation to target parameters, a pharmacokinetic model illustrating nuisance adaptation together with a brief architecture ablation, and a DC motor for real-time deployment; on the Monod bioreactor the adaptive policy reduces posterior RMSE by about 30\% relative to the best static design, and on the DC motor it evaluates in $24~\mu$s per step versus $7.4~\mathrm{ms}$ for non-amortized adaptive design.
 \end{itemize}
 
 \section{Model}
@@ -94,7 +94,6 @@ The observation noise covariance $\Sigma(x(t_k), \theta_N) \in \mathbb{R}^{q \ti
 We assume a fixed experimental schedule with known measurement times $0 < t_1 < \cdots < t_K$ and piecewise-constant inputs, $u(t)=u_k$ for $t \in [t_{k-1}, t_k)$.
 The design goal is to choose the input profile $u(t)$ (equivalently, the sequence $u_{1:K}$) to maximize the information gained about $\theta_T$.
 
-\label{sec:monod}
 We instantiate this framework on a well-mixed fed-batch bioreactor~\citep{versyck}, with state $x = (C_s, C_x, V)$, input $u = Q_{in}$, and kinetic parameters $\theta_T = (\mu_{\max}, K_s)$.
 We consider a $14$-hour experiment with measurements collected every hour, so $K=14$ and $t_k = k\,\mathrm{h}$ for $k=1,\ldots,K$ (with $t_0=0\,\mathrm{h}$).
 We choose a feed rate $Q_{in,k}$ that is held constant on $[(k-1)\,\mathrm{h}, k\,\mathrm{h})$.
@@ -136,20 +135,19 @@ This is equivalent to maximizing the targeted expected information gain (EIG), t
 The EIG is intractable to compute in general because $p(y|u)$ requires integrating over the full parameter space. Similarly, obtaining the posterior $p(\theta_T|y,u)$ requires the partial marginal likelihood $p(y|\theta_T,u) = \int p(y|\theta_T, \theta_N, u)\,p(\theta_N|\theta_T)\,d\theta_N$, which integrates over the nuisance parameters.
 
 The formulation above is a \emph{static} design: all inputs $u_{1:K}$ are chosen upfront by maximizing the EIG over the full trajectory.
-When $K$ experiments are conducted sequentially, however, one can do better.
-An \emph{adaptive} design instead selects $u_k$ after observing outcomes $y_{1:k-1}$, exploiting the information already gathered.
-The optimal adaptive criterion has a nested structure: the choice of $u_1$ anticipates that $u_2$ will be chosen optimally given $y_1$, which in turn anticipates optimal choice of $u_3$ given $y_{1:2}$, and so on. This is a dynamic programming problem over the space of possible observation sequences.
-The nested criterion is equivalent to optimizing over \emph{policies}---decision rules $\pi_k(h_{k-1})$ that map experimental histories to inputs\ifextended{} (see Appendix~\ref{sec:policy_equiv} for a formal proof)\fi. Once an optimal policy is available, online deployment requires only evaluating the decision rule at each step, avoiding repeated optimization during the experiment. For continuous observation spaces, tabular dynamic programming is infeasible; instead, the policy is parameterized by a neural network and trained offline via Monte Carlo simulation, as we do here.
+In sequential experiments, however, the design should adapt to past observations.
+We therefore optimize over \emph{policies}---decision rules $\pi_k(h_{k-1})$ that map the experimental history $h_{k-1} = ((u_1, y_1), \ldots, (u_{k-1}, y_{k-1}))$ to the next input $u_k$.
+This policy formulation is equivalent to the usual nested adaptive criterion.\ifextended{} See Appendix~\ref{sec:policy_equiv} for a formal proof. \else{} See the extended version~\citep{strouwen2026extended} for a formal proof. \fi
+Once an optimal policy is available, online deployment requires only evaluating the decision rule at each step, avoiding repeated optimization during the experiment. For continuous observation spaces, tabular dynamic programming is infeasible; instead, the policy is parameterized by a neural network and trained offline via Monte Carlo simulation, as we do here.
 
-Let $\theta = (\theta_T, \theta_N)$ denote all unknown parameters,
-$h_k = ((u_1, y_1), \ldots, (u_k, y_k))$ the experimental history, and $u_k = \pi(h_{k-1})$ the policy.
+Let $\theta = (\theta_T, \theta_N)$ denote all unknown parameters, $h_k = ((u_1, y_1), \ldots, (u_k, y_k))$ the experimental history, and $u_k = \pi(h_{k-1})$ the policy.
 The targeted EIG from the full sequential experiment is:
 \begin{equation}
 \mathcal{I}_K^{\text{tgt}}(\pi) = \E_{p(\theta)p(h_K|\theta,\pi)}\left[\log \frac{p(h_K|\theta_T,\pi)}{p(h_K|\pi)}\right] = I(\theta_T; h_K | \pi),
 \end{equation}
 where $p(h_K|\theta_T, \pi) = \int p(h_K|\theta, \pi)\, p(\theta_N|\theta_T) \, d\theta_N$ and $p(h_K|\pi) = \int p(h_K|\theta,\pi)\,p(\theta)\,d\theta$.
 
-Direct optimization of $\mathcal{I}_K^{\text{tgt}}(\pi)$ is intractable due to these marginals. \citet{foster2021} introduced sequential Prior Contrastive Estimation (sPCE), which uses contrastive samples to obtain a tractable lower bound on the sequential EIG. We extend their framework to handle nuisance parameters, yielding a bound on the targeted EIG.
+Direct optimization of $\mathcal{I}_K^{\text{tgt}}(\pi)$ is intractable due to these marginals. \citet{foster2021} introduced sequential Prior Contrastive Estimation (sPCE), which uses contrastive samples to obtain a tractable lower bound on the sequential EIG. We extend their framework to handle nuisance parameters, yielding a bound on the targeted EIG. Intuitively, the objective rewards policies whose induced histories make the true target parameters easier to distinguish from contrastive alternatives after marginalizing over nuisance uncertainty.
 
 \begin{theorem}[Targeted sPCE]
 \label{thm:targeted_spce_main}
@@ -167,7 +165,7 @@ Here $\phi$ denotes the trainable parameters of the policy network.
 The policy is trained offline; at deployment, computing $u_k$ requires only a forward pass.
 
 \subsection{Training}
-Training maximizes the targeted contrastive objective $\hat{\mathcal{L}}_K^{\text{tgt}}$ via stochastic gradient ascent with Adam on $\phi$. Since observations depend on $\phi$ through the policy, the expectation is over $\phi$-dependent random variables. For Gaussian observation models, we apply the reparameterization trick: writing $y_k = \mu_k + \Sigma_k^{1/2}\varepsilon_k$ with $\varepsilon_k \sim \mathcal{N}(0, I)$ independent of $\phi$ allows the gradient to pass inside the expectation:
+Training maximizes the targeted contrastive objective $\hat{\mathcal{L}}_K^{\text{tgt}}$ by stochastic gradient ascent with Adam on $\phi$. Since observations depend on $\phi$ through the policy, the expectation is over $\phi$-dependent random variables. For Gaussian observation models, we apply the reparameterization trick: writing $y_k = \mu_k + \Sigma_k^{1/2}\varepsilon_k$ with $\varepsilon_k \sim \mathcal{N}(0, I)$ independent of $\phi$ allows the gradient to pass inside the expectation:
 \begin{equation}
 \begin{aligned}
 \frac{d\hat{\mathcal{L}}_K^{\text{tgt}}}{d\phi}
@@ -180,7 +178,7 @@ p(h_K|\theta^{(\ell)}, \pi_\phi)\Big)
 \end{aligned}
 \end{equation}
 where the expectation is approximated with a minibatch of $B$ independent episodes (Algorithm~\ref{algo:DAD}).
-Each episode draws a ground-truth sample $\theta^{(0)} \sim p(\theta)$ that generates the trajectory, $L$ contrastive samples $\theta^{(1:L)} \sim p(\theta)$ for the denominator, and $M$ nuisance samples $\tilde{\theta}_N^{(1:M)} \sim p(\theta_N|\theta_T^{(0)})$ for the numerator---sharing the target parameters $\theta_T^{(0)}$ of the ground truth. Evaluating each likelihood in $A$ and $B$ requires a full ODE solve, giving $L + M + 2$ solves per episode.
+Each episode draws a ground-truth sample $\theta^{(0)} \sim p(\theta)$ that generates the trajectory, $L$ contrastive samples $\theta^{(1:L)} \sim p(\theta)$ for the denominator, and $M$ nuisance samples $\tilde{\theta}_N^{(1:M)} \sim p(\theta_N|\theta_T^{(0)})$ for the numerator, all sharing the target parameters $\theta_T^{(0)}$ of the ground truth. This requires $L + M + 2$ ODE solves per episode: one rollout to generate $h_K$, $M$ nuisance-conditioned likelihood evaluations for the numerator, and $L + 1$ likelihood evaluations for the denominator.
 
 \begin{algorithm}[t]
 \caption{Targeted Deep Adaptive Design for MBDOE}
@@ -213,13 +211,12 @@ Each episode draws a ground-truth sample $\theta^{(0)} \sim p(\theta)$ that gene
 \subsection{Choosing $L$, $M$, and $B$}
 The targeted sPCE objective depends on the number of contrastive samples $L$ and nuisance samples $M$, while the optimizer uses a minibatch size $B$ to form stochastic gradient estimates.
 These hyperparameters trade off bound tightness, estimator variance, and computational cost.
-We provide a brief discussion and asymptotic guidance under a fixed compute budget in
-\ifextended Appendix~\ref{sec:budget_stub}.\else the extended version~\citep{strouwen2026extended}.\fi
+\ifextended See Appendix~\ref{sec:budget_stub} for a brief discussion and asymptotic guidance under a fixed compute budget.\else{} See the extended version~\citep{strouwen2026extended} for a brief discussion and asymptotic guidance under a fixed compute budget.\fi
 
 \subsection{Network Architecture}
-The original DAD framework~\citep{foster2021} uses a deep set architecture that exploits permutation invariance of design-outcome pairs. However, for dynamical systems, temporal order matters: the state at step $k$ depends on all previous inputs and observations.
+Following DAD~\citep{foster2021}, we use a transformer-based policy architecture. For dynamical systems, however, the key additional requirement is to represent temporal order explicitly, since earlier inputs affect later states and therefore later observations.
 
-We therefore employ a transformer architecture~\citep{vaswani2017attention} with causal attention and sinusoidal positional encodings. The history $((u_1, y_1), \ldots, (u_{k-1}, y_{k-1}))$ is embedded as a sequence, and the policy outputs the next input based on the final hidden state:
+We therefore augment the history with sinusoidal positional encodings and use causal attention to map $((u_1, y_1), \ldots, (u_{k-1}, y_{k-1}))$ to the next input:
 \begin{equation}
 u_k = \pi_\phi(h_{k-1}) = F_{\phi_2}(\text{Transformer}_{\phi_1}(h_{k-1})),
 \end{equation}
@@ -242,7 +239,7 @@ We apply the framework to four systems of increasing complexity.
 
 \begin{table}[t]
 \centering
-\caption{Monod bioreactor: targeted sPCE scores (mean $\pm$ SEM, $n=500$; higher is better) and posterior RMSE ($\times 10^3$, $n=2000$; lower is better).\ifextended{} The BIM baseline is detailed in Appendix~\ref{sec:bim}.\else{} The BIM baseline is detailed in the extended version~\citep{strouwen2026extended}.\fi}
+\caption{Monod bioreactor: targeted sPCE scores (mean $\pm$ SEM, $n=1000$; higher is better) and posterior RMSE ($\times 10^3$, $n=5000$; lower is better).\ifextended{} The BIM baseline is detailed in Appendix~\ref{sec:bim}.\else{} The BIM baseline is detailed in the extended version~\citep{strouwen2026extended}.\fi}
 \label{tab:spce}
 \begin{tabular}{@{}lccc@{}}
 \hline
@@ -256,7 +253,7 @@ Design strategy & sPCE score & \multicolumn{2}{c}{RMSE ($\times 10^3$)} \\
 \begin{figure}[t]
 \centering
 \includegraphics[width=\columnwidth]{figures/monod_posterior.png}
-\caption{Posterior mean estimates ($\hat{\mu}_{\max}$, $\hat{K}_s$) across 2000 trials for three design strategies. Convex hulls indicate the spread of posterior means; the adaptive policy yields the most concentrated estimates around the true values.}
+\caption{Posterior mean estimates ($\hat{\mu}_{\max}$, $\hat{K}_s$) across 5000 trials for three design strategies. Convex hulls (90\% closest to median) indicate the spread of posterior means; the adaptive policy yields the most concentrated estimates around the true values.}
 \label{fig:posterior}
 \end{figure}
 
@@ -267,19 +264,12 @@ Design strategy & sPCE score & \multicolumn{2}{c}{RMSE ($\times 10^3$)} \\
 \label{fig:haldane}
 \end{figure*}
 
-\begin{figure*}[t]
-\centering
-\includegraphics[width=\textwidth]{figures/pharma_nuisance.png}
-\caption{PK model rollouts (20 per scenario, shared absorption parameters $k_a$, $k_{tr}$ at midrange). Blue: slow elimination ($CL = 1.0$~L/hr, $Q_d = 0.5$~L/hr); red: fast elimination ($CL = 5.0$~L/hr, $Q_d = 3.0$~L/hr). Left: central concentration $C_c = A_c/V_C$. Middle: peripheral concentration $C_p = A_p/V_P$. Right: infusion rate $R_\text{inf}$ (design). Under fast elimination, the policy doses earlier and more frequently to maintain informative drug levels; under slow elimination, drug persists longer and the policy delays dosing.}
-\label{fig:pharma}
-\end{figure*}
-
 \paragraph{Monod bioreactor.}
-The adaptive policy is trained on the Monod bioreactor (Section~\ref{sec:monod}) in approximately 1000 iterations\ifextended{} (Appendix~\ref{sec:training_details})\else{} (see the extended version~\citep{strouwen2026extended} for training details)\fi.
+The adaptive policy is trained on the Monod bioreactor in approximately 1000 iterations\ifextended{} (Appendix~\ref{sec:training_details})\else{} (see the extended version~\citep{strouwen2026extended} for training details)\fi.
 Fig.~\ref{fig:dynamics} shows representative rollouts: the adaptive policy varies its feed profile per rollout in response to observations, while the static designs apply a fixed sequence regardless of the outcome.
-Table~\ref{tab:spce} compares the adaptive policy against two static baselines---a classical Bayesian D-optimal design (BIM) and a static design optimized with the same sPCE objective. The adaptive policy significantly outperforms both on sPCE score ($p < 0.04$, paired $t$-tests) and reduces posterior RMSE by approximately 30\% relative to the best static design.
+Table~\ref{tab:spce} compares the adaptive policy against two static baselines---a classical Bayesian D-optimal design (BIM) and a static design optimized with the same sPCE objective. The adaptive policy significantly outperforms both on sPCE score ($p < 0.001$, paired $t$-tests) and reduces posterior RMSE by approximately 30\% relative to the best static design.
 Fig.~\ref{fig:posterior} confirms that the adaptive policy yields the most concentrated posterior estimates around the true parameter values.
-A handful of adaptive trials (7/2000, the outliers in Fig.~\ref{fig:posterior}) yield poor posteriors: rare misleading early observations steer the policy into producing no pumping action, driving substrate to zero---a guaranteed suboptimal design. A larger training budget would expose the policy to more such rare noise patterns and remedy this. All reported statistics include these trials without exclusion.
+A handful of adaptive trials (10/5000, the outliers in Fig.~\ref{fig:posterior}) yield poor posteriors: rare misleading early observations steer the policy into producing no pumping action, driving substrate to zero---a guaranteed suboptimal design. A larger training budget would expose the policy to more such rare noise patterns and remedy this. All reported statistics include these trials without exclusion.
 
 \paragraph{Haldane substrate inhibition.}
 This example shares the Monod bioreactor setup (same states, feed rate design $Q_{in}$, substrate observation $C_s$) but replaces the growth rate with Haldane kinetics: $\mu = \mu_{\max} C_s / (K_s + C_s + C_s^2/K_i)$, adding substrate inhibition. We set $\alpha = 1/K_i$ as the sole target with a uniform prior $\alpha \sim \text{Uniform}(0, 0.15)$, and treat $\mu_{\max}$, $K_s$, $\sigma$, $C_{x,0}$ as tightly bounded nuisance parameters (e.g., $\mu_{\max} \in [0.39, 0.41]$, $K_s \in [0.44, 0.46]$), so the sPCE objective focuses on discriminating whether inhibition is present ($\alpha = 0$ recovers Monod).
@@ -297,10 +287,17 @@ A two-compartment PK model with transit absorption describes drug distribution b
 \dot{A}_p &= \tfrac{Q_d}{V_C} A_c - \tfrac{Q_d}{V_P} A_p,
 \end{aligned}
 \end{equation}
-where $R_\text{inf}$ is the controllable infusion rate (design input). The target parameters are the absorption rates $\theta_T = (k_a, k_{tr})$, while $\theta_N = (CL, Q_d, \sigma_{\text{prop}}, \sigma_{\text{add}})$ are nuisance, including patient-specific clearance. The observation is central concentration $C_c = A_c/V_C$ with combined proportional and additive noise: $y_k \sim \mathcal{N}(C_c, (\sigma_{\text{prop}} C_c)^2 + \sigma_{\text{add}}^2)$,
-with uniform priors $k_a, k_{tr} \in [0.5, 3.0]$, $CL \in [1.0, 5.0]$, $Q_d \in [0.5, 3.0]$, $\sigma_{\text{prop}} \in [0.05, 0.20]$, and $\sigma_{\text{add}} \in [0.01, 0.10]$.
-Fig.~\ref{fig:pharma} shows the policy adapts its dosing schedule to the patient's elimination profile: fast elimination clears drug quickly, prompting earlier and more frequent doses to maintain informative concentrations, while slow elimination allows delayed dosing. This nuisance adaptation emerges from the targeted sPCE objective, which marginalizes over $(CL, Q_d)$ during training---the policy learns that the optimal schedule for probing absorption depends on how quickly the patient clears the drug.
-An architecture ablation on this example confirms both transformer components matter: removing positional encoding drops sPCE by $0.35$~nats ($t{=}12.1$); replacing attention with a comparably-sized MLP costs $0.03$~nats ($t{=}2.2$)\ifextended{} (Appendix~\ref{sec:ablation})\else{} (see the extended version~\citep{strouwen2026extended})\fi.
+where $R_\text{inf}$ is the controllable infusion rate (design input). The target parameters are the absorption rates $\theta_T = (k_a, k_{tr})$, while $\theta_N = (CL, Q_d, \sigma_{\text{prop}}, \sigma_{\text{add}})$ are nuisance, including patient-specific clearance. The observation is central concentration $C_c = A_c/V_C$ with combined proportional and additive noise: $y_k \sim \mathcal{N}(C_c, (\sigma_{\text{prop}} C_c)^2 + \sigma_{\text{add}}^2)$.
+We simulate a $24$-hour experiment with hourly observations ($K = 24$), using uniform priors $k_a, k_{tr} \in [0.5, 3.0]$, $CL \in [1.0, 5.0]$, $Q_d \in [0.5, 3.0]$, $\sigma_{\text{prop}} \in [0.05, 0.20]$, and $\sigma_{\text{add}} \in [0.01, 0.10]$.
+Fig.~\ref{fig:pharma} provides a qualitative illustration that nuisance parameters can materially change the optimal dosing schedule. After a common initial infusion pulse, the policy resumes dosing earlier under fast elimination and later under slow elimination, reflecting how quickly the drug is cleared. This nuisance adaptation emerges from the targeted sPCE objective, which marginalizes over $(CL, Q_d)$ during training, so the policy learns that the dosing schedule most informative for probing absorption depends on the elimination profile.
+A brief architecture ablation on this example suggests that explicit temporal encoding is the main architectural ingredient: removing positional encoding drops sPCE by $0.35$~nats ($t{=}12.1$), while replacing attention with a comparably-sized MLP causes a smaller drop of $0.03$~nats ($t{=}2.2$)\ifextended{} (Appendix~\ref{sec:ablation})\else{} (see the extended version~\citep{strouwen2026extended})\fi.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{figures/pharma_nuisance.png}
+\caption{PK model rollouts (20 per scenario, shared absorption parameters $k_a$, $k_{tr}$ at midrange). Blue: slow elimination ($CL = 1.0$~L/hr, $Q_d = 0.5$~L/hr); red: fast elimination ($CL = 5.0$~L/hr, $Q_d = 3.0$~L/hr). Left to right: central concentration $C_c = A_c/V_C$, peripheral concentration $C_p = A_p/V_P$, and infusion rate $R_\text{inf}$ (design). After a common initial infusion pulse, the policy resumes dosing earlier under fast elimination, whereas under slow elimination it delays redosing because the drug persists longer.}
+\label{fig:pharma}
+\end{figure*}
 
 \paragraph{DC motor.}
 A DC motor with state $(\omega, i)$ (angular velocity, current) follows
@@ -310,14 +307,14 @@ L \frac{di}{dt} = V_{in} - Ri - k\omega, \quad J \frac{d\omega}{dt} = ki - f\ome
 with known resistance $R = 0.5\,\Omega$ and inductance $L = 4.5\,$mH.
 The design input is voltage $V_{in} \in [0, 10]\,$V and the observation is angular velocity $\omega$ with additive Gaussian noise.
 The experiment lasts $100\,$ms ($K = 10$ steps at $\Delta t = 10\,$ms), with target parameters $\theta_T = (k, J)$ (motor constant, inertia), nuisance $\theta_N = (f, \sigma)$ (friction, noise), and uniform priors $k \in [0.3, 0.7]$, $J \in [0.01, 0.04]$, $f \in [0.005, 0.02]$, $\sigma \in [0.5, 2.0]$.
-We compare the amortized adaptive policy against an adaptive Bayesian D-optimal baseline that re-optimizes the design at each step using the current posterior (adaptive BIM).
-Table~\ref{tab:motor} shows that the amortized policy outperforms adaptive BIM on both sPCE score and posterior RMSE, while evaluating orders of magnitude faster: a single forward pass takes a median of $18\,\mu$s versus the seconds required for online posterior inference and re-optimization.
-Fig.~\ref{fig:timing} confirms that even the 99.9th percentile ($55\,\mu$s) remains $181\times$ below the $10\,$ms sampling interval, making real-time deployment feasible.
+We compare the amortized adaptive policy against an adaptive Bayesian D-optimal baseline that re-optimizes the design at each step using the current posterior mode (adaptive BIM)\ifextended{} (Appendix~\ref{sec:bim})\else{} (see the extended version~\citep{strouwen2026extended})\fi.
+Table~\ref{tab:motor} shows that the amortized policy outperforms adaptive BIM on both sPCE score and posterior RMSE. This is expected because the learned policy is trained against the full sequential objective, whereas adaptive BIM re-optimizes a myopic surrogate based on the current posterior mode. The amortized policy also evaluates orders of magnitude faster: a single forward pass takes a median of $24\,\mu$s versus $7.4\,$ms for online re-optimization.
+Fig.~\ref{fig:timing} confirms that even the 99.9th percentile ($79\,\mu$s) remains $126\times$ below the $10\,$ms sampling interval, making real-time deployment feasible.
 Note that this adaptive BIM baseline is already a deliberately simple strategy---myopic, with a Dirac posterior approximation and a 1D grid search---yet it already fails to run within the sampling interval by the later steps, as each FIM evaluation must differentiate through the growing history of design points.
 
 \begin{table}[t]
 \centering
-\caption{DC motor: adaptive sPCE policy vs.\ adaptive BIM (online re-optimization). sPCE scores (mean $\pm$ SEM; higher is better), posterior RMSE ($\times 10^3$; lower is better), and per-step wall time.}
+\caption{DC motor: adaptive sPCE policy vs.\ adaptive BIM (online re-optimization). sPCE scores (mean $\pm$ SEM, $n=500$; higher is better), posterior RMSE ($\times 10^3$, $n=500$; lower is better), and per-step wall time.}
 \label{tab:motor}
 \small
 \begin{tabular}{@{}lcccc@{}}
@@ -332,22 +329,18 @@ Note that this adaptive BIM baseline is already a deliberately simple strategy--
 \begin{figure}[t]
 \centering
 \includegraphics[width=\columnwidth]{figures/dcmotor_timing.png}
-\caption{Per-step computation time for the DC motor (500~rollouts). Boxes show IQR; whiskers span the 0.1--99.9th percentile. The adaptive BIM baseline (blue) requires online MAP estimation and grid search at each step, growing from ${\sim}1\,$ms at step~1 to ${\sim}10\,$ms by step~10 as the history lengthens---approaching and exceeding the $\Delta t = 10\,$ms sampling interval (dashed red). The amortized sPCE policy (purple) evaluates in ${\sim}22\,\mu$s regardless of step, remaining two orders of magnitude below real-time.}
+\caption{Per-step computation time (500~rollouts, single-threaded, AMD Ryzen~9 5900X). Boxes show IQR; whiskers the 0.1--99.9th percentile. Adaptive BIM (blue) grows from ${\sim}1\,$ms to ${\sim}13\,$ms, exceeding the $\Delta t = 10\,$ms sampling interval (dashed red). The amortized sPCE policy (purple) evaluates in ${\sim}24\,\mu$s regardless of step.}
 \label{fig:timing}
 \end{figure}
 
 \section{Conclusion}
 
 We have shown that combining deep adaptive design with differentiable mechanistic models enables real-time adaptive model-based design of experiments.
-The amortized policy outperforms static baselines and matches online re-optimization at a fraction of the computational cost, as demonstrated across four systems of increasing complexity.
+The amortized policy outperforms both static baselines and adaptive online re-optimization across four systems of increasing complexity.
 
-The policy is trained for a specific prior distribution; significant prior shifts require retraining.
-The current framework assumes the model structure is known---model misspecification is not addressed.
-Training requires GPU hours on a supercomputer, though deployment is lightweight (microseconds per forward pass).
-
-Combining the framework with our Bayesian model selection approach~\cite{strouwen2026modelselection} to handle model misspecification is a promising direction.
-Incorporating process noise via Bayesian filtering~\cite{strouwen2023adaptive} would further leverage the adaptive policy, as stochastic state drift makes real-time design adaptation particularly valuable.
-Deploying the trained policy on physical hardware with closed-loop feedback is a natural next step.
+Current limitations remain: the policy is trained for a specific prior distribution, significant prior shifts require retraining, model misspecification is not addressed, stochasticity is limited to the measurement equation, and training requires GPU hours on a supercomputer, although deployment is lightweight.
+Promising next steps are to combine the framework with Bayesian model selection~\cite{strouwen2026modelselection} for model uncertainty, extend the framework to process noise through Bayesian filtering~\cite{strouwen2023adaptive}, and deploy the learned policy on physical hardware with closed-loop feedback.
+Together, these extensions would move the framework closer to robust real-world adaptive experimentation.
 
 \section*{Acknowledgment}
 The resources and services used in this work were provided by the VSC (Flemish Supercomputer Center), funded by the Research Foundation -- Flanders (FWO) and the Flemish Government.
