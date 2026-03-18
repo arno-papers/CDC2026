@@ -161,7 +161,7 @@ satisfies $\hat{\mathcal{L}}_K^{\text{tgt}} \leq \mathcal{I}_K^{\text{tgt}}$, co
 
 \section{Optimal Policy}
 We parameterize the sequential design policy as a neural network $u_k = \pi_\phi(h_{k-1})$ that maps the experimental history to the next input.
-Here $\phi$ denotes the trainable parameters of the policy network.
+Here $\phi$ are the trainable policy parameters.
 The policy is trained offline; at deployment, computing $u_k$ requires only a forward pass.
 
 \subsection{Training}
@@ -222,12 +222,10 @@ u_k = \pi_\phi(h_{k-1}) = F_{\phi_2}(\text{Transformer}_{\phi_1}(h_{k-1})),
 \end{equation}
 where $\text{Transformer}_{\phi_1}$ processes the sequence and $F_{\phi_2}$ is a final projection head.
 
-This architecture captures temporal dependencies while enabling efficient parallel training over the sequence dimension.
 \ifextended All examples share the same architecture and optimizer; full hyperparameters are given in Appendix~\ref{sec:training_details}.\else All examples share the same architecture and optimizer; full hyperparameters are given in the extended version~\citep{strouwen2026extended}.\fi
 
 \section{Results}
 
-We apply the framework to four systems of increasing complexity.
 
 
 \begin{figure*}[t]
@@ -239,7 +237,7 @@ We apply the framework to four systems of increasing complexity.
 
 \begin{table}[t]
 \centering
-\caption{Monod bioreactor: targeted sPCE scores (mean $\pm$ SEM, $n=1000$; higher is better) and posterior RMSE ($\times 10^3$, $n=5000$; lower is better).\ifextended{} The BIM baseline is detailed in Appendix~\ref{sec:bim}.\else{} The BIM baseline is detailed in the extended version~\citep{strouwen2026extended}.\fi}
+\caption{Monod bioreactor: targeted sPCE scores (mean $\pm$ SEM, $n=1000$; higher is better) and posterior RMSE ($\times 10^3$, $n=5000$; lower is better).}
 \label{tab:spce}
 \begin{tabular}{@{}lccc@{}}
 \hline
@@ -260,21 +258,20 @@ Design strategy & sPCE score & \multicolumn{2}{c}{RMSE ($\times 10^3$)} \\
 \begin{figure*}[t]
 \centering
 \includegraphics[width=\textwidth]{figures/haldane_comparison.png}
-\caption{Haldane bioreactor rollouts (20 per scenario, shared nuisance samples). Blue: no inhibition ($\alpha = 0$); red: strong inhibition ($\alpha = 0.15$). The policy gives a small initial feed dose under inhibition (right panel, hour~1), then diverges: without inhibition biomass grows rapidly (middle), while inhibition stunts growth to ${\sim}0.5$~g/L. Both cases ramp feed to maximum at the end.}
+\caption{Haldane bioreactor rollouts (20 per scenario, shared nuisance samples). Blue: no inhibition ($\alpha = 0$); red: strong inhibition ($\alpha = 0.15$). The policy first applies the same probing feed pulse in both cases, pushing the reactor into a regime where inhibition can become visible. It then adapts to the true target value: without inhibition the policy resumes feeding earlier to avoid returning to a low-substrate, non-inhibitory regime, whereas under strong inhibition the final ramp to maximal feed is delayed.}
 \label{fig:haldane}
 \end{figure*}
 
 \paragraph{Monod bioreactor.}
-The adaptive policy is trained on the Monod bioreactor in approximately 1000 iterations\ifextended{} (Appendix~\ref{sec:training_details})\else{} (see the extended version~\citep{strouwen2026extended} for training details)\fi.
 Fig.~\ref{fig:dynamics} shows representative rollouts: the adaptive policy varies its feed profile per rollout in response to observations, while the static designs apply a fixed sequence regardless of the outcome.
-Table~\ref{tab:spce} compares the adaptive policy against two static baselines---a classical Bayesian D-optimal design (BIM) and a static design optimized with the same sPCE objective. The adaptive policy significantly outperforms both on sPCE score ($p < 0.001$, paired $t$-tests) and reduces posterior RMSE by approximately 30\% relative to the best static design.
+Table~\ref{tab:spce} compares the adaptive policy against two static baselines---a classical Bayesian D-optimal design (BIM\ifextended{}, detailed in Appendix~\ref{sec:bim}\else{}; see the extended version~\citep{strouwen2026extended}\fi) and a static design optimized with the same sPCE objective. The adaptive policy significantly outperforms both on sPCE score ($p < 0.001$, paired $t$-tests) and reduces posterior RMSE by approximately 30\% relative to the best static design.
 Fig.~\ref{fig:posterior} confirms that the adaptive policy yields the most concentrated posterior estimates around the true parameter values.
-A handful of adaptive trials (10/5000, the outliers in Fig.~\ref{fig:posterior}) yield poor posteriors: rare misleading early observations steer the policy into producing no pumping action, driving substrate to zero---a guaranteed suboptimal design. A larger training budget would expose the policy to more such rare noise patterns and remedy this. All reported statistics include these trials without exclusion.
+Only 10/5000 adaptive trials (the outliers in Fig.~\ref{fig:posterior}) yield poor posteriors. In these cases, rare misleading early observations cause the policy to stop pumping, driving substrate to zero. These are training failures: with a larger training budget, the policy learns to avoid them. All reported statistics include these trials.
 
 \paragraph{Haldane substrate inhibition.}
 This example shares the Monod bioreactor setup (same states, feed rate design $Q_{in}$, substrate observation $C_s$) but replaces the growth rate with Haldane kinetics: $\mu = \mu_{\max} C_s / (K_s + C_s + C_s^2/K_i)$, adding substrate inhibition. We set $\alpha = 1/K_i$ as the sole target with a uniform prior $\alpha \sim \text{Uniform}(0, 0.15)$, and treat $\mu_{\max}$, $K_s$, $\sigma$, $C_{x,0}$ as tightly bounded nuisance parameters (e.g., $\mu_{\max} \in [0.39, 0.41]$, $K_s \in [0.44, 0.46]$), so the sPCE objective focuses on discriminating whether inhibition is present ($\alpha = 0$ recovers Monod).
 Unlike the Monod example, where the policy adapts to nuisance variation, here it must adapt to the \emph{target parameter} itself.
-Fig.~\ref{fig:haldane} shows this: under inhibition ($\alpha = 0.15$), the policy applies a small initial feed dose at hour~1, then observes the growth response through its effect on substrate dynamics. The stunted biomass growth (${\sim}0.5$~g/L vs.\ ${\sim}3$~g/L without inhibition) signals the presence of inhibition, after which the policy adjusts the timing of its later feeding. Without inhibition, the policy recovers Monod-like behavior---zero feed during initial growth, then a ramp to maximum.
+Fig.~\ref{fig:haldane} shows this qualitatively. The common initial feed pulse is itself informative: it pushes the reactor into the substrate range where inhibition could become active, so the ensuing response becomes highly diagnostic of the true value of $\alpha$. The policy then adapts to that inferred target value. Without inhibition, biomass grows rapidly and would otherwise drive the system back into a low-substrate, non-inhibitory regime that is less informative about $\alpha$, so the policy resumes feeding earlier. Under strong inhibition, growth remains suppressed and substrate stays elevated for longer, so the final ramp to maximal feed is delayed. In this way, the timing of the later feed switch becomes a direct consequence of the inferred inhibition strength.
 
 \paragraph{Pharmacokinetic model.}
 A two-compartment PK model with transit absorption describes drug distribution between a central compartment (volume $V_C$) and a peripheral compartment (volume $V_P$), fed by a three-stage transit chain:
