@@ -22,7 +22,7 @@ function plot_policy_timing(comparison_results;
 
     p = plot(xlabel="Experiment step", ylabel="Time per step (μs)",
              title=@sprintf("Per-step computation time (%d trials)", n_trials),
-             yscale=:log10, legend=:topright, size=(700, 400),
+             yscale=:log10, legend=:topright, size=(600, 340),
              xticks=1:N_STEPS, bottom_margin=5Plots.mm, left_margin=5Plots.mm)
 
     # Helper: draw one boxplot at position t

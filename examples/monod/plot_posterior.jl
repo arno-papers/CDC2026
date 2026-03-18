@@ -37,7 +37,7 @@ N_post   = results["N_post"]
 # ---- Plot 1: Posterior mean scatter ----
 p = plot(; xlabel = "Posterior mean μ_max", ylabel = "Posterior mean K_s",
            title = "",
-           legend = :outertopright, size = (750, 600))
+           legend = :outertopright, size = (600, 480))
 
 for name in reverse(DESIGN_ORDER)
     haskey(all_post_means, name) || continue
