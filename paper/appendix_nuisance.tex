@@ -42,11 +42,11 @@ Since $\log$ is concave, Jensen's inequality gives
 \end{equation}
 and hence $\E[\log(p(h_K|\theta_T^{(0)},\pi)/A) \mid \theta_T^{(0)}, h_K] \geq 0$. Taking expectations over $(\theta_T^{(0)}, h_K)$ yields $\E[\log(p(h_K|\theta_T^{(0)},\pi)/A)] \geq 0$.
 
-\textbf{Term 2 (Standard sPCE gap):} This is exactly the gap analyzed in Foster et al.~\cite{foster2021}. Using the symmetry of $\theta^{(0)}$ being included in the denominator sum and a change of measure argument, this equals:
+\textbf{Term 2 (Standard sPCE gap):} This is exactly the gap analyzed in Foster et al.~\citep{foster2021}. Using the symmetry of $\theta^{(0)}$ being included in the denominator sum and a change of measure argument, this equals:
 \begin{equation}
 \E_{p(h_K|\pi)}\left[\text{KL}\left(\tilde{p}(\theta^{(0:L)}|h_K) \,\|\, p(\theta^{(0:L)})\right)\right] \geq 0
 \end{equation}
-where $\tilde{p}$ is a mixture distribution (see~\cite{foster2021} for details).
+where $\tilde{p}$ is a mixture distribution (see~\citep{foster2021} for details).
 
 Since both terms are non-negative: $\hat{\mathcal{L}}_K^{\text{tgt}} \leq \mathcal{I}_K^{\text{tgt}}$.
 
@@ -55,7 +55,7 @@ Since both terms are non-negative: $\hat{\mathcal{L}}_K^{\text{tgt}} \leq \mathc
 \kappa_{1,N} \le \frac{p(h_K|\theta_T,\theta_N,\pi)}{p(h_K|\theta_T,\pi)} \le \kappa_{2,N} && \forall\,\theta_T,\theta_N,h_K, \\
 \kappa_1 \le \frac{p(h_K|\theta,\pi)}{p(h_K|\pi)} \le \kappa_2 && \forall\,\theta,h_K,
 \end{align}
-as in the standard sPCE analysis~\cite{foster2021}. Then the log-ratios in Term 1 and Term 2 are bounded. By the Strong Law of Large Numbers, $A \to p(h_K|\theta_T^{(0)},\pi)$ and $B \to p(h_K|\pi)$ almost surely as $M,L\to\infty$, and the Bounded Convergence Theorem yields Term 1 $\to 0$ and Term 2 $\to 0$.
+as in the standard sPCE analysis~\citep{foster2021}. Then the log-ratios in Term 1 and Term 2 are bounded. By the Strong Law of Large Numbers, $A \to p(h_K|\theta_T^{(0)},\pi)$ and $B \to p(h_K|\pi)$ almost surely as $M,L\to\infty$, and the Bounded Convergence Theorem yields Term 1 $\to 0$ and Term 2 $\to 0$.
 \end{proof}
 
 \begin{remark}
