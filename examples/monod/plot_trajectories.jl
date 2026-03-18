@@ -84,21 +84,7 @@ function plot_design_comparison(model, ps_cpu, st_cpu,
     p_qin = plot(xlabel="Time (h)", ylabel="Qin (L/h)", title="Feed rate (design)",
                  legend=false, xticks=0:2:N_STEPS)
 
-    # --- Adaptive rollouts ---
-    astyle = DESIGN_STYLES["adaptive"]
-    for (i, (theta, Cx0, sigma)) in enumerate(samples)
-        u0 = Float32[3.0f0, Cx0, 7.0f0]
-        traj, designs, obs = rollout_policy_cpu(model, ps_cpu, st_cpu, rng;
-                                                theta=theta, sigma=sigma, u0=u0)
-        lab = i == 1 ? astyle.label : ""
-        plot!(p_cs, t_states, traj[:, 1]; alpha=0.3, color=astyle.color, lw=0.8, label=lab)
-        scatter!(p_cs, t_obs, obs; markersize=2, alpha=0.3, color=astyle.color, label="")
-        plot!(p_cx, t_states, traj[:, 2]; alpha=0.3, color=astyle.color, lw=0.8, label=lab)
-        plot!(p_qin, t_designs, designs; alpha=0.3, color=astyle.color, lw=0.8, label=lab,
-              seriestype=:steppost)
-    end
-
-    # --- Static designs: bold design line + thin trajectory rollouts ---
+    # --- Static designs (drawn first, so adaptive is on top) ---
     for (name, design) in static_designs
         style = get(DESIGN_STYLES, name, (label=name, color=:black))
         plot!(p_qin, t_designs, Float64.(design); color=style.color, lw=2.5, label=style.label,
@@ -110,6 +96,20 @@ function plot_design_comparison(model, ps_cpu, st_cpu,
             scatter!(p_cs, t_obs, obs; markersize=2, alpha=0.3, color=style.color, label="")
             plot!(p_cx, t_states, traj[:, 2]; alpha=0.3, color=style.color, lw=0.8, label=lab)
         end
+    end
+
+    # --- Adaptive rollouts (drawn last, on top) ---
+    astyle = DESIGN_STYLES["adaptive"]
+    for (i, (theta, Cx0, sigma)) in enumerate(samples)
+        u0 = Float32[3.0f0, Cx0, 7.0f0]
+        traj, designs, obs = rollout_policy_cpu(model, ps_cpu, st_cpu, rng;
+                                                theta=theta, sigma=sigma, u0=u0)
+        lab = i == 1 ? astyle.label : ""
+        plot!(p_cs, t_states, traj[:, 1]; alpha=0.3, color=astyle.color, lw=0.8, label=lab)
+        scatter!(p_cs, t_obs, obs; markersize=2, alpha=0.3, color=astyle.color, label="")
+        plot!(p_cx, t_states, traj[:, 2]; alpha=0.3, color=astyle.color, lw=0.8, label=lab)
+        plot!(p_qin, t_designs, designs; alpha=0.3, color=astyle.color, lw=0.8, label=lab,
+              seriestype=:steppost)
     end
 
     plt = plot(p_cs, p_cx, p_qin; layout=(1, 3), size=(1200, 350),
