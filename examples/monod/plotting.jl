@@ -10,7 +10,7 @@
 # ============================================================================
 
 const DESIGN_STYLES = Dict(
-    "adaptive"     => (label = "Adaptive policy",       color = :gray20),
+    "adaptive"     => (label = "Adaptive policy",       color = :crimson),
     "static_std"   => (label = "Static (BIM)",           color = :dodgerblue),
     "static_spce"  => (label = "Static (sPCE-opt)",      color = :forestgreen),
 )
