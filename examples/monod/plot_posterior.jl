@@ -39,7 +39,7 @@ p = plot(; xlabel = "Posterior mean μ_max", ylabel = "Posterior mean K_s",
            title = "",
            legend = :outertopright, size = (750, 600))
 
-for name in DESIGN_ORDER
+for name in reverse(DESIGN_ORDER)
     haskey(all_post_means, name) || continue
     style = get(DESIGN_STYLES, name, (label = name, color = :black))
     scatter!(p, [NaN], [NaN]; color = style.color, ms = 3, msw = 0,
