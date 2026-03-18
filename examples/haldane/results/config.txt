@@ -1,4 +1,6 @@
-date: 2026-03-17
+branch: unknown
+commit: unknown
+date: 2026-03-11
 experiment: Haldane ODE_BUDGET=2121728, cosine LR
 
 # Hyperparameters
@@ -21,8 +23,8 @@ alpha_lo = 0.0
 alpha_hi = 0.15
 
 # Results
-best_loss = -1.6725748
-best_iter = 431
-training_time_s = 1728.3
-per_iter_s = 1.7
-total_wall_time_s = 1728.5
+best_loss = -1.6637638
+best_iter = 716
+training_time_s = 4965.6
+per_iter_s = 5.0
+total_wall_time_s = 4965.7
