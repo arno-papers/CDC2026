@@ -226,8 +226,6 @@ where $\text{Transformer}_{\phi_1}$ processes the sequence and $F_{\phi_2}$ is a
 
 \section{Results}
 
-
-
 \begin{figure*}[t]
 \centering
 \includegraphics[width=\textwidth]{figures/monod_comparison.png}
@@ -299,9 +297,9 @@ A brief architecture ablation on this example suggests that explicit temporal en
 \paragraph{DC motor.}
 A DC motor with state $(\omega, i)$ (angular velocity, current) follows
 \begin{equation}\label{eq:motor}
-L \frac{di}{dt} = V_{in} - Ri - k\omega, \quad J \frac{d\omega}{dt} = ki - f\omega,
+L_a \frac{di}{dt} = V_{in} - Ri - k\omega, \quad J \frac{d\omega}{dt} = ki - f\omega,
 \end{equation}
-with known resistance $R = 0.5\,\Omega$ and inductance $L = 4.5\,$mH.
+with known resistance $R = 0.5\,\Omega$ and inductance $L_a = 4.5\,$mH.
 The design input is voltage $V_{in} \in [0, 10]\,$V and the observation is angular velocity $\omega$ with additive Gaussian noise.
 The experiment lasts $100\,$ms ($K = 10$ steps at $\Delta t = 10\,$ms), with target parameters $\theta_T = (k, J)$ (motor constant, inertia), nuisance $\theta_N = (f, \sigma)$ (friction, noise), and uniform priors $k \in [0.3, 0.7]$, $J \in [0.01, 0.04]$, $f \in [0.005, 0.02]$, $\sigma \in [0.5, 2.0]$.
 We compare the amortized adaptive policy against an adaptive Bayesian D-optimal baseline that re-optimizes the design at each step using the current posterior mode (adaptive BIM)\ifextended{} (Appendix~\ref{sec:bim})\else{} (see the extended version~\citep{strouwen2026extended})\fi.
@@ -336,7 +334,7 @@ We have shown that combining deep adaptive design with differentiable mechanisti
 The amortized policy outperforms both static baselines and adaptive online re-optimization across four systems of increasing complexity.
 
 Current limitations remain: the policy is trained for a specific prior distribution, significant prior shifts require retraining, model misspecification is not addressed, stochasticity is limited to the measurement equation, and training requires GPU hours on a supercomputer, although deployment is lightweight.
-Promising next steps are to combine the framework with Bayesian model selection~\cite{strouwen2026modelselection} for model uncertainty, extend the framework to process noise through Bayesian filtering~\cite{strouwen2023adaptive}, and deploy the learned policy on physical hardware with closed-loop feedback.
+Promising next steps are to combine the framework with Bayesian model selection~\citep{strouwen2026modelselection} for model uncertainty, extend the framework to process noise through Bayesian filtering~\citep{strouwen2023adaptive}, and deploy the learned policy on physical hardware with closed-loop feedback.
 Together, these extensions would move the framework closer to robust real-world adaptive experimentation.
 
 \section*{Acknowledgment}
