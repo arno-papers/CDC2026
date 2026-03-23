@@ -5,7 +5,7 @@
 % Extended/compact toggle: pass \def\buildmode{cdc} or \def\buildmode{arxiv}
 % before \input{main}. Default (standalone build) is extended.
 \newif\ifextended
-\extendedfalse
+\extendedtrue
 \ifdefined\buildmode
   \def\buildmodecdc{cdc}
   \ifx\buildmode\buildmodecdc \extendedfalse \fi
@@ -198,9 +198,9 @@ Each episode draws a ground-truth sample $\theta^{(0)} \sim p(\theta)$ that gene
             \STATE Sample $y_k^{(b)} \sim \mathcal{N}(g(x_k^{(b)}),\, \Sigma(x_k^{(b)}, \theta_N^{(0,b)}))$
             \STATE Update history $h_k^{(b)} = (h_{k-1}^{(b)}, (u_k^{(b)}, y_k^{(b)}))$
         \ENDFOR
-        \STATE Compute $A^{(b)} = \frac{1}{M}\sum_{m=1}^{M} p(h_K^{(b)}|\theta_T^{(0,b)}, \tilde{\theta}_N^{(m,b)})$
-        \STATE Compute $B^{(b)} = \frac{1}{L+1}\sum_{\ell=0}^{L} p(h_K^{(b)}|\theta^{(\ell,b)})$
-        \STATE Set $r^{(b)} = \log A^{(b)} - \log B^{(b)}$
+        \STATE Compute $\widehat p_M^{(b)} = \frac{1}{M}\sum_{m=1}^{M} p(h_K^{(b)}|\theta_T^{(0,b)}, \tilde{\theta}_N^{(m,b)})$
+        \STATE Compute $\widehat p_L^{(b)} = \frac{1}{L+1}\sum_{\ell=0}^{L} p(h_K^{(b)}|\theta^{(\ell,b)})$
+        \STATE Set $r^{(b)} = \log \widehat p_M^{(b)} - \log \widehat p_L^{(b)}$
     \ENDFOR
     \STATE Compute gradient $\nabla_\phi \frac{1}{B}\sum_{b=1}^{B} r^{(b)}$ via autodiff
     \STATE Update $\phi$ via Adam
