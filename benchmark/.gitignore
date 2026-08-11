@@ -1,0 +1,12 @@
+# Python / uv
+jax/.venv/
+**/__pycache__/
+*.pyc
+
+# Benchmark run artifacts
+logs/
+results.txt
+
+# JAX/XLA scratch
+/tmp/jax_monod_trace/
+*.hlo.txt
