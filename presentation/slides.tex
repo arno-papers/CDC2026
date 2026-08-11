@@ -5,10 +5,11 @@
 \usepackage{amsmath,amssymb}
 \usepackage{graphicx}
 \usepackage{booktabs}
+\usepackage{array}
 \usepackage{listings}
 \usepackage{xcolor}
 \usepackage{tikz}
-\usetikzlibrary{arrows.meta}
+\usetikzlibrary{arrows.meta,positioning}
 \usepackage{qrcode}
 
 % Consistent notation
@@ -259,56 +260,220 @@
 % ==================================================================
 
 % ------------------------------------------------------------------
-% Slide: the stack
+% Slide: the stack, as a compilation pipeline
 % ------------------------------------------------------------------
-\begin{frame}{The stack}
+\begin{frame}{The stack: from Julia code to one GPU executable}
   \small
-  \begin{tabular}{@{}p{0.21\textwidth}p{0.74\textwidth}@{}}
-    \toprule
-    \textbf{Lux.jl} & The policy. Parameters and state are explicit arguments, so the loss is a pure
-                      function of the weights --- what a tracing compiler needs. \\
-    \addlinespace[0.3em]
-    \textbf{RK4, by hand} & Fixed step, batched over hypotheses and episodes.
-                      \texttt{SimpleDiffEq}'s RK4 drops in unchanged. \\
-    \addlinespace[0.3em]
-    \textbf{Reactant.jl} & Traces the \emph{entire} objective --- rollout, ODE solves, likelihoods,
-                      log-sum-exp, attention --- into StableHLO MLIR, then compiles it with XLA. \\
-    \addlinespace[0.3em]
-    \textbf{Enzyme} & Reverse-mode differentiation of that traced program, at the MLIR level. \\
-    \addlinespace[0.3em]
-    \textbf{Optimisers.jl} & Adam, cosine schedule, gradient accumulation, through
-                      \texttt{Lux.Training.single\_train\_step!}. \\
-    \bottomrule
-  \end{tabular}
+  \begin{center}
+  \begin{tikzpicture}[
+      box/.style={draw, rounded corners=2.5pt, align=center, inner sep=6pt,
+                  minimum height=1.15cm, font=\small},
+      sub/.style={font=\scriptsize, color=black!55, align=center},
+      lbl/.style={font=\tiny\itshape, align=center},
+      arr/.style={-{Stealth[length=2.2mm]}, line width=1pt},
+      node distance=1.45cm]
+    \node[box, fill=black!5] (julia)
+      {\textbf{Julia code}\\[1pt]{\scriptsize loops, mutation,}\\[-2pt]{\scriptsize Lux policy}};
+    \node[box, right=of julia, fill=blue!8] (hlo)
+      {\textbf{StableHLO}\\[1pt]{\scriptsize one MLIR module:}\\[-2pt]{\scriptsize the whole objective}};
+    \node[box, right=of hlo, fill=blue!8] (grad)
+      {\textbf{forward $+$}\\[-2pt]\textbf{backward}\\[1pt]{\scriptsize still MLIR}};
+    \node[box, right=of grad, fill=green!12] (exe)
+      {\textbf{one GPU}\\[-2pt]\textbf{executable}\\[1pt]{\scriptsize fused kernels}};
+    \draw[arr] (julia) -- node[lbl, above=1pt] {Reactant.jl\\traces} (hlo);
+    \draw[arr] (hlo)   -- node[lbl, above=1pt] {Enzyme\\differentiates} (grad);
+    \draw[arr] (grad)  -- node[lbl, above=1pt] {XLA\\compiles} (exe);
+    % what gets traced in
+    \node[sub, below=0.45cm of julia] {rollout \textperiodcentered\ RK4 solves\\
+                                       likelihoods \textperiodcentered\ attention};
+    \node[sub, below=0.45cm of grad] {reverse mode at the\\MLIR level, not in Julia};
+    \node[sub, below=0.45cm of exe] {loss, gradient, and\\Adam update, together};
+  \end{tikzpicture}
+  \end{center}
 
-  \vspace{0.6em}
+  \vspace{0.4em}
+  {\footnotesize
+  \begin{tabular}{@{}>{\raggedright\arraybackslash}p{0.30\textwidth}>{\raggedright\arraybackslash}p{0.30\textwidth}>{\raggedright\arraybackslash}p{0.32\textwidth}@{}}
+    \textbf{Lux.jl}: weights are explicit arguments, so the loss is a pure function
+    --- what a tracing compiler needs. &
+    \textbf{SimpleDiffEq}: its RK4 \texttt{step!} drops into the traced loop unchanged. &
+    \textbf{Optimisers.jl}: the update rides along via
+    \texttt{Lux.Training.single\_train\_step!}. \\
+  \end{tabular}}
+
+  \vspace{0.4em}
   \alert{One gradient step becomes one compiled executable: no Julia left in the inner loop.}
-
 \end{frame}
 
 % ------------------------------------------------------------------
-% Slide: the stack, honestly
+% Slide: the memory problem
 % ------------------------------------------------------------------
-\begin{frame}{The stack, honestly}
+\begin{frame}{The catch: reverse mode must remember the forward pass}
   \small
-  \textbf{What we got.}
-  \begin{itemize}\setlength{\itemsep}{0.2em}
-    \item The code stayed the code: ordinary loops and mutation, no \texttt{vmap}, no functional rewrite.
-    \item Steady-state runtime is fast: $3.5 \times 10^{10}$ differentiated RK4 steps per iteration,
-          in $15.4$\,s.
-  \end{itemize}
+  To run the chain rule backwards, Enzyme needs the state at \emph{every} RK4 substep
+  of every trajectory --- visited in reverse, after the forward pass is done.
 
-  \vspace{0.5em}
-  \textbf{What it cost.}
-  \begin{itemize}\setlength{\itemsep}{0.2em}
-    \item Errors come back from the compiler, not your program: MLIR, not a Julia stack trace.
-    \item Compile time is minutes, once per shape --- precisely when you want to iterate.
-    \item The bad one: the gradient was silently wrong. The fix existed, in a version that needed
-          Julia 1.12; we were on 1.11. We upgraded --- and met a different bug 1.11 never had.
-  \end{itemize}
+  \begin{center}
+  \begin{tikzpicture}[
+      st/.style={draw=blue!60, fill=blue!25, minimum size=0.3cm, inner sep=0pt},
+      arr/.style={-{Stealth[length=1.8mm]}, thick}]
+    % forward chain of stored states
+    \foreach \i in {0,...,11} {
+      \node[st] (s\i) at (0.62*\i, 0) {};
+    }
+    \node[font=\small, color=black!55] at (0.62*12.6, 0) {$\cdots$};
+    \foreach \i in {14,15} {
+      \node[st] (s\i) at (0.62*\i, 0) {};
+    }
+    \draw[arr] (-0.7,0.55) -- node[above, font=\scriptsize] {forward: store all $14 \times 50 = 700$ states} (0.62*15+0.35,0.55);
+    \draw[arr, red!70] (0.62*15+0.35,-0.55) -- node[below, font=\scriptsize] {backward: consume them in reverse} (-0.7,-0.55);
+    \node[font=\scriptsize, color=black!55, anchor=west] at (-0.7, -1.25)
+      {$\times\ 932$ hypotheses per episode $\times\ 53{,}648$ episodes $= 5.0 \times 10^{7}$ trajectories};
+  \end{tikzpicture}
+  \end{center}
 
-  \vspace{0.5em}
-  \alert{Pin every version, and check the gradient against an unfused reference before trusting a run.}
+  \vspace{0.3em}
+  \setlength{\abovedisplayskip}{2pt}\setlength{\belowdisplayskip}{2pt}%
+  \[
+    \underbrace{3.5 \times 10^{10}}_{\text{stored states}} \times
+    \underbrace{3}_{(C_s,\, C_x,\, V)} \times
+    \underbrace{4\ \text{bytes}}_{\text{Float32}}
+    \;\approx\; 420\ \text{GB} \qquad \text{--- and that is the state alone.}
+  \]
+
+  \begin{center}
+  \begin{tikzpicture}[font=\scriptsize]
+    % bars: 420 GB vs 80 GB, scale 8cm total
+    \node[anchor=east] at (0, 0) {tape, all at once};
+    \draw[fill=red!55, draw=none, rounded corners=1pt] (0.1, -0.17) rectangle (8.1, 0.17);
+    \node[anchor=west, color=white] at (0.2, 0) {$\approx 420$ GB};
+    \node[anchor=east] at (0, -0.65) {one H100};
+    \draw[fill=blue!55, draw=none, rounded corners=1pt] (0.1, -0.82) rectangle (1.62, -0.48);
+    \node[anchor=west] at (1.7, -0.65) {80 GB};
+  \end{tikzpicture}
+  \end{center}
+
+  \alert{Naively, one gradient step needs $5\times$ the memory of the GPU --- before counting RK4 stages.}
+\end{frame}
+
+% ------------------------------------------------------------------
+% Slide: first cut -- mini-batching / SGD
+% ------------------------------------------------------------------
+\begin{frame}[fragile]{First cut: the gradient is an expectation}
+  \small
+  \setlength{\abovedisplayskip}{2pt}\setlength{\belowdisplayskip}{2pt}%
+  The objective is an expectation over simulated episodes; a sample average of gradients is
+  \textbf{unbiased at any} $B$ --- batch size buys \emph{variance}, not correctness:
+  \[
+    \nabla_\phi \mathcal{L}
+      = \E_{\theta \sim p(\theta),\, \varepsilon}\!\big[\nabla_\phi\, \ell(\phi;\theta,\varepsilon)\big]
+      \;\approx\; \frac{1}{B}\sum_{b=1}^{B} \nabla_\phi\, \ell\big(\phi;\theta^{(b)}\!,\varepsilon^{(b)}\big).
+  \]
+
+  \vspace{0.1em}
+  \begin{columns}[c]
+  \begin{column}{0.42\textwidth}
+    \begin{center}
+    \begin{tikzpicture}[font=\tiny]
+      \draw[black!20] (0,0) ellipse (2.2 and 1.05);
+      \draw[black!20] (0,0) ellipse (1.5 and 0.7);
+      \draw[black!20] (0,0) ellipse (0.85 and 0.38);
+      \node[circle, fill=black!60, inner sep=1.2pt] at (0,0) {};
+      % full-batch: one long smooth step
+      \draw[-{Stealth[length=1.8mm]}, blue!70, thick]
+        (-2.6,1.3) .. controls (-1.6,0.65) .. (-0.2,0.08);
+      \node[color=blue!70, anchor=west] at (-2.6,1.55) {one full-batch step};
+      % SGD zigzag
+      \draw[-{Stealth[length=1.8mm]}, orange!90!black, thick]
+        (-2.6,-1.3) -- (-2.05,-0.62) -- (-1.68,-0.88) -- (-1.2,-0.34)
+        -- (-0.92,-0.52) -- (-0.48,-0.15) -- (-0.22,-0.08);
+      \node[color=orange!90!black, anchor=west] at (-2.6,-1.55) {8 noisy steps at $\mathrm{lr}/8$};
+    \end{tikzpicture}
+    \end{center}
+  \end{column}
+  \begin{column}{0.54\textwidth}
+    {\footnotesize Stochastic gradient descent, then: 8 strips of $6{,}706$ episodes, one Adam
+    step per strip at $\mathrm{lr}/8$ --- an eighth of the activations alive at once.}
+    \begin{center}
+    \begin{tikzpicture}[font=\tiny]
+      \foreach \i/\c in {0/green!45, 1/green!45, 2/green!45, 3/blue!50, 4/black!12, 5/black!12, 6/black!12, 7/black!12} {
+        \draw[fill=\c, draw=black!30, rounded corners=1pt]
+          (0.62*\i, 0) rectangle (0.62*\i+0.54, 0.55);
+      }
+    \end{tikzpicture}
+    \end{center}
+\begin{lstlisting}
+for _k in 1:8   # micro-batches; Adam at lr/8
+    data = prepare_batch(rng, ...)  # fresh draws
+    _, loss, _, ts = single_train_step!(
+        AutoEnzyme(), spce_loss, data, ts)
+end
+\end{lstlisting}
+  \end{column}
+  \end{columns}
+
+  \vspace{0.3em}
+  \alert{And there is no dataset to shortchange: every strip is freshly simulated from the prior.}
+\end{frame}
+
+% ------------------------------------------------------------------
+% Slide: second cut -- mincut rematerialization
+% ------------------------------------------------------------------
+\begin{frame}[fragile]{Second cut: checkpoint the substeps}
+  \small
+  A strip still stores all 50 RK4 states per control step. Enzyme's min-cut keeps
+  ${\approx}\sqrt{N}$ of them; the backward pass recomputes the rest from the nearest
+  checkpoint --- twice the forward FLOPs, a seventh of the memory.
+
+  \begin{center}
+  \begin{tikzpicture}[
+      ck/.style={draw=blue!70, fill=blue!45, minimum size=0.24cm, inner sep=0pt},
+      dr/.style={draw=black!30, fill=black!8, minimum size=0.24cm, inner sep=0pt},
+      st/.style={draw=red!60, fill=red!35, minimum size=0.24cm, inner sep=0pt}]
+    % naive row
+    \node[font=\scriptsize, anchor=east] at (-0.5, 0) {store all};
+    \foreach \i in {0,...,13} { \node[st] at (0.5*\i, 0) {}; }
+    \node[font=\scriptsize, color=black!55, anchor=west] at (7.0, 0) {50 of 50};
+    % mincut row
+    \node[font=\scriptsize, anchor=east] at (-0.5, -0.7) {min-cut};
+    \foreach \i/\s in {0/ck, 1/dr, 2/dr, 3/dr, 4/ck, 5/dr, 6/dr, 7/dr, 8/ck, 9/dr, 10/dr, 11/dr, 12/ck, 13/dr} {
+      \node[\s] at (0.5*\i, -0.7) {};
+    }
+    \node[font=\scriptsize, color=black!55, anchor=west] at (7.0, -0.7) {7 of 50, redo 43};
+  \end{tikzpicture}
+  \end{center}
+
+  \begin{columns}[c]
+  \begin{column}{0.46\textwidth}
+    \begin{center}
+    \begin{tikzpicture}[font=\scriptsize]
+      % H100 reference line, drawn first so labels sit on top
+      \draw[dashed, blue!60] (0.95, -1.55) -- (0.95, 0.35);
+      \node[font=\tiny, color=blue!60, anchor=south west] at (0.95, 0.32) {H100: 80 GB};
+      \node[anchor=east] at (0, 0) {naive};
+      \draw[fill=red!55, draw=none, rounded corners=1pt] (0.05, -0.15) rectangle (5.0, 0.15);
+      \node[anchor=west, color=white] at (0.12, 0) {420 GB};
+      \node[anchor=east] at (0, -0.6) {micro-batch};
+      \draw[fill=orange!70, draw=none, rounded corners=1pt] (0.05, -0.75) rectangle (0.68, -0.45);
+      \node[anchor=west] at (1.15, -0.6) {52 GB};
+      \node[anchor=east] at (0, -1.2) {$+$ mincut};
+      \draw[fill=green!60!black, draw=none, rounded corners=1pt] (0.05, -1.35) rectangle (0.14, -1.05);
+      \node[anchor=west] at (1.15, -1.2) {$\approx 7.5$ GB \ \checkmark};
+    \end{tikzpicture}
+    \end{center}
+  \end{column}
+  \begin{column}{0.50\textwidth}
+    In the code, the entire plan is one annotation:
+\begin{lstlisting}
+@trace mincut=true for _ in 1:n_substeps
+    u = rk4_step(u, θ, d, dt_sub)
+end
+\end{lstlisting}
+  \end{column}
+  \end{columns}
+
+  \vspace{0.3em}
+  \alert{No manual checkpoints, no custom backward pass --- memory becomes a tracing annotation.}
 \end{frame}
 
 % ------------------------------------------------------------------
@@ -331,45 +496,43 @@ const policy = @compact(
 end
 \end{lstlisting}
 
-  \vspace{0.25em}
+  \vspace{0.2em}
+  \begin{center}
+  \begin{tikzpicture}[
+      pb/.style={draw=black!40, rounded corners=2pt, fill=black!5, font=\tiny, align=center,
+                 inner sep=3.5pt, minimum height=0.55cm},
+      parr/.style={-{Stealth[length=1.6mm]}, black!50}]
+    \node[pb] (a) {$(y_k, u_k)$};
+    \node[pb, right=0.5cm of a] (b) {proj $2{\to}32$};
+    \node[pb, right=0.5cm of b] (c) {$+$ PE};
+    \node[pb, right=0.5cm of c, fill=blue!8] (d) {MHA, 4 heads};
+    \node[pb, right=0.5cm of d] (e) {FF $32{\to}64{\to}32$};
+    \node[pb, right=0.5cm of e, fill=green!10] (f) {$10\,\sigma(\cdot)$};
+    \draw[parr] (a) -- (b); \draw[parr] (b) -- (c); \draw[parr] (c) -- (d);
+    \draw[parr] (d) -- (e); \draw[parr] (e) -- (f);
+  \end{tikzpicture}
+  \end{center}
+
   {\small
   The history is a fixed 14-slot buffer, zero where nothing has been measured yet, so the future
   cannot leak in. The positional encoding is where we deviate from DAD: for a dynamical system,
-  hour~3 and hour~11 are not interchangeable. 14k parameters: next to the ODEs, free.}
+  hour~3 and hour~11 are not interchangeable. 8.6k parameters: next to the ODEs, free.}
 \end{frame}
 
 % ------------------------------------------------------------------
-% Slide: the objective in code
+% Slide: the objective in code, against JAX
 % ------------------------------------------------------------------
-\begin{frame}[fragile]{The objective, as written}
+\begin{frame}[fragile]{The objective, as written --- and the same loop in JAX}
 \begin{lstlisting}
 for step in 1:N_STEPS                              # roll out under the current policy
     action, st = model(input_buffer, ps, st)
     u = integrate(u, θ_dyn_true, action, DT, N_SUBSTEPS)
     y = observe_noisy(u, θ_obs_true, ε, step)      # y = g(x) + σ·ε, with ε drawn up front
-    observations[step, :] .= y                     # mutation is fine: it gets traced away
-    input_buffer[1, step, :] .= y
-    input_buffer[2, step, :] .= action[1, :]
+    input_buffer[1, step, :] .= y                  # mutation is fine: it gets traced away
 end
-
-for step in 1:N_STEPS                              # all L+1 hypotheses at once: u is (3, L+1, B)
-    u_denom = integrate(u_denom, θ_dyn_denom, designs[step:step, :], DT, N_SUBSTEPS)
-    log_likelihood_step!(ll_denom, observations[step:step, :], u_denom, θ_obs_denom)
-end
-
-_, loss, _, train_state = Lux.Training.single_train_step!(   # Enzyme, on the traced program
-    AutoEnzyme(), targeted_spce_loss, data, train_state)
 \end{lstlisting}
 
-  {\footnotesize
-  Hypotheses are one more array axis, no \texttt{vmap}; the only compiler-facing line is the last.
-  \hfill (Condensed from \texttt{src/common.jl}.)}
-\end{frame}
-
-% ------------------------------------------------------------------
-% Slide: JAX side by side
-% ------------------------------------------------------------------
-\begin{frame}[fragile]{The same inner loop in JAX}
+  \vspace{0.3em}
   \begin{columns}[t]
   \begin{column}{0.44\textwidth}
     {\scriptsize\textbf{Julia + Reactant}}
@@ -396,14 +559,12 @@ def integrate_scan(u, theta, Q_in):
   \end{column}
   \end{columns}
 
-  {\small
-  \begin{itemize}\setlength{\itemsep}{0.25em}
-    \item Both sides emit StableHLO and hand it to XLA: identical arithmetic, different front end.
-    \item Reverse-mode memory: \texttt{jax.checkpoint} by hand, versus \texttt{mincut=true} letting
-          Enzyme choose the cut.
-    \item Same trade in the rollout: a \texttt{for} loop mutating \texttt{input\_buffer}, versus a
-          \texttt{scan} carrying it and \texttt{.at[].set()}.
-    \item Over the hypothesis axis both ended up hand-batched anyway, \texttt{vmap} or not.
+  {\footnotesize
+  \begin{itemize}\setlength{\itemsep}{0.2em}
+    \item Both emit StableHLO for XLA: identical arithmetic, different front end. Hypotheses are one
+          more array axis --- \texttt{u} is $(3, L{+}1, B)$ --- hand-batched on both sides, \texttt{vmap} or not.
+    \item Reverse-mode memory: \texttt{jax.checkpoint} placed by hand, versus \texttt{mincut=true}
+          letting Enzyme choose the cut.
   \end{itemize}}
 \end{frame}
 
@@ -415,35 +576,57 @@ def integrate_scan(u, theta, Q_in):
   Same estimator, same shapes: $L = 255$, $M = 256$, $B = 512$, Float32, $14$ steps of $50$ RK4
   substeps --- $262{,}656$ trajectories per timed step, on one GPU.
 
-  \vspace{0.6em}
+  \vspace{0.5em}
   \begin{columns}[t]
-  \begin{column}{0.42\textwidth}
-    \begin{tabular}{@{}lcc@{}}
-      \toprule
-      & step & first call \\
-      \midrule
-      Reactant, hand RK4       & --- & --- \\
-      Reactant, SimpleDiffEq   & --- & --- \\
-      JAX, \texttt{lax.scan}   & --- & --- \\
-      JAX, \texttt{fori\_loop} & --- & --- \\
-      \bottomrule
-    \end{tabular}
+  \begin{column}{0.55\textwidth}
+    \begin{center}
+    {\footnotesize\textbf{loss $+$ gradient, per step (median)}}\\[0.3em]
+    \begin{tikzpicture}[font=\scriptsize]
+      % scale: 1 cm = 65 ms
+      \node[anchor=east] at (0, 0)     {Reactant, SimpleDiffEq};
+      \draw[fill=green!60!black, draw=none, rounded corners=1pt] (0.05,-0.14) rectangle (1.68, 0.14);
+      \node[anchor=west] at (1.73, 0)  {105.7 ms};
+      \node[anchor=east] at (0, -0.5)  {Reactant, hand RK4};
+      \draw[fill=green!60!black, draw=none, rounded corners=1pt] (0.05,-0.64) rectangle (1.80,-0.36);
+      \node[anchor=west] at (1.85,-0.5) {113.5 ms};
+      \node[anchor=east] at (0, -1.0)  {JAX, \texttt{lax.scan}};
+      \draw[fill=black!45, draw=none, rounded corners=1pt] (0.05,-1.14) rectangle (4.45,-0.86);
+      \node[anchor=east, color=white] at (4.38,-1.0) {289.0 ms};
+      \node[anchor=east] at (0, -1.5)  {JAX, \texttt{fori\_loop}};
+      \draw[fill=black!45, draw=none, rounded corners=1pt] (0.05,-1.64) rectangle (4.46,-1.36);
+      \node[anchor=east, color=white] at (4.39,-1.5) {290.1 ms};
+    \end{tikzpicture}\\[0.7em]
+    {\footnotesize\textbf{first call (compile)}}\\[0.3em]
+    \begin{tikzpicture}[font=\scriptsize]
+      % scale: 1 cm = 45 s
+      \node[anchor=east] at (0, 0)     {Reactant};
+      \draw[fill=green!60!black, draw=none, rounded corners=1pt] (0.05,-0.14) rectangle (4.49, 0.14);
+      \node[anchor=east, color=white] at (4.42, 0)  {$\approx 200$ s};
+      \node[anchor=east] at (0, -0.5)  {JAX};
+      \draw[fill=black!45, draw=none, rounded corners=1pt] (0.05,-0.64) rectangle (0.12,-0.36);
+      \node[anchor=west] at (0.17,-0.5) {$\approx 2.8$ s};
+    \end{tikzpicture}
+    \end{center}
   \end{column}
-  \begin{column}{0.54\textwidth}
+  \begin{column}{0.40\textwidth}
     {\footnotesize
-    The contract, fixed before running: one deterministic fixture, on the device before the clock
-    starts; time loss and gradient only, no sampling or transfer or optimizer step; synchronize before
-    stopping; five warmups, thirty timed calls, five fresh processes per variant.}
+    \textbf{Per step:} Reactant is ${\sim}2.7\times$ faster --- its \texttt{@trace for} lowers to a
+    tighter XLA \texttt{while} than \texttt{scan}/\texttt{fori}.
+
+    \vspace{0.5em}
+    \textbf{First call:} JAX compiles ${\sim}70\times$ faster. Iterating on the model, you feel it;
+    amortized over a training run, you don't.
+
+    \vspace{0.5em}
+    \textbf{SimpleDiffEq $\approx$ hand RK4:} same loss to 5 digits; the library integrator really is
+    a free drop-in.}
   \end{column}
   \end{columns}
 
-  \vspace{0.5em}
-  {\small Steady-state step time and first-call latency are different numbers, and one matched
-  workload on one GPU is a statement about this program, not about the two languages.}
-
-  \vspace{0.4em}
-  {\footnotesize Harness on branch \texttt{smc/jax-reactant-benchmark}; numbers pending the
-  matched-fixture rerun.}
+  \vspace{0.35em}
+  {\footnotesize Loss $+$ gradient only, data on device, sync before stopping; median of 20 after
+  warmup. RTX 4080 SUPER, Reactant 0.2.273, JAX 0.10.2 --- a statement about this program, not the
+  two languages.}
 \end{frame}
 
 % ==================================================================
@@ -529,6 +712,50 @@ def integrate_scan(u, theta, Q_in):
 
   \vspace{0.6em}
   \alert{Amortization is what makes adaptive design real-time.}
+\end{frame}
+
+% ------------------------------------------------------------------
+% Slide: SciML integration
+% ------------------------------------------------------------------
+\begin{frame}[fragile]{Where this meets SciML}
+  \small
+  \begin{columns}[t]
+  \begin{column}{0.52\textwidth}
+    \textbf{SimpleDiffEq $+$ Reactant.}\ \
+    We can use \texttt{SimpleDiffEq} via the low-level \texttt{init}/\texttt{step!}
+    interface, needed for the \texttt{mincut} annotation:
+\begin{lstlisting}[basicstyle=\smallcode]
+prob  = ODEProblem(rhs, u, (0f0, dt), (θ, d))
+integ = init(prob, SimpleRK4(); dt = dt_sub)
+@trace mincut=true for _ in 1:n_substeps
+    step!(integ)
+end
+\end{lstlisting}
+    {\footnotesize A genuine drop-in: same loss as the hand-written RK4 to five digits,
+    no runtime penalty.}
+
+    \vspace{0.5em}
+    \textbf{Adaptive solvers.}\ \
+    For adaptive solvers this does not work: they pick the step count and $dt$ at run time,
+    from the error estimate --- so when Reactant traces the program, there is no loop of
+    known length to wrap the annotation around.
+  \end{column}
+  \begin{column}{0.44\textwidth}
+    \textbf{Experimental: DiffEqReactant.jl.}
+    \begin{itemize}\setlength{\itemsep}{0.3em}
+      \item {\small A Tsit5 that is traceable by Reactant --- adaptivity expressed so the
+            compiler can see it.}
+      \item {\small Already trains a UDE with Lux $+$ Reactant $+$ Enzyme on the GPU.}
+      \item {\small Very experimental; a deeper SciML integration is the goal.}
+    \end{itemize}
+
+    \vspace{0.5em}
+    {\scriptsize \texttt{github.com/SebastianM-C/DiffEqReactant.jl}}
+  \end{column}
+  \end{columns}
+
+  \vspace{0.5em}
+  \alert{Fixed-step SciML solvers drop in today; traceable adaptive solvers are the next step.}
 \end{frame}
 
 % ------------------------------------------------------------------
