@@ -1,0 +1,561 @@
+\documentclass[aspectratio=169]{beamer}
+
+\usetheme{metropolis}
+
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta}
+\usepackage{qrcode}
+
+% Consistent notation
+\newcommand{\E}{\mathbb{E}}
+\DeclareMathOperator*{\argmin}{arg\,min}
+\DeclareMathOperator*{\argmax}{arg\,max}
+
+% ------------------------------------------------------------------
+% Code listings: sober, projector-safe (bold keywords, grey comments)
+% ------------------------------------------------------------------
+\lstdefinelanguage{Julia}{
+  morekeywords={function,end,return,for,in,do,const,using,include,if,else,elseif,
+                while,struct,mutable,let,begin,import,module,true,false},
+  sensitive=true,
+  morecomment=[l]\#,
+  morestring=[b]",
+}
+\lstdefinestyle{code}{
+  basicstyle=\ttfamily\fontsize{7.4}{8.8}\selectfont,
+  keywordstyle=\bfseries,
+  commentstyle=\itshape\color{black!45},
+  showstringspaces=false,
+  columns=fullflexible,
+  keepspaces=true,
+  extendedchars=true,
+  aboveskip=2pt,
+  belowskip=2pt,
+  literate={θ}{{$\theta$}}1 {ε}{{$\varepsilon$}}1 {σ}{{$\sigma$}}1 {μ}{{$\mu$}}1
+           {²}{{$^2$}}1 {·}{{$\cdot$}}1 {ₖ}{{$_k$}}1,
+}
+\lstset{style=code,language=Julia}
+\newcommand{\smallcode}{\ttfamily\fontsize{6.6}{7.9}\selectfont}
+
+\title{Deep Adaptive Design of Experiments\\for Dynamical Systems}
+\author{Arno Strouwen \enspace {\footnotesize PumasAI \textperiodcentered\ KU Leuven} \\[0.5em]
+        Sebastian Miclu\c{t}a-C\^ampeanu \enspace {\footnotesize JuliaHub \textperiodcentered\ University of Bucharest}}
+\date{JuliaCon 2026}
+
+\begin{document}
+
+% ------------------------------------------------------------------
+% Title
+% ------------------------------------------------------------------
+\begin{frame}
+  \titlepage
+\end{frame}
+
+% ==================================================================
+% Part 1 -- the problem and the theory
+% ==================================================================
+
+% ------------------------------------------------------------------
+% Slide: notation and goal
+% ------------------------------------------------------------------
+\begin{frame}{Notation and goal}
+  \small
+  \begin{itemize}\setlength{\itemsep}{0.3em}
+    \item $\theta$: the unknown parameters.
+    \item $u$: the design.
+    \item $y$: the observations.
+  \end{itemize}
+
+  \vspace{0.4em}
+  State of belief \emph{before} the experiment:
+  \vspace{-0.3em}
+  \[
+    p(\theta) \qquad \text{the \textbf{prior}}
+  \]
+
+  After the experiment, Bayes' rule updates it:
+  \vspace{-0.3em}
+  \[
+    p(\theta \mid y, u) = \frac{p(y \mid \theta, u)\,p(\theta)}
+                               {\displaystyle\int p(y \mid \theta', u)\,p(\theta')\,d\theta'}
+    \qquad \text{the \textbf{posterior}}
+  \]
+
+  \alert{Bayesian experimental design: choose $u$ to make the posterior as sharp as possible.}
+\end{frame}
+
+% ------------------------------------------------------------------
+% Slide: the bioreactor, concretely
+% ------------------------------------------------------------------
+\begin{frame}{Concretely: a fed-batch bioreactor}
+  \small
+  \setlength{\abovedisplayskip}{2pt}\setlength{\belowdisplayskip}{2pt}%
+  \begin{columns}[c]
+  \begin{column}{0.55\textwidth}
+    {\footnotesize
+    \begin{align*}
+      \dot C_s &= -\tfrac{\mu(C_s)}{Y_{xs}}\,C_x + \tfrac{Q_{\mathrm{in}}}{V}\,(C_{s,\mathrm{in}} - C_s),\\
+      \dot C_x &= \mu(C_s)\,C_x - \tfrac{Q_{\mathrm{in}}}{V}\,C_x,\\
+      \dot V   &= Q_{\mathrm{in}},
+      \qquad \mu(C_s) = \frac{\mu_{\max}\,C_s}{K_s + C_s}.
+    \end{align*}}
+    \vspace{-0.2em}
+    Substrate is pumped in, biomass eats it and grows, and the vessel fills up.
+  \end{column}
+  \begin{column}{0.42\textwidth}
+    \begin{center}
+    \begin{tikzpicture}[line width=0.9pt, every node/.style={font=\scriptsize}]
+      % feed line, entering from the left
+      \draw[-{Stealth[length=1.8mm]}] (-0.75,2.95) -- (0.6,2.95) -- (0.6,1.7);
+      \node[anchor=south west, inner sep=1.5pt] at (-0.75,3.0) {feed $Q_{\mathrm{in}} = u$};
+      % vessel, open top
+      \draw[rounded corners=3pt] (0,2.5) -- (0,0) -- (2.6,0) -- (2.6,2.5);
+      % liquid
+      \fill[black!10] (0.05,0.05) rectangle (2.55,1.45);
+      \draw[black!40] (0.05,1.45) -- (2.55,1.45);
+      % impeller
+      \draw (1.4,2.9) -- (1.4,0.75);
+      \draw (1.1,0.75) -- (1.7,0.75);
+      \draw (1.1,0.62) -- (1.1,0.88);
+      \draw (1.7,0.62) -- (1.7,0.88);
+      % contents
+      \node[anchor=west] at (1.85,1.15) {$C_s$};
+      \node[anchor=west] at (1.85,0.7) {$C_x$};
+      \node[anchor=west] at (0.15,0.3) {volume $V$};
+      % sample
+      \draw[-{Stealth[length=1.8mm]}] (2.6,1.05) -- (3.45,1.05)
+        node[midway,above,inner sep=1.5pt] {$y$};
+    \end{tikzpicture}
+    \end{center}
+  \end{column}
+  \end{columns}
+
+  \begin{itemize}\setlength{\itemsep}{0.25em}
+    \item \textbf{Design} $u = Q_{\mathrm{in}}$: the feed rate, which we may change once an hour.
+    \item \textbf{Observations} $y = C_s + \text{noise}$: the substrate concentration, sampled once an hour.
+    \item \textbf{Unknown} $\theta = (\mu_{\max}, K_s)$: the two constants in the growth law $\mu$.
+  \end{itemize}
+
+  \vspace{0.4em}
+  \alert{Which feed profile makes the posterior over $\mu_{\max}$ and $K_s$ as sharp as possible?}
+\end{frame}
+
+% ------------------------------------------------------------------
+% Slide: scoring a design
+% ------------------------------------------------------------------
+\begin{frame}{Scoring a design}
+  \small
+  \setlength{\abovedisplayskip}{2pt}\setlength{\belowdisplayskip}{2pt}%
+  How sharp is a posterior? Measure it by its \textbf{entropy}, small when sharp and large when vague:
+  \[
+    H\big[p(\theta \mid y, u)\big] = -\int p(\theta \mid y, u)\,\log p(\theta \mid y, u)\, d\theta .
+  \]
+
+  $y$ is not measured yet, so we average over every observation the design could produce:
+  \[
+    u^\star = \argmin_u\ \E_{y \mid u}\big[\,H[p(\theta \mid y, u)]\,\big] .
+  \]
+
+  \alert{Scoring a design means averaging over the data it might produce.}
+
+  \vspace{0.5em}
+  {\footnotesize In our examples only part of $\theta$ is of interest: split $\theta = (\theta_T, \theta_N)$
+  into the kinetics $\theta_T$ and nuisance $\theta_N$ (sensor noise, initial biomass), and score only
+  the marginal posterior of the target,
+  \[
+    u^\star = \argmin_u\ \E_{y \mid u}\big[\,H[p(\theta_T \mid y, u)]\,\big],
+    \qquad p(\theta_T \mid y, u) = \int p(\theta \mid y, u)\, d\theta_N .
+  \]
+  We will not go into what that does to the estimator here; it is in the paper: \emph{Deep Adaptive
+  Model-Based Design of Experiments}, arXiv:2603.16146.}
+\end{frame}
+
+% ------------------------------------------------------------------
+% Slide: why it is expensive
+% ------------------------------------------------------------------
+\begin{frame}{Why that is expensive}
+  \small
+  \setlength{\abovedisplayskip}{1pt}\setlength{\belowdisplayskip}{1pt}%
+  Up to a constant, the entropy criterion can be rewritten as
+  \[
+    \max_u\ \E_{\theta,\, y \mid u}\big[\log p(y \mid \theta, u) - \log p(y \mid u)\big].
+  \]
+  The first term is easy: simulate the model and evaluate its likelihood.
+
+  The second term is the \textbf{evidence}, an integral over every parameter the prior allows:
+  \[
+    p(y \mid u) = \int p(y \mid \theta, u)\,p(\theta)\,d\theta .
+  \]
+  Replace it by a sample average and you get a loop inside a loop:
+  \[
+    \frac{1}{N}\sum_{n=1}^{N}\Big[
+      \log p\big(y_n \mid \theta^{(n)}, u\big)
+      \;-\; \log \underbrace{\frac{1}{L}\sum_{\ell=1}^{L} p\big(y_n \mid \theta^{(\ell)}, u\big)}_{\text{inner loop}}
+    \Big]
+  \]
+  Every one of those likelihoods is an ODE solve.
+
+  \alert{$N \times L$ ODE solves to score \emph{one} candidate design, and the optimizer wants many.}
+
+\end{frame}
+
+% ------------------------------------------------------------------
+% Slide: static, adaptive, policies
+% ------------------------------------------------------------------
+\begin{frame}{From static schedules to policies}
+  \small
+  \setlength{\abovedisplayskip}{1pt}\setlength{\belowdisplayskip}{1pt}%
+  \textbf{Static:} choose the whole input sequence $u_{1:K} = (u_1, \dots, u_K)$ before the experiment.
+
+  \vspace{0.35em}
+  \textbf{Adaptive:} choose $u_k$ only after seeing the history $h_{k-1}$ of past inputs and
+  measurements. The optimum alternates a decision and an expectation at every step:
+  \[
+    V = \min_{u_1}\E_{y_1}\min_{u_2}\E_{y_2}\cdots\min_{u_K}\E_{y_K}
+        \big[\,H[p(\theta \mid h_K)]\,\big].
+  \]
+  The usual workaround: after each measurement, update the posterior and re-optimize only the next
+  input --- inference and optimization, between two measurements.
+
+  \vspace{0.35em}
+  \textbf{Instead:} let a neural network be the rule, $u_k = \pi_\phi(h_{k-1})$, and optimize its
+  weights $\phi$ by policy gradient. The nesting collapses into one expectation over simulated
+  episodes, and the best policy is as good as $V$.
+
+  \vspace{0.35em}
+  \alert{Trained once, offline; in the lab, each step is one forward pass.}
+\end{frame}
+
+% ------------------------------------------------------------------
+% Slide: cost of one gradient step
+% ------------------------------------------------------------------
+\begin{frame}{What one gradient step costs}
+  \small
+  \setlength{\abovedisplayskip}{4pt}\setlength{\belowdisplayskip}{4pt}%
+  One decent estimate of the criterion (a contrastive bound, sPCE) takes $L + M + 2$ ODE solves per
+  episode --- one rollout,
+  $L = 464$ prior decoys, $M = 466$ nuisance draws --- over a batch of $B = 53{,}648$ episodes:
+  \[
+    \underbrace{932}_{L+M+2} \times \underbrace{53{,}648}_{B} \approx 5 \times 10^{7}
+    \ \text{trajectories} \qquad \approx 3.5 \times 10^{10} \ \text{RK4 steps} .
+  \]
+  And we need its gradient, not its value --- a thousand times, once per optimizer step.
+
+  \vspace{0.7em}
+  \alert{That is a lot of ODE solves: $15.4$\,s per gradient step, $4.3$ hours on one H100.}
+
+  \vspace{0.7em}
+  So the batch has to live on a GPU, the whole objective has to become one compiled program, and the
+  solver has to be differentiated for us.
+\end{frame}
+
+% ==================================================================
+% Part 2 -- the Julia implementation
+% ==================================================================
+
+% ------------------------------------------------------------------
+% Slide: the stack
+% ------------------------------------------------------------------
+\begin{frame}{The stack}
+  \small
+  \begin{tabular}{@{}p{0.21\textwidth}p{0.74\textwidth}@{}}
+    \toprule
+    \textbf{Lux.jl} & The policy. Parameters and state are explicit arguments, so the loss is a pure
+                      function of the weights --- what a tracing compiler needs. \\
+    \addlinespace[0.3em]
+    \textbf{RK4, by hand} & Fixed step, batched over hypotheses and episodes.
+                      \texttt{SimpleDiffEq}'s RK4 drops in unchanged. \\
+    \addlinespace[0.3em]
+    \textbf{Reactant.jl} & Traces the \emph{entire} objective --- rollout, ODE solves, likelihoods,
+                      log-sum-exp, attention --- into StableHLO MLIR, then compiles it with XLA. \\
+    \addlinespace[0.3em]
+    \textbf{Enzyme} & Reverse-mode differentiation of that traced program, at the MLIR level. \\
+    \addlinespace[0.3em]
+    \textbf{Optimisers.jl} & Adam, cosine schedule, gradient accumulation, through
+                      \texttt{Lux.Training.single\_train\_step!}. \\
+    \bottomrule
+  \end{tabular}
+
+  \vspace{0.6em}
+  \alert{One gradient step becomes one compiled executable: no Julia left in the inner loop.}
+
+\end{frame}
+
+% ------------------------------------------------------------------
+% Slide: the stack, honestly
+% ------------------------------------------------------------------
+\begin{frame}{The stack, honestly}
+  \small
+  \textbf{What we got.}
+  \begin{itemize}\setlength{\itemsep}{0.2em}
+    \item The code stayed the code: ordinary loops and mutation, no \texttt{vmap}, no functional rewrite.
+    \item Steady-state runtime is fast: $3.5 \times 10^{10}$ differentiated RK4 steps per iteration,
+          in $15.4$\,s.
+  \end{itemize}
+
+  \vspace{0.5em}
+  \textbf{What it cost.}
+  \begin{itemize}\setlength{\itemsep}{0.2em}
+    \item Errors come back from the compiler, not your program: MLIR, not a Julia stack trace.
+    \item Compile time is minutes, once per shape --- precisely when you want to iterate.
+    \item The bad one: the gradient was silently wrong. The fix existed, in a version that needed
+          Julia 1.12; we were on 1.11. We upgraded --- and met a different bug 1.11 never had.
+  \end{itemize}
+
+  \vspace{0.5em}
+  \alert{Pin every version, and check the gradient against an unfused reference before trusting a run.}
+\end{frame}
+
+% ------------------------------------------------------------------
+% Slide: the policy in Lux
+% ------------------------------------------------------------------
+\begin{frame}[fragile]{The policy: a small transformer over the history}
+\begin{lstlisting}
+const policy = @compact(
+    input_proj  = Dense(2 => 32),
+    rms1 = RMSNorm((32,)),  mha = MultiHeadAttention(32; nheads = 4),
+    rms2 = RMSNorm((32,)),  ff  = Chain(Dense(32 => 64, gelu), Dense(64 => 32)),
+    output_head = Dense(32 => 1; init_bias = (rng, dims...) -> fill(-4.0f0, dims...)),
+) do x                                        # x: (2, K, B) -- the (yₖ, uₖ) pairs so far
+    x = input_proj(x)
+    x = x .+ reshape(sinusoidal_pe(size(x, 2)), 32, :, 1)     # make time explicit
+    attn, _ = mha(rms1(x))
+    x = x + attn
+    x = x + ff(rms2(x))
+    @return ACTION_HI .* sigmoid.(output_head(x[:, end, :]))  # next feed rate in [0, 10]
+end
+\end{lstlisting}
+
+  \vspace{0.25em}
+  {\small
+  The history is a fixed 14-slot buffer, zero where nothing has been measured yet, so the future
+  cannot leak in. The positional encoding is where we deviate from DAD: for a dynamical system,
+  hour~3 and hour~11 are not interchangeable. 14k parameters: next to the ODEs, free.}
+\end{frame}
+
+% ------------------------------------------------------------------
+% Slide: the objective in code
+% ------------------------------------------------------------------
+\begin{frame}[fragile]{The objective, as written}
+\begin{lstlisting}
+for step in 1:N_STEPS                              # roll out under the current policy
+    action, st = model(input_buffer, ps, st)
+    u = integrate(u, θ_dyn_true, action, DT, N_SUBSTEPS)
+    y = observe_noisy(u, θ_obs_true, ε, step)      # y = g(x) + σ·ε, with ε drawn up front
+    observations[step, :] .= y                     # mutation is fine: it gets traced away
+    input_buffer[1, step, :] .= y
+    input_buffer[2, step, :] .= action[1, :]
+end
+
+for step in 1:N_STEPS                              # all L+1 hypotheses at once: u is (3, L+1, B)
+    u_denom = integrate(u_denom, θ_dyn_denom, designs[step:step, :], DT, N_SUBSTEPS)
+    log_likelihood_step!(ll_denom, observations[step:step, :], u_denom, θ_obs_denom)
+end
+
+_, loss, _, train_state = Lux.Training.single_train_step!(   # Enzyme, on the traced program
+    AutoEnzyme(), targeted_spce_loss, data, train_state)
+\end{lstlisting}
+
+  {\footnotesize
+  Hypotheses are one more array axis, no \texttt{vmap}; the only compiler-facing line is the last.
+  \hfill (Condensed from \texttt{src/common.jl}.)}
+\end{frame}
+
+% ------------------------------------------------------------------
+% Slide: JAX side by side
+% ------------------------------------------------------------------
+\begin{frame}[fragile]{The same inner loop in JAX}
+  \begin{columns}[t]
+  \begin{column}{0.44\textwidth}
+    {\scriptsize\textbf{Julia + Reactant}}
+\begin{lstlisting}[basicstyle=\smallcode]
+function integrate(u, θ, d, dt, n_sub)
+    @trace mincut=true for _ in 1:n_sub
+        u = rk4_step(u, θ, d, dt / n_sub)
+    end
+    return u
+end
+\end{lstlisting}
+  \end{column}
+  \begin{column}{0.54\textwidth}
+    {\scriptsize\textbf{Python + JAX}}
+\begin{lstlisting}[language=Python,basicstyle=\smallcode]
+@jax.checkpoint
+def integrate_scan(u, theta, Q_in):
+  dt_sub = DT / N_SUBSTEPS
+  def body(u, _):
+    return rk4_step(u, theta, Q_in, dt_sub), None
+  u, _ = lax.scan(body, u, None, length=N_SUBSTEPS)
+  return u
+\end{lstlisting}
+  \end{column}
+  \end{columns}
+
+  {\small
+  \begin{itemize}\setlength{\itemsep}{0.25em}
+    \item Both sides emit StableHLO and hand it to XLA: identical arithmetic, different front end.
+    \item Reverse-mode memory: \texttt{jax.checkpoint} by hand, versus \texttt{mincut=true} letting
+          Enzyme choose the cut.
+    \item Same trade in the rollout: a \texttt{for} loop mutating \texttt{input\_buffer}, versus a
+          \texttt{scan} carrying it and \texttt{.at[].set()}.
+    \item Over the hypothesis axis both ended up hand-batched anyway, \texttt{vmap} or not.
+  \end{itemize}}
+\end{frame}
+
+% ------------------------------------------------------------------
+% Slide: benchmark
+% ------------------------------------------------------------------
+\begin{frame}{Reactant versus JAX at a matched workload}
+  \small
+  Same estimator, same shapes: $L = 255$, $M = 256$, $B = 512$, Float32, $14$ steps of $50$ RK4
+  substeps --- $262{,}656$ trajectories per timed step, on one GPU.
+
+  \vspace{0.6em}
+  \begin{columns}[t]
+  \begin{column}{0.42\textwidth}
+    \begin{tabular}{@{}lcc@{}}
+      \toprule
+      & step & first call \\
+      \midrule
+      Reactant, hand RK4       & --- & --- \\
+      Reactant, SimpleDiffEq   & --- & --- \\
+      JAX, \texttt{lax.scan}   & --- & --- \\
+      JAX, \texttt{fori\_loop} & --- & --- \\
+      \bottomrule
+    \end{tabular}
+  \end{column}
+  \begin{column}{0.54\textwidth}
+    {\footnotesize
+    The contract, fixed before running: one deterministic fixture, on the device before the clock
+    starts; time loss and gradient only, no sampling or transfer or optimizer step; synchronize before
+    stopping; five warmups, thirty timed calls, five fresh processes per variant.}
+  \end{column}
+  \end{columns}
+
+  \vspace{0.5em}
+  {\small Steady-state step time and first-call latency are different numbers, and one matched
+  workload on one GPU is a statement about this program, not about the two languages.}
+
+  \vspace{0.4em}
+  {\footnotesize Harness on branch \texttt{smc/jax-reactant-benchmark}; numbers pending the
+  matched-fixture rerun.}
+\end{frame}
+
+% ==================================================================
+% Part 3 -- what the policies do
+% ==================================================================
+
+% ------------------------------------------------------------------
+% Slide: Monod rollouts
+% ------------------------------------------------------------------
+\begin{frame}{What the learned policy does}
+  \begin{center}
+    \makebox[\textwidth][c]{%
+      \includegraphics[width=1.08\textwidth,height=0.80\textheight,keepaspectratio]%
+        {../paper/figures/monod_comparison.png}}
+  \end{center}
+
+  \vspace{0.2em}
+  {\small Twenty draws of the true $(\mu_{\max}, K_s)$, the same twenty for each strategy.}
+\end{frame}
+
+% ------------------------------------------------------------------
+% Slide: posteriors
+% ------------------------------------------------------------------
+\begin{frame}{Sharper posteriors}
+  \begin{columns}[c]
+  \begin{column}{0.42\textwidth}
+    {\small
+    \begin{tabular}{@{}lccc@{}}
+      \toprule
+      & sPCE & \multicolumn{2}{c}{RMSE ($\times 10^{3}$)} \\
+      Design & (nats) & $\mu_{\max}$ & $K_s$ \\
+      \midrule
+      Adaptive policy   & $\mathbf{3.68}$ & $\mathbf{3.1}$ & $\mathbf{24.9}$ \\
+      Static (BIM)      & $3.45$ & $4.4$ & $34.3$ \\
+      Static (sPCE-opt) & $3.34$ & $5.6$ & $41.5$ \\
+      \bottomrule
+    \end{tabular}}
+
+    \vspace{1.0em}
+    \alert{Same number of measurements, about 30\% lower error.}
+  \end{column}
+  \begin{column}{0.55\textwidth}
+    \includegraphics[width=\textwidth]{../paper/figures/monod_posterior.png}
+  \end{column}
+  \end{columns}
+\end{frame}
+
+% ------------------------------------------------------------------
+% Slide: the design follows the data (Haldane)
+% ------------------------------------------------------------------
+\begin{frame}{Two runs, two different experiments}
+  \begin{center}
+    \makebox[\textwidth][c]{%
+      \includegraphics[width=1.08\textwidth,height=0.72\textheight,keepaspectratio]%
+        {../paper/figures/haldane_comparison.png}}
+  \end{center}
+
+  \vspace{0.2em}
+  {\small Kinetics fixed; two values of the inhibition strength, twenty nuisance draws each.}
+
+  \vspace{0.3em}
+  \alert{The design adapts to the true parameters.}
+\end{frame}
+
+% ------------------------------------------------------------------
+% Slide: DC motor
+% ------------------------------------------------------------------
+\begin{frame}{Real time: a DC motor on a 10\,ms clock}
+  \begin{columns}[c]
+  \begin{column}{0.55\textwidth}
+    \includegraphics[width=\textwidth]{../paper/figures/dcmotor_timing.png}
+  \end{column}
+  \begin{column}{0.42\textwidth}
+    \small
+    \textbf{Adaptive (BIM)} --- re-optimized online. After every measurement: update the posterior,
+    optimize the next voltage. All of it inside the $10$\,ms window.
+
+    \vspace{0.9em}
+    \textbf{Adaptive (sPCE)} --- the amortized policy. All of that happened offline, before the motor
+    was switched on. Online, one forward pass.
+  \end{column}
+  \end{columns}
+
+  \vspace{0.6em}
+  \alert{Amortization is what makes adaptive design real-time.}
+\end{frame}
+
+% ------------------------------------------------------------------
+% Slide: code and paper
+% ------------------------------------------------------------------
+\begin{frame}{Code and paper}
+  \begin{columns}[c]
+  \begin{column}{0.38\textwidth}
+    \begin{center}
+      \qrcode[height=3.4cm]{https://github.com/arno-papers/CDC2026}
+    \end{center}
+  \end{column}
+  \begin{column}{0.58\textwidth}
+    \small
+    \texttt{github.com/arno-papers/CDC2026}
+
+    \vspace{0.5em}
+    Models, training, evaluation and every figure in this talk.
+
+    \vspace{1.0em}
+    Paper: \texttt{arXiv:2603.16146}
+  \end{column}
+  \end{columns}
+
+  \vspace{1.0em}
+  {\footnotesize The resources and services used in this work were provided by the VSC (Flemish
+  Supercomputer Center), funded by the Research Foundation -- Flanders (FWO) and the Flemish Government.}
+\end{frame}
+
+\end{document}
