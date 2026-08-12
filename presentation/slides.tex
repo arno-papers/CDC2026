@@ -162,18 +162,16 @@
     u^\star = \argmin_u\ \E_{y \mid u}\big[\,H[p(\theta \mid y, u)]\,\big] .
   \]
 
-  \alert{Scoring a design means averaging over the data it might produce.}
-
   \vspace{0.5em}
-  {\footnotesize In our examples only part of $\theta$ is of interest: split $\theta = (\theta_T, \theta_N)$
-  into the kinetics $\theta_T$ and nuisance $\theta_N$ (sensor noise, initial biomass), and score only
-  the marginal posterior of the target,
+  {\footnotesize \textbf{Technical note.}\ \ In our examples only part of $\theta$ is of interest:
+  split $\theta = (\theta_T, \theta_N)$ into the kinetics $\theta_T$ and nuisance $\theta_N$
+  (sensor noise, initial biomass), and score only the marginal posterior of the target,
   \[
     u^\star = \argmin_u\ \E_{y \mid u}\big[\,H[p(\theta_T \mid y, u)]\,\big],
     \qquad p(\theta_T \mid y, u) = \int p(\theta \mid y, u)\, d\theta_N .
   \]
-  We will not go into what that does to the estimator here; it is in the paper: \emph{Deep Adaptive
-  Model-Based Design of Experiments}, arXiv:2603.16146.}
+  We will not go into what that does to the estimator here; it is in the paper:\\
+  \emph{Deep Adaptive Model-Based Design of Experiments}, arXiv:2603.16146.}
 \end{frame}
 
 % ------------------------------------------------------------------
@@ -214,8 +212,9 @@
   \textbf{Static:} choose the whole input sequence $u_{1:K} = (u_1, \dots, u_K)$ before the experiment.
 
   \vspace{0.35em}
-  \textbf{Adaptive:} choose $u_k$ only after seeing the history $h_{k-1}$ of past inputs and
-  measurements. The optimum alternates a decision and an expectation at every step:
+  \textbf{Adaptive:} choose $u_k$ only after seeing the history
+  $h_{k-1} = (u_1, y_1, \dots, u_{k-1}, y_{k-1})$ of all inputs and measurements so far.
+  The optimum alternates a decision and an expectation at every step:
   \[
     V = \min_{u_1}\E_{y_1}\min_{u_2}\E_{y_2}\cdots\min_{u_K}\E_{y_K}
         \big[\,H[p(\theta \mid h_K)]\,\big].
@@ -224,9 +223,14 @@
   input --- inference and optimization, between two measurements.
 
   \vspace{0.35em}
-  \textbf{Instead:} let a neural network be the rule, $u_k = \pi_\phi(h_{k-1})$, and optimize its
-  weights $\phi$ by policy gradient. The nesting collapses into one expectation over simulated
-  episodes, and the best policy is as good as $V$.
+  \textbf{Instead:} optimize over the rules themselves: a \textbf{policy} $\pi$ maps history to
+  next input, $u_k = \pi(h_{k-1})$. Over that function space the nesting collapses exactly into
+  one expectation:
+  \[
+    V = \min_{\pi}\ \E_{h_K \mid \pi}\big[\,H[p(\theta \mid h_K)]\,\big].
+  \]
+  A neural network $\pi_\phi$ is just an approximation of that space, trained by policy gradient
+  on simulated episodes.
 
   \vspace{0.35em}
   \alert{Trained once, offline; in the lab, each step is one forward pass.}
@@ -238,21 +242,18 @@
 \begin{frame}{What one gradient step costs}
   \small
   \setlength{\abovedisplayskip}{4pt}\setlength{\belowdisplayskip}{4pt}%
-  One decent estimate of the criterion (a contrastive bound, sPCE) takes $L + M + 2$ ODE solves per
-  episode --- one rollout,
-  $L = 464$ prior decoys, $M = 466$ nuisance draws --- over a batch of $B = 53{,}648$ episodes:
+  Scoring one episode means re-simulating it under hundreds of parameter draws from the prior.
+  That is $932$ ODE solves per episode, and training scores a batch of $53{,}648$ episodes:
   \[
-    \underbrace{932}_{L+M+2} \times \underbrace{53{,}648}_{B} \approx 5 \times 10^{7}
-    \ \text{trajectories} \qquad \approx 3.5 \times 10^{10} \ \text{RK4 steps} .
+    \underbrace{932}_{\text{per episode}} \times \underbrace{53{,}648}_{\text{episodes}}
+    \approx 5 \times 10^{7} \ \text{ODE solves}.
   \]
-  And we need its gradient, not its value --- a thousand times, once per optimizer step.
+  And training needs the \emph{gradient} of that whole computation at every optimizer step,
+  not just its value. Even done well, one gradient step takes $15.4$\,s on an H100.
 
   \vspace{0.7em}
-  \alert{That is a lot of ODE solves: $15.4$\,s per gradient step, $4.3$ hours on one H100.}
-
-  \vspace{0.7em}
-  So the batch has to live on a GPU, the whole objective has to become one compiled program, and the
-  solver has to be differentiated for us.
+  \alert{So the batch has to live on the GPU, the objective has to become one compiled program,
+  and the solver has to be differentiated for us.}
 \end{frame}
 
 % ==================================================================
@@ -771,9 +772,6 @@ end
   \begin{column}{0.58\textwidth}
     \small
     \texttt{github.com/arno-papers/CDC2026}
-
-    \vspace{0.5em}
-    Models, training, evaluation and every figure in this talk.
 
     \vspace{1.0em}
     Paper: \texttt{arXiv:2603.16146}
