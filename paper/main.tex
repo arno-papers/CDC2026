@@ -333,6 +333,7 @@ We have shown that combining deep adaptive design with differentiable mechanisti
 The amortized policy outperforms both static baselines and adaptive online re-optimization across four systems of increasing complexity.
 
 Current limitations remain: the policy is trained for a specific prior distribution, significant prior shifts require retraining, model misspecification is not addressed, stochasticity is limited to the measurement equation, and offline training is costly (1000 Adam iterations took between 1.4~h for Haldane and 8~h for the pharmacokinetic model on a single NVIDIA H100 GPU), although deployment is lightweight.
+Because the deployed policy is a fixed feedback law, moderate prior shift or unmodeled dynamics degrade design quality rather than cause failure, and since the likelihood is explicit, the sPCE score of a completed experiment can serve as a cheap misspecification diagnostic.
 Promising next steps are to combine the framework with Bayesian model selection~\cite{strouwen2026modelselection} for model uncertainty, extend the framework to process noise through Bayesian filtering~\cite{strouwen2023adaptive}, and deploy the learned policy on physical hardware with closed-loop feedback.
 Together, these extensions would move the framework closer to robust real-world adaptive experimentation.
 
