@@ -53,7 +53,7 @@ sebastian.mc95@proton.me}
 \maketitle
 
 \begin{abstract}
-Model-based design of experiments (MBDOE) is essential for efficient parameter estimation in nonlinear dynamical systems. However, conventional adaptive MBDOE requires costly posterior inference and design optimization between each experimental step, precluding real-time applications. We address this by combining Deep Adaptive Design (DAD), which amortizes sequential design into a neural network policy trained offline, with differentiable mechanistic models. For dynamical systems with known governing equations but uncertain parameters, we extend sequential contrastive training objectives to handle nuisance parameters and propose a transformer-based policy architecture that respects the temporal structure of dynamical systems. We demonstrate the approach on four systems of increasing complexity: a fed-batch bioreactor with Monod kinetics, a Haldane bioreactor with uncertain substrate inhibition, a two-compartment pharmacokinetic model with nuisance clearance parameters, and a DC motor for real-time deployment. On the Monod bioreactor, the adaptive policy reduces posterior RMSE by about 30\% versus the best static design; on the DC motor, it evaluates in $24~\mu$s per step versus $7.4~\mathrm{ms}$ for non-amortized adaptive design, enabling real-time deployment.
+Model-based design of experiments (MBDOE) is essential for efficient parameter estimation in nonlinear dynamical systems. However, conventional adaptive MBDOE requires costly posterior inference and design optimization between each experimental step, precluding real-time applications. We address this by combining Deep Adaptive Design (DAD), which amortizes sequential design into a neural network policy trained offline, with differentiable mechanistic models. For dynamical systems with known governing equations but uncertain parameters, we extend sequential contrastive training objectives to handle nuisance parameters and propose a transformer-based policy architecture that respects the temporal structure of dynamical systems. We demonstrate the approach on four systems of increasing complexity: a fed-batch bioreactor with Monod kinetics, a Haldane bioreactor with uncertain substrate inhibition, a two-compartment pharmacokinetic model with nuisance clearance parameters, and a DC motor for real-time deployment. On the Monod bioreactor, the adaptive policy reduces posterior RMSE by about 30\% versus the best static design; on the DC motor, it evaluates in $24\,\mu$s per step versus $7.4\,$ms for non-amortized adaptive design, enabling real-time deployment.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -75,7 +75,7 @@ Our contributions are:
 \item We formulate adaptive MBDOE for dynamical systems where the model structure is known, training the policy end-to-end by differentiating through the ODE solver and observation model.
 \item We extend the sPCE bound to handle nuisance parameters, enabling targeted inference by marginalizing over nuisance parameters such as measurement noise.
 \item We retain the transformer-based policy architecture from DAD and adapt it to dynamical systems by making temporal order explicit through positional encoding, rather than treating design-outcome pairs as permutation invariant.
-\item We demonstrate the methodology on four examples: a Monod bioreactor, a Haldane bioreactor illustrating adaptation to target parameters, a pharmacokinetic model illustrating nuisance adaptation together with a brief architecture ablation, and a DC motor for real-time deployment; on the Monod bioreactor the adaptive policy reduces posterior RMSE by about 30\% relative to the best static design, and on the DC motor it evaluates in $24~\mu$s per step versus $7.4~\mathrm{ms}$ for non-amortized adaptive design.
+\item We demonstrate the methodology on four examples: a Monod bioreactor, a Haldane bioreactor illustrating adaptation to target parameters, a pharmacokinetic model illustrating nuisance adaptation together with a brief architecture ablation, and a DC motor for real-time deployment; on the Monod bioreactor the adaptive policy reduces posterior RMSE by about 30\% relative to the best static design, and on the DC motor it evaluates in $24\,\mu$s per step versus $7.4\,$ms for non-amortized adaptive design.
 \end{itemize}
 
 \section{Model}
@@ -94,7 +94,7 @@ We assume a fixed experimental schedule with known measurement times $0 < t_1 < 
 The design goal is to choose the input profile $u(t)$ (equivalently, the sequence $u_{1:K}$) to maximize the information gained about $\theta_T$.
 
 We instantiate this framework on a well-mixed fed-batch bioreactor~\cite{versyck}, with state $x = (C_s, C_x, V)$, input $u = Q_{in}$, and kinetic parameters $\theta_T = (\mu_{\max}, K_s)$.
-We consider a $14$-hour experiment with measurements collected every hour, so $K=14$ and $t_k = k\,\mathrm{h}$ for $k=1,\ldots,K$ (with $t_0=0\,\mathrm{h}$).
+We consider a 14-hour experiment with measurements collected every hour, so $K=14$ and $t_k = k\,\mathrm{h}$ for $k=1,\ldots,K$ (with $t_0=0\,\mathrm{h}$).
 We choose a feed rate $Q_{in,k}$ that is held constant on $[(k-1)\,\mathrm{h}, k\,\mathrm{h})$.
 The dynamics are:
 \begin{equation}\label{eq:bioreactor}
@@ -282,14 +282,14 @@ A two-compartment PK model with transit absorption describes drug distribution b
 \end{aligned}
 \end{equation}
 where $R_\text{inf}$ is the controllable infusion rate (design input). The target parameters are the absorption rates $\theta_T = (k_a, k_{tr})$, while $\theta_N = (CL, Q_d, \sigma_{\text{prop}}, \sigma_{\text{add}})$ are nuisance, including patient-specific clearance. The observation is central concentration $g(x) = C_c = A_c/V_C$ with combined proportional and additive noise, $\Sigma(g(x), \theta_N) = (\sigma_{\text{prop}} C_c)^2 + \sigma_{\text{add}}^2$.
-We simulate a $24$-hour experiment with hourly observations ($K = 24$), using uniform priors $k_a, k_{tr} \in [0.5, 3.0]$, $CL \in [1.0, 5.0]$, $Q_d \in [0.5, 3.0]$, $\sigma_{\text{prop}} \in [0.05, 0.20]$, and $\sigma_{\text{add}} \in [0.01, 0.10]$.
+We simulate a 24-hour experiment with hourly observations ($K = 24$), using uniform priors $k_a, k_{tr} \in [0.5, 3.0]$, $CL \in [1.0, 5.0]$, $Q_d \in [0.5, 3.0]$, $\sigma_{\text{prop}} \in [0.05, 0.20]$, and $\sigma_{\text{add}} \in [0.01, 0.10]$.
 Fig.~\ref{fig:pharma} provides a qualitative illustration that nuisance parameters can materially change the optimal dosing schedule. After a common initial infusion pulse, the policy resumes dosing earlier under fast elimination and later under slow elimination, reflecting how quickly the drug is cleared. This nuisance adaptation emerges from the targeted sPCE objective, which marginalizes over $(CL, Q_d)$ during training, so the policy learns that the dosing schedule most informative for probing absorption depends on the elimination profile.
 A brief architecture ablation on this example suggests that explicit temporal encoding is the main architectural ingredient: removing positional encoding drops sPCE by $0.35$~nats ($t{=}12.1$), while replacing attention with a comparably-sized MLP causes a smaller drop of $0.03$~nats ($t{=}2.2$)\ifextended{} (Appendix~\ref{sec:ablation})\else{} (see the extended version~\cite{strouwen2026extended})\fi.
 
 \begin{figure*}[t]
 \centering
 \includegraphics[width=\textwidth]{figures/pharma_nuisance.png}
-\caption{PK model rollouts (20 per scenario, shared absorption parameters $k_a$, $k_{tr}$ at midrange). Blue: slow elimination ($CL = 1.0$~L/hr, $Q_d = 0.5$~L/hr); red: fast elimination ($CL = 5.0$~L/hr, $Q_d = 3.0$~L/hr). Left to right: central concentration $C_c = A_c/V_C$, peripheral concentration $C_p = A_p/V_P$, and infusion rate $R_\text{inf}$ (design). After a common initial infusion pulse, the policy resumes dosing earlier under fast elimination, whereas under slow elimination it delays redosing because the drug persists longer.}
+\caption{PK model rollouts (20 per scenario, shared absorption parameters $k_a$, $k_{tr}$ at midrange). Blue: slow elimination ($CL = 1.0\,$L/h, $Q_d = 0.5\,$L/h); red: fast elimination ($CL = 5.0\,$L/h, $Q_d = 3.0\,$L/h). Left to right: central concentration $C_c = A_c/V_C$, peripheral concentration $C_p = A_p/V_P$, and infusion rate $R_\text{inf}$ (design). After a common initial infusion pulse, the policy resumes dosing earlier under fast elimination, whereas under slow elimination it delays redosing because the drug persists longer.}
 \label{fig:pharma}
 \end{figure*}
 
@@ -332,7 +332,7 @@ Note that this adaptive BIM baseline is already a deliberately simple strategy--
 We have shown that combining deep adaptive design with differentiable mechanistic models enables real-time adaptive model-based design of experiments.
 The amortized policy outperforms both static baselines and adaptive online re-optimization across four systems of increasing complexity.
 
-Current limitations remain: the policy is trained for a specific prior distribution, significant prior shifts require retraining, model misspecification is not addressed, stochasticity is limited to the measurement equation, and offline training is costly (1000 Adam iterations took between 1.4~h for Haldane and 8~h for the pharmacokinetic model on a single NVIDIA H100 GPU), although deployment is lightweight.
+Current limitations remain: the policy is trained for a specific prior distribution, significant prior shifts require retraining, model misspecification is not addressed, stochasticity is limited to the measurement equation, and offline training is costly (1000 Adam iterations took between $1.4\,$h for Haldane and $8\,$h for the pharmacokinetic model on a single NVIDIA H100 GPU), although deployment is lightweight.
 Because the deployed policy is a fixed feedback law, moderate prior shift or unmodeled dynamics degrade design quality rather than cause failure, and since the likelihood is explicit, the sPCE score of a completed experiment can serve as a cheap misspecification diagnostic.
 Promising next steps are to combine the framework with Bayesian model selection~\cite{strouwen2026modelselection} for model uncertainty, extend the framework to process noise through Bayesian filtering~\cite{strouwen2023adaptive}, and deploy the learned policy on physical hardware with closed-loop feedback.
 Together, these extensions would move the framework closer to robust real-world adaptive experimentation.
