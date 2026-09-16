@@ -88,9 +88,8 @@ y_k \mid x(t_k), \theta_N &\sim \mathcal{N}(g(x(t_k)),\, \Sigma(x(t_k), \theta_N
 \end{aligned}
 \end{equation}
 where $x(t) \in \mathbb{R}^n$ is the state vector, $u(t) \in \mathbb{R}^m$ is a controllable input vector, and $y_k \in \mathbb{R}^q$ is the observation vector at measurement time $t_k$.
-We partition parameters as $\theta = (\theta_T, \theta_N)$, where $\theta_T$ are the target parameters of interest and $\theta_N$ are nuisance parameters (e.g., measurement noise scale, uncertain initial conditions).
-Some components of the initial state $x_0$ may depend on $\theta_N$.
-The observation noise covariance $\Sigma(x(t_k), \theta_N) \in \mathbb{R}^{q \times q}$ may depend on the state (e.g., proportional noise).
+We partition parameters as $\theta = (\theta_T, \theta_N)$, where $\theta_T$ are the target parameters of interest and $\theta_N$ are nuisance parameters: physical parameters not of interest (e.g., clearance), uncertain initial conditions (components of $x_0$), and observation-noise parameters (e.g., noise scale).
+The observation noise covariance $\Sigma(x(t_k), \theta_N) \in \mathbb{R}^{q \times q}$ may depend on the state; in our examples it depends on $x$ only through the output $g(x)$ (e.g., proportional noise), and all noise parameters are components of $\theta_N$.
 We assume a fixed experimental schedule with known measurement times $0 < t_1 < \cdots < t_K$ and piecewise-constant inputs, $u(t)=u_k$ for $t \in [t_{k-1}, t_k)$.
 The design goal is to choose the input profile $u(t)$ (equivalently, the sequence $u_{1:K}$) to maximize the information gained about $\theta_T$.
 
@@ -282,7 +281,7 @@ A two-compartment PK model with transit absorption describes drug distribution b
 \dot{A}_p &= \tfrac{Q_d}{V_C} A_c - \tfrac{Q_d}{V_P} A_p,
 \end{aligned}
 \end{equation}
-where $R_\text{inf}$ is the controllable infusion rate (design input). The target parameters are the absorption rates $\theta_T = (k_a, k_{tr})$, while $\theta_N = (CL, Q_d, \sigma_{\text{prop}}, \sigma_{\text{add}})$ are nuisance, including patient-specific clearance. The observation is central concentration $C_c = A_c/V_C$ with combined proportional and additive noise: $y_k \sim \mathcal{N}(C_c, (\sigma_{\text{prop}} C_c)^2 + \sigma_{\text{add}}^2)$.
+where $R_\text{inf}$ is the controllable infusion rate (design input). The target parameters are the absorption rates $\theta_T = (k_a, k_{tr})$, while $\theta_N = (CL, Q_d, \sigma_{\text{prop}}, \sigma_{\text{add}})$ are nuisance, including patient-specific clearance. The observation is central concentration $g(x) = C_c = A_c/V_C$ with combined proportional and additive noise, $\Sigma(g(x), \theta_N) = (\sigma_{\text{prop}} C_c)^2 + \sigma_{\text{add}}^2$.
 We simulate a $24$-hour experiment with hourly observations ($K = 24$), using uniform priors $k_a, k_{tr} \in [0.5, 3.0]$, $CL \in [1.0, 5.0]$, $Q_d \in [0.5, 3.0]$, $\sigma_{\text{prop}} \in [0.05, 0.20]$, and $\sigma_{\text{add}} \in [0.01, 0.10]$.
 Fig.~\ref{fig:pharma} provides a qualitative illustration that nuisance parameters can materially change the optimal dosing schedule. After a common initial infusion pulse, the policy resumes dosing earlier under fast elimination and later under slow elimination, reflecting how quickly the drug is cleared. This nuisance adaptation emerges from the targeted sPCE objective, which marginalizes over $(CL, Q_d)$ during training, so the policy learns that the dosing schedule most informative for probing absorption depends on the elimination profile.
 A brief architecture ablation on this example suggests that explicit temporal encoding is the main architectural ingredient: removing positional encoding drops sPCE by $0.35$~nats ($t{=}12.1$), while replacing attention with a comparably-sized MLP causes a smaller drop of $0.03$~nats ($t{=}2.2$)\ifextended{} (Appendix~\ref{sec:ablation})\else{} (see the extended version~\cite{strouwen2026extended})\fi.
@@ -333,7 +332,7 @@ Note that this adaptive BIM baseline is already a deliberately simple strategy--
 We have shown that combining deep adaptive design with differentiable mechanistic models enables real-time adaptive model-based design of experiments.
 The amortized policy outperforms both static baselines and adaptive online re-optimization across four systems of increasing complexity.
 
-Current limitations remain: the policy is trained for a specific prior distribution, significant prior shifts require retraining, model misspecification is not addressed, stochasticity is limited to the measurement equation, and training requires GPU hours on a supercomputer, although deployment is lightweight.
+Current limitations remain: the policy is trained for a specific prior distribution, significant prior shifts require retraining, model misspecification is not addressed, stochasticity is limited to the measurement equation, and offline training is costly (1000 Adam iterations took between 1.4~h for Haldane and 8~h for the pharmacokinetic model on a single NVIDIA H100 GPU), although deployment is lightweight.
 Promising next steps are to combine the framework with Bayesian model selection~\cite{strouwen2026modelselection} for model uncertainty, extend the framework to process noise through Bayesian filtering~\cite{strouwen2023adaptive}, and deploy the learned policy on physical hardware with closed-loop feedback.
 Together, these extensions would move the framework closer to robust real-world adaptive experimentation.
 
