@@ -53,7 +53,7 @@ and hence
 \end{equation}
 Taking expectations over $(\theta_T^{(0)}, h_K)$ yields the non-negativity of Term 1.
 
-\textbf{Term 2 (standard sPCE gap):} This term is unchanged by the nuisance extension and is exactly the denominator gap analyzed by \citet{foster2021}. Reusing their change-of-measure and symmetry argument,
+\textbf{Term 2 (standard sPCE gap):} This term is unchanged by the nuisance extension and is exactly the denominator gap analyzed by Foster et al.~\cite{foster2021}. Reusing their change-of-measure and symmetry argument,
 \begin{equation}
 \E\left[\log \frac{\widehat p_L(h_K|\pi)}{p(h_K|\pi)}\right]
 = \E_{p(h_K|\pi)}\left[\text{KL}\left(\tilde{p}(\theta^{(0:L)}|h_K) \,\|\, p(\theta^{(0:L)})\right)\right] \geq 0,
@@ -62,7 +62,7 @@ where $\tilde{p}$ is the same mixture distribution as in the standard sPCE proof
 
 Since both terms are non-negative: $\hat{\mathcal{L}}_K^{\text{tgt}} \leq \mathcal{I}_K^{\text{tgt}}$.
 
-\textbf{Convergence:} For the denominator term, we adopt the same bounded likelihood-ratio assumption used by \citet{foster2021}; as they note, it can be weakened, but we keep the simple uniform form here. For the new numerator term, we impose the analogous nuisance-ratio bound. Specifically, assume there exist constants $0<\kappa_{1,N} \le \kappa_{2,N}<\infty$ and $0<\kappa_1 \le \kappa_2<\infty$ such that
+\textbf{Convergence:} For the denominator term, we adopt the same bounded likelihood-ratio assumption used by Foster et al.~\cite{foster2021}; as they note, it can be weakened, but we keep the simple uniform form here. For the new numerator term, we impose the analogous nuisance-ratio bound. Specifically, assume there exist constants $0<\kappa_{1,N} \le \kappa_{2,N}<\infty$ and $0<\kappa_1 \le \kappa_2<\infty$ such that
 \begin{align}
 \kappa_{1,N} \le \frac{p(h_K|\theta_T,\theta_N,\pi)}{p(h_K|\theta_T,\pi)} \le \kappa_{2,N} && \forall\,\theta_T,\theta_N,h_K, \\
 \kappa_1 \le \frac{p(h_K|\theta,\pi)}{p(h_K|\pi)} \le \kappa_2 && \forall\,\theta,h_K,
@@ -108,7 +108,7 @@ Let $g(\phi)=\nabla_\phi\,\mathcal{I}_K^{\text{tgt}}(\pi_\phi)$ denote the true 
 Let $\hat g_{B,L,M}(\phi)$ be the stochastic gradient used in training, obtained by differentiating the nested Monte Carlo objective in Theorem~\ref{thm:targeted_spce} and averaging over $B$ simulated episodes.
 Under the regularity assumptions needed for the reparameterized gradient estimator and the second-order delta-method expansions used below---namely, interchange of differentiation and expectation, positivity of the Monte Carlo estimators almost surely, and sufficient moment/smoothness control (e.g., finite second and third moments for the relevant likelihood and gradient terms together with finite inverse moments of the Monte Carlo averages near their population means)---as $B,L,M\to\infty$ we have:
 
-\emph{Bias.} At the objective level, Appendix~\ref{sec:nuisance} shows that the numerator term is a Jensen gap and the denominator term is the standard sPCE gap from Foster et al.~\citep{foster2021}. A second-order delta expansion of $\E[\log \widehat p_M\mid \theta_T^{(0)},h_K]$ around $p(h_K|\theta_T^{(0)},\pi)$ gives an $\mathcal{O}(M^{-1})$ numerator bias, while Foster et al. give the corresponding $\mathcal{O}((L+1)^{-1})$ denominator rate. Assuming these objective-level expansions may be differentiated with respect to $\phi$ under the expectation, the gradient bias satisfies:
+\emph{Bias.} At the objective level, Appendix~\ref{sec:nuisance} shows that the numerator term is a Jensen gap and the denominator term is the standard sPCE gap from Foster et al.~\cite{foster2021}. A second-order delta expansion of $\E[\log \widehat p_M\mid \theta_T^{(0)},h_K]$ around $p(h_K|\theta_T^{(0)},\pi)$ gives an $\mathcal{O}(M^{-1})$ numerator bias, while Foster et al. give the corresponding $\mathcal{O}((L+1)^{-1})$ denominator rate. Assuming these objective-level expansions may be differentiated with respect to $\phi$ under the expectation, the gradient bias satisfies:
 \begin{equation}
 \mathbb{E}[\hat g_{B,L,M}(\phi)] - g(\phi) = \mathcal{O}((L+1)^{-1}) + \mathcal{O}(M^{-1}).
 \end{equation}
@@ -234,7 +234,7 @@ The Bayesian D-optimal design maximizes the expected log-determinant:
 \begin{equation}
 u^\star_{\text{BIM}} = \argmax_{u_{1:K}} \; \E_{p(\theta, \Sigma)}\!\left[\log\det P_T(\theta, \Sigma, u_{1:K})\right],
 \end{equation}
-where the expectation averages over both the dynamics parameters and the noise covariance, approximated by prior samples. This is a standard criterion~\citep{chaloner1995} that assumes Gaussian posteriors (via the Laplace approximation) and does not account for sequential adaptation.
+where the expectation averages over both the dynamics parameters and the noise covariance, approximated by prior samples. This is a standard criterion~\cite{chaloner1995} that assumes Gaussian posteriors (via the Laplace approximation) and does not account for sequential adaptation.
 This formulation requires $\Sigma$ to be independent of $\theta$, which precludes our BIM implementation for the pharmacokinetic example, where the noise scales are nuisance parameters that interact with the dynamics parameters in the targeted sPCE objective.
 We use the static BIM as a baseline for the Monod bioreactor (Table~\ref{tab:spce}) and the adaptive variant below for the DC motor (Table~\ref{tab:motor}).
 
@@ -252,7 +252,7 @@ The key computational difference is that adaptive BIM requires online posterior 
 \section{Training and Evaluation Details}
 \label{sec:training_details}
 
-Training is implemented in Julia~\citep{bezanson2017julia} using Lux.jl~\citep{pal2023lux} for the neural network, Enzyme~\citep{moses2020enzyme} for automatic differentiation through the ODE solver, and Reactant~\citep{reactant2025} for GPU-accelerated compilation via MLIR/XLA. Training was performed on the VSC (Flemish Supercomputer Center) using NVIDIA H100 GPUs.
+Training is implemented in Julia~\cite{bezanson2017julia} using Lux.jl~\cite{pal2023lux} for the neural network, Enzyme~\cite{moses2020enzyme} for automatic differentiation through the ODE solver, and Reactant~\cite{reactant2025} for GPU-accelerated compilation via MLIR/XLA. Training was performed on the VSC (Flemish Supercomputer Center) using NVIDIA H100 GPUs.
 
 \paragraph{Architecture.}
 The main examples share the same transformer architecture. Each design--observation pair $(u_k, y_k)$ is projected from $\mathbb{R}^2$ to $\mathbb{R}^{32}$ by a dense layer, then summed with 32-dimensional sinusoidal positional encodings. The transformer block consists of RMSNorm, causal multi-head attention (4~heads, dimension~32), and a feed-forward network ($32 \to 64$, GELU, $64 \to 32$). The output head is a dense layer $32 \to 1$ projecting the final hidden state to the design input, with a per-example initial bias (Table~\ref{tab:training_config}). Since the output is passed through a sigmoid, a negative bias initializes the untrained policy to produce small actions, which is more conservative for slow systems like bioreactors.
