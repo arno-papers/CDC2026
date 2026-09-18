@@ -33,9 +33,20 @@
 \DeclareMathOperator{\E}{\mathbb{E}}
 \newcommand{\bm}[1]{\boldsymbol{#1}}
 
+% ---- PaperPlaza margin compliance (CDC submission site) ----
+% PaperPlaza requires a 1 in top margin on page 1. Stock IEEEtran
+% conference gives 0.75 in, so the site rejects the upload with
+% "Page 1 has margin impositions". \vspace* on the title below pushes
+% page 1 down to clear it. IEEEtran quantizes \textheight to whole
+% lines and leaves about 19 pt unused above the bottom margin;
+% reclaiming 12 pt of that buys back the line per column the title
+% offset costs, so the paper still fits in 6 pages.
+\addtolength{\textheight}{12pt}
+% ---- end margin compliance ----
+
 \begin{document}
 
-\title{Deep Adaptive Model-Based Design of Experiments\\
+\title{\vspace*{26pt}Deep Adaptive Model-Based Design of Experiments\\
 \thanks{\ifextended This work has been submitted to the IEEE for possible publication. Copyright may be transferred without notice, after which this version may no longer be accessible. This is the extended version; a six-page conference paper has been submitted to the 2026 IEEE Conference on Decision and Control (CDC).\else An extended version with proofs, training details, and ablation studies is available~\cite{strouwen2026extended}.\fi{} Code: \protect\url{https://github.com/arno-papers/CDC2026}.}
 }
 
@@ -83,8 +94,8 @@ Our contributions are:
 We consider dynamical systems of the form:
 \begin{equation}\label{eq:system}
 \begin{aligned}
-\frac{dx}{dt} &= f(t, x, \theta_T, \theta_N, u(t)), \quad x(0) = x_0(\theta_N),\\
-y_k \mid x(t_k), \theta_N &\sim \mathcal{N}(g(x(t_k)),\, \Sigma(x(t_k), \theta_N)), \quad k = 1, \ldots, K,
+\frac{dx}{dt} &= f(t, x, \theta_T, \theta_N, u(t)), \; x(0) = x_0(\theta_N),\\
+y_k \mid x(t_k), \theta_N &\sim \mathcal{N}(g(x(t_k)),\, \Sigma(x(t_k), \theta_N)), \; k = 1, \ldots, K,
 \end{aligned}
 \end{equation}
 where $x(t) \in \mathbb{R}^n$ is the state vector, $u(t) \in \mathbb{R}^m$ is a controllable input vector, and $y_k \in \mathbb{R}^q$ is the observation vector at measurement time $t_k$.
